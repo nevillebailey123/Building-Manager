@@ -118,11 +118,6 @@
             <span class="module-nav-desc">Master contacts linked to this building.</span>
             <span class="chevron">&gt;</span>
           </button>
-          <button class="module-nav-card" type="button" data-module="Building Roles">
-            <span class="module-nav-title">Building Roles</span>
-            <span class="module-nav-desc">Role assignments to company and contact.</span>
-            <span class="chevron">&gt;</span>
-          </button>
           <button class="module-nav-card" type="button" data-module="Schedule">
             <span class="module-nav-title">Schedule</span>
             <span class="module-nav-desc">Daily work and what is due next.</span>
@@ -213,58 +208,6 @@
         </section>
       </section>
 
-      <section id="building-roles-view" class="view" aria-labelledby="building-roles-title">
-        <header class="view-header overview-header">
-          <div>
-            <h1 id="building-roles-title">Building Roles</h1>
-            <p class="tagline">Assign and manage role responsibilities for this building.</p>
-            <p id="building-roles-building-name" class="overview-building-name visually-hidden"></p>
-          </div>
-          <div class="top-right-actions">
-            <button id="building-roles-back-btn" class="btn btn-secondary" type="button">← Back</button>
-          </div>
-        </header>
-
-        <section id="building-roles-empty-state" class="module-content-card">
-          <p class="module-placeholder">No building roles have been assigned.</p>
-          <div class="actions-row actions-row-tight">
-            <button id="add-role-btn" class="btn btn-primary" type="button">+ Assign Role</button>
-          </div>
-        </section>
-
-        <section id="building-roles-list-card" class="module-content-card">
-          <div class="contacts-list-header">
-            <h3>Assigned Roles</h3>
-            <button id="add-role-inline-btn" class="btn btn-primary" type="button">+ Assign Role</button>
-          </div>
-          <section id="building-roles-list" class="building-list" aria-live="polite"></section>
-        </section>
-
-        <section id="building-role-form-card" class="module-content-card">
-          <h3 id="building-role-form-title">Assign Role</h3>
-          <form id="building-role-form" class="building-form">
-            <input id="buildingRoleId" name="buildingRoleId" type="hidden" />
-
-            <label for="buildingRoleType">Select Role</label>
-            <select id="buildingRoleType" name="role" required></select>
-
-            <label for="buildingRoleCompany">Select Company</label>
-            <select id="buildingRoleCompany" name="companyId" required></select>
-
-            <label for="buildingRoleContact">Select Contact</label>
-            <select id="buildingRoleContact" name="contactId" required></select>
-
-            <label for="buildingRoleNotes">Optional Notes</label>
-            <textarea id="buildingRoleNotes" name="notes" rows="4"></textarea>
-
-            <div class="form-actions">
-              <button class="btn btn-primary" type="submit">Save</button>
-              <button id="cancel-building-role-btn" class="btn btn-secondary" type="button">Cancel</button>
-            </div>
-          </form>
-        </section>
-      </section>
-
       <section id="contacts-view" class="view" aria-labelledby="contacts-title">
         <header class="view-header overview-header">
           <div>
@@ -308,7 +251,7 @@
             <label for="contactName">Name</label>
             <input id="contactName" name="name" type="text" required />
 
-            <label for="contactResponsibility">Responsibility</label>
+            <label for="contactResponsibility">Relationship</label>
             <input id="contactResponsibility" name="responsibility" type="text" required />
 
             <label for="contactMobile">Mobile</label>

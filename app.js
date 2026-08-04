@@ -4,7 +4,6 @@
   const overviewView = document.getElementById("overview-view");
   const tenancyView = document.getElementById("tenancy-view");
   const contactsView = document.getElementById("contacts-view");
-  const buildingRolesView = document.getElementById("building-roles-view");
   const companiesView = document.getElementById("companies-view");
   const scheduleView = document.getElementById("schedule-view");
   const historyView = document.getElementById("history-view");
@@ -19,7 +18,6 @@
   const editBuildingBtn = document.getElementById("edit-building-btn");
   const tenancyBackBtn = document.getElementById("tenancy-back-btn");
   const contactsBackBtn = document.getElementById("contacts-back-btn");
-  const buildingRolesBackBtn = document.getElementById("building-roles-back-btn");
   const companiesBackBtn = document.getElementById("companies-back-btn");
   const scheduleBackBtn = document.getElementById("schedule-back-btn");
   const historyBackBtn = document.getElementById("history-back-btn");
@@ -27,7 +25,6 @@
   const editBuildingForm = document.getElementById("edit-building-form");
   const tenancyForm = document.getElementById("tenancy-form");
   const contactForm = document.getElementById("contact-form");
-  const buildingRoleForm = document.getElementById("building-role-form");
   const companyForm = document.getElementById("company-form");
   const completeTaskForm = document.getElementById("complete-task-form");
   const cancelEditBtn = document.getElementById("cancel-edit-btn");
@@ -36,8 +33,6 @@
   const addTenancyBtn = document.getElementById("add-tenancy-btn");
   const addContactBtn = document.getElementById("add-contact-btn");
   const addContactInlineBtn = document.getElementById("add-contact-inline-btn");
-  const addRoleBtn = document.getElementById("add-role-btn");
-  const addRoleInlineBtn = document.getElementById("add-role-inline-btn");
   const addCompanyBtn = document.getElementById("add-company-btn");
   const addCompanyInlineBtn = document.getElementById("add-company-inline-btn");
   const editTenancyBtn = document.getElementById("edit-tenancy-btn");
@@ -66,12 +61,6 @@
   const contactFormCard = document.getElementById("contact-form-card");
   const contactFormTitle = document.getElementById("contact-form-title");
   const contactNewCompanyWrap = document.getElementById("contact-new-company-wrap");
-  const buildingRolesBuildingName = document.getElementById("building-roles-building-name");
-  const buildingRolesEmptyState = document.getElementById("building-roles-empty-state");
-  const buildingRolesListCard = document.getElementById("building-roles-list-card");
-  const buildingRolesList = document.getElementById("building-roles-list");
-  const buildingRoleFormCard = document.getElementById("building-role-form-card");
-  const buildingRoleFormTitle = document.getElementById("building-role-form-title");
   const companiesBuildingName = document.getElementById("companies-building-name");
   const companiesEmptyState = document.getElementById("companies-empty-state");
   const companiesListCard = document.getElementById("companies-list-card");
@@ -88,7 +77,6 @@
   const scheduleFutureList = document.getElementById("schedule-future-list");
   const historyList = document.getElementById("history-list");
   const cancelCompleteTaskBtn = document.getElementById("cancel-complete-task-btn");
-  const cancelBuildingRoleBtn = document.getElementById("cancel-building-role-btn");
   const cancelCompanyBtn = document.getElementById("cancel-company-btn");
   const placeholderTitle = document.getElementById("placeholder-title");
   const placeholderDescription = document.getElementById("placeholder-description");
@@ -101,36 +89,11 @@
   let tenancyFormMode = "add";
   let contactFormMode = "add";
   let activeContactId = "";
-  let buildingRoleFormMode = "add";
-  let activeBuildingRoleId = "";
   let companyFormMode = "add";
   let activeCompanyId = "";
   let activeScheduleItemId = "";
   let breadcrumbItems = [];
   let placeholderBackHandler = null;
-
-  const DEFAULT_ROLE_TYPES = [
-    "Owner",
-    "Property Manager",
-    "Tenant Representative",
-    "Accounts Contact",
-    "HVAC Contractor",
-    "Fire Contractor",
-    "IQP",
-    "Electrician",
-    "Plumber",
-    "Roofer",
-    "Gutter Cleaning",
-    "Security",
-    "Locksmith",
-    "Lift Contractor",
-    "Insurance Broker",
-    "Solicitor",
-    "Accountant",
-    "Cleaner",
-    "Gardener",
-    "Other",
-  ];
 
   function getActiveBuilding() {
     if (!activeBuildingId) {
@@ -168,7 +131,6 @@
     overviewView.classList.remove("is-active");
     tenancyView.classList.remove("is-active");
     contactsView.classList.remove("is-active");
-    buildingRolesView.classList.remove("is-active");
     companiesView.classList.remove("is-active");
     scheduleView.classList.remove("is-active");
     historyView.classList.remove("is-active");
@@ -230,16 +192,6 @@
       { label: "Buildings", onClick: goToDashboard },
       { label: getActiveBuildingName(), onClick: function () { openOverviewById(activeBuildingId); } },
       { label: "Contacts", onClick: openContactsView },
-    ]);
-  }
-
-  function showBuildingRolesView() {
-    hideAllViews();
-    buildingRolesView.classList.add("is-active");
-    setBreadcrumbs([
-      { label: "Buildings", onClick: goToDashboard },
-      { label: getActiveBuildingName(), onClick: function () { openOverviewById(activeBuildingId); } },
-      { label: "Building Roles", onClick: openBuildingRolesView },
     ]);
   }
 
@@ -898,25 +850,6 @@
       return [];
     }
 
-    const buildingRoles = Array.isArray(building.buildingRoles) ? building.buildingRoles : [];
-    const roleContactIds = buildingRoles
-      .map(function (roleItem) {
-        return roleItem.contactId;
-      })
-      .filter(function (contactId) {
-        return Boolean(contactId);
-      });
-
-    if (roleContactIds.length > 0) {
-      return roleContactIds
-        .map(function (contactId) {
-          return findContactById(contactId);
-        })
-        .filter(function (contact) {
-          return Boolean(contact);
-        });
-    }
-
     let refs = [];
     if (building.tenancy) {
       refs = ensureTenantContactRefs(building);
@@ -939,89 +872,65 @@
       });
   }
 
-  function migrateBuildingRolesForBuilding(building) {
-    const currentRoles = Array.isArray(building.buildingRoles) ? building.buildingRoles.slice() : [];
-    if (currentRoles.length > 0) {
-      return {
-        building: {
-          ...building,
-          buildingRoles: currentRoles,
-        },
-        changed: !Array.isArray(building.buildingRoles),
-      };
-    }
-
-    const refs = [];
-    const assignmentRefs = Array.isArray(building.buildingContactAssignments) ? building.buildingContactAssignments : [];
-    assignmentRefs.forEach(function (id) {
-      if (id && !refs.includes(id)) {
-        refs.push(id);
-      }
-    });
-
-    if (building.tenancy && Array.isArray(building.tenancy.contactRefs)) {
-      building.tenancy.contactRefs.forEach(function (id) {
-        if (id && !refs.includes(id)) {
-          refs.push(id);
-        }
-      });
-    }
-
-    const now = new Date().toISOString();
-    const migratedRoles = refs
-      .map(function (contactId) {
-        const contact = findContactById(contactId);
-        if (!contact) {
-          return null;
-        }
-
-        return {
-          id: window.BuildingStorage.createId(),
-          role: "Other",
-          companyId: contact.companyId || "",
-          contactId: contact.id,
-          notes: "",
-          createdDate: now,
-          lastUpdated: now,
-        };
-      })
-      .filter(function (item) {
-        return Boolean(item);
-      });
-
-    return {
-      building: {
-        ...building,
-        buildingRoles: migratedRoles,
-      },
-      changed: !Array.isArray(building.buildingRoles) || migratedRoles.length > 0,
-    };
-  }
-
-  function ensureBuildingRolesForActiveBuilding() {
-    const building = findBuildingById(activeBuildingId);
-    if (!building) {
-      return null;
-    }
-
-    const result = migrateBuildingRolesForBuilding(building);
-    if (result.changed) {
-      window.BuildingStorage.updateBuilding({
-        ...result.building,
-        lastUpdated: new Date().toISOString(),
-      });
-    }
-
-    return result.building;
-  }
-
-  function migrateBuildingRolesForAllBuildings() {
+  function migrateBuildingRolesIntoContactsForAllBuildings() {
     const buildings = window.BuildingStorage.getBuildings();
     buildings.forEach(function (building) {
-      const result = migrateBuildingRolesForBuilding(building);
-      if (result.changed) {
+      const roles = Array.isArray(building.buildingRoles) ? building.buildingRoles : [];
+      if (roles.length === 0) {
+        return;
+      }
+
+      const refs = building.tenancy
+        ? (Array.isArray(building.tenancy.contactRefs) ? building.tenancy.contactRefs.slice() : [])
+        : (Array.isArray(building.buildingContactAssignments) ? building.buildingContactAssignments.slice() : []);
+
+      let buildingChanged = false;
+      roles.forEach(function (roleItem) {
+        if (!roleItem || !roleItem.contactId) {
+          return;
+        }
+
+        const contact = findContactById(roleItem.contactId);
+        if (!contact) {
+          return;
+        }
+
+        if (!refs.includes(contact.id)) {
+          refs.push(contact.id);
+          buildingChanged = true;
+        }
+
+        const currentRelationship = String(contact.responsibility || "").trim();
+        const roleRelationship = String(roleItem.role || "").trim();
+        if (!roleRelationship) {
+          return;
+        }
+
+        if (!currentRelationship || currentRelationship === "General") {
+          window.BuildingStorage.upsertContact({
+            ...contact,
+            responsibility: roleRelationship,
+            lastUpdated: new Date().toISOString(),
+          });
+        }
+      });
+
+      if (buildingChanged) {
+        if (building.tenancy) {
+          window.BuildingStorage.updateBuilding({
+            ...building,
+            tenancy: {
+              ...building.tenancy,
+              contactRefs: refs,
+            },
+            lastUpdated: building.lastUpdated || new Date().toISOString(),
+          });
+          return;
+        }
+
         window.BuildingStorage.updateBuilding({
-          ...result.building,
+          ...building,
+          buildingContactAssignments: refs,
           lastUpdated: building.lastUpdated || new Date().toISOString(),
         });
       }
@@ -1074,7 +983,7 @@
           <article class="building-card clickable-card" data-contact-id="${contact.id}" role="button" tabindex="0" aria-label="Open contact ${contact.name}">
             <h3>${contact.name}</h3>
             <p><strong>Company:</strong> ${companyName}</p>
-            <p><strong>Responsibility:</strong> ${contact.responsibility || "General"}</p>
+            <p><strong>Relationship:</strong> ${contact.responsibility || "General"}</p>
             <p><strong>Mobile:</strong> ${contact.mobile || "Not provided"}</p>
             <p><strong>Email:</strong> ${contact.email || "Not provided"}</p>
             <p><strong>Preferred Contact:</strong> ${contact.preferredContactMethod || "Phone"}</p>
@@ -1139,28 +1048,10 @@
       return [];
     }
 
-    const roleIds = Array.isArray(building.buildingRoles)
-      ? building.buildingRoles
-          .map(function (item) {
-            return item.companyId;
-          })
-          .filter(function (companyId) {
-            return Boolean(companyId);
-          })
-      : [];
-
-    if (roleIds.length > 0) {
-      return roleIds.filter(function (companyId, index) {
-        return roleIds.indexOf(companyId) === index;
-      });
-    }
-
-    if (!building.tenancy) {
-      return [];
-    }
-
-    const contactRefs = Array.isArray(building.tenancy.contactRefs) ? building.tenancy.contactRefs : [];
-    const ids = building.tenancy.companyId ? [building.tenancy.companyId] : [];
+    const contactRefs = building.tenancy
+      ? (Array.isArray(building.tenancy.contactRefs) ? building.tenancy.contactRefs : [])
+      : (Array.isArray(building.buildingContactAssignments) ? building.buildingContactAssignments : []);
+    const ids = building.tenancy && building.tenancy.companyId ? [building.tenancy.companyId] : [];
     contactRefs.forEach(function (contactId) {
       const contact = findContactById(contactId);
       if (contact && contact.companyId && !ids.includes(contact.companyId)) {
@@ -1281,142 +1172,6 @@
       website: String(formData.get("website") || "").trim(),
       notes: String(formData.get("notes") || "").trim(),
       createdDate: existingCompany && existingCompany.createdDate ? existingCompany.createdDate : now,
-      lastUpdated: now,
-    };
-  }
-
-  function renderRoleTypeOptions(selectedRole) {
-    const options = DEFAULT_ROLE_TYPES.map(function (roleType) {
-      const selected = roleType === selectedRole ? " selected" : "";
-      return `<option value="${roleType}"${selected}>${roleType}</option>`;
-    });
-
-    buildingRoleForm.elements.role.innerHTML = options.join("");
-  }
-
-  function renderRoleCompanyOptions(selectedCompanyId) {
-    const companies = getCompanies();
-    const options = ['<option value="">Select a company</option>'];
-    companies.forEach(function (company) {
-      const selected = company.id === selectedCompanyId ? " selected" : "";
-      options.push(`<option value="${company.id}"${selected}>${company.name}</option>`);
-    });
-
-    buildingRoleForm.elements.companyId.innerHTML = options.join("");
-  }
-
-  function renderRoleContactOptions(selectedContactId, companyId) {
-    const contacts = getContacts().filter(function (contact) {
-      return contact.companyId === companyId;
-    });
-    const options = ['<option value="">Select a contact</option>'];
-    contacts.forEach(function (contact) {
-      const selected = contact.id === selectedContactId ? " selected" : "";
-      options.push(`<option value="${contact.id}"${selected}>${contact.name}</option>`);
-    });
-
-    buildingRoleForm.elements.contactId.innerHTML = options.join("");
-  }
-
-  function getBuildingRolesForActiveBuilding() {
-    const building = ensureBuildingRolesForActiveBuilding();
-    if (!building || !Array.isArray(building.buildingRoles)) {
-      return [];
-    }
-    return building.buildingRoles;
-  }
-
-  function renderBuildingRolesList(roles) {
-    buildingRolesList.innerHTML = roles
-      .map(function (roleItem) {
-        const companyName = getCompanyNameById(roleItem.companyId, "Not set");
-        const contactName = getContactNameById(roleItem.contactId);
-        return `
-          <article class="building-card clickable-card" data-role-id="${roleItem.id}" role="button" tabindex="0" aria-label="Open building role ${roleItem.role}">
-            <h3>${roleItem.role}</h3>
-            <p><strong>Company:</strong> ${companyName}</p>
-            <p><strong>Contact:</strong> ${contactName}</p>
-            <div class="card-meta">
-              <button class="btn btn-secondary building-role-edit-btn" type="button">Edit</button>
-              <button class="btn btn-danger building-role-remove-btn" type="button">Remove</button>
-            </div>
-            <span class="card-chevron">&gt;</span>
-          </article>
-        `;
-      })
-      .join("");
-  }
-
-  function renderBuildingRolesSectionState(mode) {
-    if (mode === "form") {
-      buildingRolesEmptyState.style.display = "none";
-      buildingRolesListCard.style.display = "none";
-      buildingRoleFormCard.style.display = "block";
-      return;
-    }
-
-    const roles = getBuildingRolesForActiveBuilding();
-    buildingRoleFormCard.style.display = "none";
-    if (roles.length === 0) {
-      buildingRolesEmptyState.style.display = "block";
-      buildingRolesListCard.style.display = "none";
-      return;
-    }
-
-    buildingRolesEmptyState.style.display = "none";
-    buildingRolesListCard.style.display = "block";
-    renderBuildingRolesList(roles);
-  }
-
-  function openBuildingRolesView() {
-    const building = ensureBuildingRolesForActiveBuilding();
-    if (!building) {
-      showDashboard();
-      return;
-    }
-
-    buildingRolesBuildingName.textContent = building.buildingName;
-    activeBuildingRoleId = "";
-    renderBuildingRolesSectionState("list");
-    showBuildingRolesView();
-  }
-
-  function resetBuildingRoleForm() {
-    buildingRoleForm.reset();
-    buildingRoleForm.elements.buildingRoleId.value = "";
-    renderRoleTypeOptions("Owner");
-    renderRoleCompanyOptions("");
-    renderRoleContactOptions("", "");
-  }
-
-  function openBuildingRoleForm(mode, roleItem) {
-    buildingRoleFormMode = mode;
-    activeBuildingRoleId = roleItem && roleItem.id ? roleItem.id : "";
-    resetBuildingRoleForm();
-
-    buildingRoleFormTitle.textContent = mode === "edit" ? "Edit Role Assignment" : "Assign Role";
-    if (mode === "edit" && roleItem) {
-      buildingRoleForm.elements.buildingRoleId.value = roleItem.id;
-      renderRoleTypeOptions(roleItem.role || "Other");
-      renderRoleCompanyOptions(roleItem.companyId || "");
-      renderRoleContactOptions(roleItem.contactId || "", roleItem.companyId || "");
-      buildingRoleForm.elements.notes.value = roleItem.notes || "";
-    }
-
-    renderBuildingRolesSectionState("form");
-    showBuildingRolesView();
-  }
-
-  function buildBuildingRolePayload(existingRole) {
-    const formData = new FormData(buildingRoleForm);
-    const now = new Date().toISOString();
-    return {
-      id: existingRole && existingRole.id ? existingRole.id : window.BuildingStorage.createId(),
-      role: String(formData.get("role") || "Other").trim(),
-      companyId: String(formData.get("companyId") || "").trim(),
-      contactId: String(formData.get("contactId") || "").trim(),
-      notes: String(formData.get("notes") || "").trim(),
-      createdDate: existingRole && existingRole.createdDate ? existingRole.createdDate : now,
       lastUpdated: now,
     };
   }
@@ -1999,158 +1754,6 @@
     openContactsView();
   }
 
-  function handleBuildingRolesBack() {
-    openOverviewById(activeBuildingId);
-  }
-
-  function handleAddRole() {
-    if (getCompaniesForActiveBuilding().length === 0) {
-      openCompaniesView();
-      return;
-    }
-
-    openBuildingRoleForm("add");
-  }
-
-  function handleCancelBuildingRole() {
-    openBuildingRolesView();
-  }
-
-  function handleSaveBuildingRole(event) {
-    event.preventDefault();
-    const building = ensureBuildingRolesForActiveBuilding();
-    if (!building) {
-      showDashboard();
-      return;
-    }
-
-    const roles = Array.isArray(building.buildingRoles) ? building.buildingRoles : [];
-    const existing = buildingRoleFormMode === "edit"
-      ? roles.find(function (item) {
-        return item.id === activeBuildingRoleId;
-      }) || null
-      : null;
-
-    const payload = buildBuildingRolePayload(existing);
-    if (!payload.role || !payload.companyId || !payload.contactId) {
-      alert("Please select role, company and contact.");
-      return;
-    }
-
-    const duplicate = roles.some(function (item) {
-      if (existing && item.id === existing.id) {
-        return false;
-      }
-      return item.role === payload.role && item.contactId === payload.contactId;
-    });
-    if (duplicate) {
-      alert("This role is already assigned to the selected contact.");
-      return;
-    }
-
-    const updatedRoles = existing
-      ? roles.map(function (item) {
-          return item.id === existing.id ? payload : item;
-        })
-      : [payload].concat(roles);
-
-    window.BuildingStorage.updateBuilding({
-      ...building,
-      buildingRoles: updatedRoles,
-      lastUpdated: new Date().toISOString(),
-    });
-
-    openBuildingRolesView();
-  }
-
-  function handleBuildingRoleCompanyChange() {
-    const companyId = String(buildingRoleForm.elements.companyId.value || "");
-    renderRoleContactOptions("", companyId);
-  }
-
-  function handleBuildingRolesListClick(event) {
-    const target = event.target;
-    if (!(target instanceof HTMLElement)) {
-      return;
-    }
-
-    const card = target.closest(".building-card");
-    if (!card) {
-      return;
-    }
-
-    const roleId = card.getAttribute("data-role-id") || "";
-    if (!roleId) {
-      return;
-    }
-
-    const roles = getBuildingRolesForActiveBuilding();
-    const selected = roles.find(function (item) {
-      return item.id === roleId;
-    });
-    if (!selected) {
-      return;
-    }
-
-    if (target.closest(".building-role-remove-btn")) {
-      const shouldDelete = window.confirm("Delete this role assignment?");
-      if (!shouldDelete) {
-        return;
-      }
-
-      const building = ensureBuildingRolesForActiveBuilding();
-      if (!building) {
-        showDashboard();
-        return;
-      }
-
-      const updatedRoles = roles.filter(function (item) {
-        return item.id !== selected.id;
-      });
-      window.BuildingStorage.updateBuilding({
-        ...building,
-        buildingRoles: updatedRoles,
-        lastUpdated: new Date().toISOString(),
-      });
-      openBuildingRolesView();
-      return;
-    }
-
-    openBuildingRoleForm("edit", selected);
-  }
-
-  function handleBuildingRolesListKeydown(event) {
-    if (event.key !== "Enter" && event.key !== " ") {
-      return;
-    }
-
-    const target = event.target;
-    if (!(target instanceof HTMLElement)) {
-      return;
-    }
-
-    const card = target.closest(".building-card");
-    if (!card) {
-      return;
-    }
-
-    event.preventDefault();
-    const roleId = card.getAttribute("data-role-id") || "";
-    if (!roleId) {
-      return;
-    }
-
-    const roles = getBuildingRolesForActiveBuilding();
-    const selected = roles.find(function (item) {
-      return item.id === roleId;
-    });
-    if (!selected) {
-      return;
-    }
-
-    openBuildingRoleForm("edit", selected);
-  }
-
   function handleTenancyDocuments() {
     showModulePlaceholder("Documents", "No documents uploaded.");
   }
@@ -2391,11 +1994,6 @@
       return;
     }
 
-    if (moduleName === "Building Roles") {
-      openBuildingRolesView();
-      return;
-    }
-
     if (moduleName === "Companies") {
       openCompaniesView();
       return;
@@ -2506,7 +2104,6 @@
   overviewBackBtn.addEventListener("click", handleOverviewBack);
   tenancyBackBtn.addEventListener("click", handleTenancyBack);
   contactsBackBtn.addEventListener("click", handleContactsBack);
-  buildingRolesBackBtn.addEventListener("click", handleBuildingRolesBack);
   companiesBackBtn.addEventListener("click", handleCompaniesBack);
   scheduleBackBtn.addEventListener("click", handleScheduleBack);
   historyBackBtn.addEventListener("click", handleHistoryBack);
@@ -2522,12 +2119,9 @@
   cancelTenancyBtn.addEventListener("click", handleCancelTenancy);
   addContactBtn.addEventListener("click", handleAddContact);
   addContactInlineBtn.addEventListener("click", handleAddContact);
-  addRoleBtn.addEventListener("click", handleAddRole);
-  addRoleInlineBtn.addEventListener("click", handleAddRole);
   addCompanyBtn.addEventListener("click", handleAddCompany);
   addCompanyInlineBtn.addEventListener("click", handleAddCompany);
   cancelContactBtn.addEventListener("click", handleCancelContact);
-  cancelBuildingRoleBtn.addEventListener("click", handleCancelBuildingRole);
   cancelCompanyBtn.addEventListener("click", handleCancelCompany);
   cancelCompleteTaskBtn.addEventListener("click", handleCancelCompleteTask);
   placeholderBackBtn.addEventListener("click", handlePlaceholderBack);
@@ -2537,16 +2131,12 @@
   tenancyForm.addEventListener("submit", handleSaveTenancy);
   contactForm.addEventListener("submit", handleSaveContact);
   contactForm.elements.companyId.addEventListener("change", handleContactCompanyChange);
-  buildingRoleForm.addEventListener("submit", handleSaveBuildingRole);
-  buildingRoleForm.elements.companyId.addEventListener("change", handleBuildingRoleCompanyChange);
   companyForm.addEventListener("submit", handleSaveCompany);
   completeTaskForm.addEventListener("submit", handleSaveCompleteTask);
   completeTaskForm.elements.companyUsed.addEventListener("change", handleCompleteCompanyChange);
   buildingList.addEventListener("click", handleOpenBuildingClick);
   buildingList.addEventListener("keydown", handleBuildingCardKeydown);
   contactsList.addEventListener("click", handleContactListClick);
-  buildingRolesList.addEventListener("click", handleBuildingRolesListClick);
-  buildingRolesList.addEventListener("keydown", handleBuildingRolesListKeydown);
   companiesList.addEventListener("click", handleCompanyListClick);
   scheduleOverdueList.addEventListener("click", handleScheduleListClick);
   scheduleWeekList.addEventListener("click", handleScheduleListClick);
@@ -2563,7 +2153,7 @@
   breadcrumbNav.addEventListener("click", handleBreadcrumbClick);
 
   ensureMasterMigration();
-  migrateBuildingRolesForAllBuildings();
+  migrateBuildingRolesIntoContactsForAllBuildings();
   showDashboard();
   renderBuildings();
 })();
