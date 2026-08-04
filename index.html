@@ -14,83 +14,309 @@
         <header class="view-header">
           <h1 id="app-title">COMPLIANCE HQ</h1>
           <p class="tagline">Know what's due. Know what was done.</p>
-          <h2>Buildings</h2>
         </header>
 
-        <div class="actions-row dashboard-actions">
-          <button id="add-building-btn" class="btn btn-primary" type="button">+ Add Building</button>
-          <label class="visually-hidden" for="building-search">Search buildings</label>
-          <input
-            id="building-search"
-            class="search-input"
-            type="search"
-            placeholder="Search by building name, address, or city"
-          />
-        </div>
+        <section class="module-content-card building-selector-card">
+          <p class="selector-label">Selected Building</p>
+          <button id="selected-building-btn" class="building-selector-trigger" type="button" aria-expanded="false" aria-controls="building-selector-list">
+            <span id="selected-building-name">Select a building</span>
+            <span id="selected-building-status" class="building-status-indicator status-grey" aria-hidden="true"></span>
+            <span class="selector-chevron">▼</span>
+          </button>
+
+          <section id="building-selector-list" class="building-selector-list" aria-live="polite"></section>
+        </section>
 
         <p id="empty-state" class="empty-state">No buildings have been added yet.</p>
 
-        <section id="building-list" class="building-list" aria-live="polite"></section>
+        <section id="workspace-dashboard-card" class="module-content-card" aria-live="polite">
+          <h3>Building Dashboard</h3>
+          <dl id="workspace-dashboard-summary" class="snapshot-list"></dl>
+        </section>
+
+        <section id="workspace-module-nav" class="overview-grid" aria-label="Workspace modules">
+          <button class="module-nav-card" type="button" data-workspace-module="Tenancy">
+            <span class="module-nav-title module-nav-title-tenancy">Tenancy</span>
+            <span class="module-nav-desc">Current and historical tenancy information.</span>
+            <span class="chevron">&gt;</span>
+          </button>
+          <button class="module-nav-card" type="button" data-workspace-module="Contacts">
+            <span class="module-nav-title module-nav-title-contacts">Contacts</span>
+            <span class="module-nav-desc">All contacts linked to this building.</span>
+            <span class="chevron">&gt;</span>
+          </button>
+          <button class="module-nav-card" type="button" data-workspace-module="Schedule">
+            <span class="module-nav-title module-nav-title-schedule">Schedule</span>
+            <span class="module-nav-desc">Upcoming and completed scheduled work.</span>
+            <span class="chevron">&gt;</span>
+          </button>
+          <button class="module-nav-card" type="button" data-workspace-module="Documents">
+            <span class="module-nav-title module-nav-title-documents">Documents</span>
+            <span class="module-nav-desc">Files and building records.</span>
+            <span class="chevron">&gt;</span>
+          </button>
+        </section>
+      </section>
+
+      <section id="template-library-view" class="view" aria-labelledby="template-library-title">
+        <header class="view-header overview-header">
+          <div>
+            <h1 id="template-library-title">Scheduled Item Template Library</h1>
+            <p class="tagline">Reusable schedule templates available to every building.</p>
+          </div>
+          <div class="top-right-actions">
+            <button id="template-library-back-btn" class="btn btn-secondary" type="button">← Back</button>
+          </div>
+        </header>
+
+        <section id="template-library-empty-state" class="module-content-card">
+          <p class="module-placeholder">No templates have been created.</p>
+          <div class="actions-row actions-row-tight">
+            <button id="add-template-btn" class="btn btn-primary" type="button">+ Add Template</button>
+          </div>
+        </section>
+
+        <section id="template-library-list-card" class="module-content-card">
+          <div class="contacts-list-header">
+            <h3>Template Directory</h3>
+            <button id="add-template-inline-btn" class="btn btn-primary" type="button">+ Add Template</button>
+          </div>
+          <section id="template-library-list" class="building-list" aria-live="polite"></section>
+        </section>
+
+        <section id="template-library-form-card" class="module-content-card">
+          <h3 id="template-form-title">Add Template</h3>
+          <form id="template-form" class="building-form">
+            <input id="templateId" name="templateId" type="hidden" />
+
+            <label for="templateName">Name</label>
+            <input id="templateName" name="name" type="text" required />
+
+            <label for="templateCategory">Category</label>
+            <select id="templateCategory" name="category" required></select>
+
+            <label for="templateFrequency">Default Frequency</label>
+            <select id="templateFrequency" name="defaultFrequency" required></select>
+
+            <label for="templateReminderPeriod">Default Reminder Period</label>
+            <input id="templateReminderPeriod" name="defaultReminderPeriod" type="text" placeholder="e.g. 30 days before" required />
+
+            <label for="templateSuggestedDocuments">Suggested Documents</label>
+            <textarea id="templateSuggestedDocuments" name="suggestedDocuments" rows="3" placeholder="Comma separated"></textarea>
+
+            <label for="templateDefaultNotes">Default Notes</label>
+            <textarea id="templateDefaultNotes" name="defaultNotes" rows="4"></textarea>
+
+            <label for="templateActive">Status</label>
+            <select id="templateActive" name="active">
+              <option value="Yes">Active</option>
+              <option value="No">Inactive</option>
+            </select>
+
+            <div class="form-actions">
+              <button class="btn btn-primary" type="submit">Save</button>
+              <button id="cancel-template-btn" class="btn btn-secondary" type="button">Cancel</button>
+            </div>
+          </form>
+        </section>
       </section>
 
       <section id="form-view" class="view" aria-labelledby="form-title">
         <header class="view-header">
-          <h1 id="form-title">Building Setup Wizard</h1>
+          <h1 id="form-title">New Building Setup</h1>
+          <p class="tagline">Complete setup so the building is ready to manage immediately.</p>
         </header>
 
-        <section class="module-content-card wizard-steps-card" aria-label="Setup steps">
-          <ol class="wizard-steps">
-            <li class="is-active">Step 1: Building Details</li>
-            <li>Step 2: Current Tenancy</li>
-            <li>Step 3: Select Scheduled Item Templates</li>
-            <li>Step 4: Assign Companies &amp; Contacts</li>
-            <li>Finish</li>
+        <section class="module-content-card setup-progress-card" aria-label="Setup progress">
+          <ol id="setup-progress" class="setup-progress" role="list">
+            <li class="setup-progress-item is-active" data-progress-step="1">Building</li>
+            <li class="setup-progress-item" data-progress-step="2">Tenancy</li>
+            <li class="setup-progress-item" data-progress-step="3">Contacts</li>
+            <li class="setup-progress-item" data-progress-step="4">Schedule</li>
+            <li class="setup-progress-item" data-progress-step="5">Finish</li>
           </ol>
         </section>
 
-        <form id="building-form" class="building-form">
-          <label for="buildingName">Building Name</label>
-          <input id="buildingName" name="buildingName" type="text" required />
+        <section id="setup-step-1" class="setup-step is-active" aria-labelledby="setup-step-1-title">
+          <form id="building-form" class="building-form">
+            <h3 id="setup-step-1-title">Step 1: Building Details</h3>
 
-          <label for="streetAddress">Street Address</label>
-          <input id="streetAddress" name="streetAddress" type="text" required />
+            <label for="buildingName">Building Name</label>
+            <input id="buildingName" name="buildingName" type="text" required />
 
-          <label for="city">City</label>
-          <input id="city" name="city" type="text" required />
+            <label for="streetAddress">Street Address</label>
+            <input id="streetAddress" name="streetAddress" type="text" required />
 
-          <label for="owner">Owner</label>
-          <input id="owner" name="owner" type="text" required />
+            <label for="city">City</label>
+            <input id="city" name="city" type="text" required />
 
-          <label for="propertyManager">Property Manager</label>
-          <input id="propertyManager" name="propertyManager" type="text" required />
+            <label for="owner">Owner</label>
+            <input id="owner" name="owner" type="text" required />
 
-          <fieldset class="status-group">
-            <legend>Status</legend>
-            <label class="radio-option">
-              <input type="radio" name="status" value="Occupied" checked />
-              <span>Occupied</span>
-            </label>
-            <label class="radio-option">
-              <input type="radio" name="status" value="Vacant" />
-              <span>Vacant</span>
-            </label>
-          </fieldset>
+            <label for="propertyManager">Property Manager</label>
+            <input id="propertyManager" name="propertyManager" type="text" required />
 
-          <label for="notes">Notes</label>
-          <textarea id="notes" name="notes" rows="4"></textarea>
+            <label for="buildingType">Building Type</label>
+            <input id="buildingType" name="buildingType" type="text" placeholder="Office, Retail, Industrial, Mixed Use" required />
 
-          <div class="form-actions">
-            <button class="btn btn-primary" type="submit">Save Building</button>
-            <button id="cancel-btn" class="btn btn-secondary" type="button">Cancel</button>
+            <p class="setup-helper-text">Status is assigned automatically after setup: Occupied when tenancy is added, otherwise Vacant.</p>
+
+            <div class="form-actions">
+              <button class="btn btn-primary" type="submit">Next</button>
+              <button id="cancel-btn" class="btn btn-secondary" type="button">Cancel</button>
+            </div>
+          </form>
+        </section>
+
+        <section id="setup-step-2" class="setup-step" aria-labelledby="setup-step-2-title">
+          <div class="module-content-card setup-inner-card">
+            <h3 id="setup-step-2-title">Step 2: Current Tenancy</h3>
+            <p class="module-placeholder">Does this building currently have a tenant?</p>
+            <div class="form-actions">
+              <button id="setup-add-tenancy-btn" class="btn btn-primary" type="button">Add Current Tenancy</button>
+              <button id="setup-skip-tenancy-btn" class="btn btn-secondary" type="button">Skip</button>
+            </div>
           </div>
-        </form>
+
+          <form id="setup-tenancy-form" class="building-form setup-subform">
+            <h3>Add Current Tenancy</h3>
+
+            <label for="setupTenancyCompanyId">Company</label>
+            <select id="setupTenancyCompanyId" name="companyId"></select>
+
+            <div id="setup-tenancy-new-company-wrap" style="display: none;">
+              <label for="setupTenancyNewCompanyName">New Company Name</label>
+              <input id="setupTenancyNewCompanyName" name="newCompanyName" type="text" />
+            </div>
+
+            <label for="setupLeaseStart">Lease Start</label>
+            <input id="setupLeaseStart" name="leaseStart" type="date" />
+
+            <label for="setupLeaseEnd">Lease End</label>
+            <input id="setupLeaseEnd" name="leaseEnd" type="date" />
+
+            <label for="setupTenancyNotes">Notes</label>
+            <textarea id="setupTenancyNotes" name="notes" rows="4"></textarea>
+
+            <div class="placeholder-actions">
+              <button class="btn btn-secondary" type="button">Attach Lease Agreement (placeholder)</button>
+            </div>
+
+            <div class="form-actions">
+              <button id="setup-save-tenancy-btn" class="btn btn-primary" type="button">Save and Continue</button>
+              <button id="setup-cancel-tenancy-btn" class="btn btn-secondary" type="button">Cancel Tenancy</button>
+            </div>
+          </form>
+        </section>
+
+        <section id="setup-step-3" class="setup-step" aria-labelledby="setup-step-3-title">
+          <section class="module-content-card">
+            <h3 id="setup-step-3-title">Step 3: Contacts</h3>
+            <p class="module-placeholder">Associate people with this building.</p>
+            <div class="actions-row actions-row-tight">
+              <button id="setup-add-existing-contact-btn" class="btn btn-secondary" type="button">+ Select Existing Contact</button>
+              <button id="setup-add-new-contact-btn" class="btn btn-primary" type="button">+ Create New Contact</button>
+            </div>
+          </section>
+
+          <form id="setup-existing-contact-form" class="building-form setup-subform">
+            <h3>Link Existing Contact</h3>
+
+            <label for="setupExistingContactId">Select Existing Contact</label>
+            <select id="setupExistingContactId" name="contactId"></select>
+
+            <label for="setupExistingContactRelationship">Relationship</label>
+            <select id="setupExistingContactRelationship" name="relationship"></select>
+
+            <div class="form-actions">
+              <button id="setup-link-existing-contact-btn" class="btn btn-primary" type="button">Link Contact</button>
+            </div>
+          </form>
+
+          <form id="setup-new-contact-form" class="building-form setup-subform">
+            <h3>Create New Contact</h3>
+
+            <label for="setupNewContactCompanyId">Company</label>
+            <select id="setupNewContactCompanyId" name="companyId"></select>
+
+            <div id="setup-new-contact-company-wrap" style="display: none;">
+              <label for="setupNewContactCompanyName">New Company Name</label>
+              <input id="setupNewContactCompanyName" name="newCompanyName" type="text" />
+            </div>
+
+            <label for="setupNewContactName">Name</label>
+            <input id="setupNewContactName" name="name" type="text" />
+
+            <label for="setupNewContactRelationship">Relationship</label>
+            <select id="setupNewContactRelationship" name="relationship"></select>
+
+            <label for="setupNewContactMobile">Mobile</label>
+            <input id="setupNewContactMobile" name="mobile" type="text" />
+
+            <label for="setupNewContactEmail">Email</label>
+            <input id="setupNewContactEmail" name="email" type="email" />
+
+            <div class="form-actions">
+              <button id="setup-create-contact-btn" class="btn btn-primary" type="button">Create and Link</button>
+            </div>
+          </form>
+
+          <section class="module-content-card">
+            <h3>Linked Contacts</h3>
+            <section id="setup-linked-contacts-list" class="building-list"></section>
+            <div class="form-actions">
+              <button id="setup-step-3-next-btn" class="btn btn-primary" type="button">Continue to Scheduled Items</button>
+            </div>
+          </section>
+        </section>
+
+        <section id="setup-step-4" class="setup-step" aria-labelledby="setup-step-4-title">
+          <form id="setup-templates-form" class="building-form">
+            <h3 id="setup-step-4-title">Step 4: Scheduled Items</h3>
+            <p class="module-placeholder">Select the schedule templates that apply to this building.</p>
+            <section id="setup-template-list" class="setup-template-list"></section>
+
+            <div class="form-actions">
+              <button id="setup-step-4-next-btn" class="btn btn-primary" type="button">Configure Selected Items</button>
+            </div>
+          </form>
+        </section>
+
+        <section id="setup-step-5" class="setup-step" aria-labelledby="setup-step-5-title">
+          <form id="setup-configure-form" class="building-form">
+            <h3 id="setup-step-5-title">Step 5: Configure Selected Items</h3>
+            <p class="module-placeholder">Set due date, frequency, preferred company and preferred contact.</p>
+            <section id="setup-configure-list" class="setup-configure-list"></section>
+
+            <div class="form-actions">
+              <button id="setup-step-5-finish-btn" class="btn btn-primary" type="button">Finish Setup</button>
+            </div>
+          </form>
+        </section>
+
+        <section id="setup-step-6" class="setup-step" aria-labelledby="setup-step-6-title">
+          <section class="module-content-card">
+            <h3 id="setup-step-6-title">Setup Complete</h3>
+            <section id="setup-finish-summary" class="setup-summary-list"></section>
+            <div class="form-actions">
+              <button id="setup-open-building-btn" class="btn btn-primary" type="button">Open Building</button>
+            </div>
+          </section>
+        </section>
+
+        <section class="module-content-card setup-footer-actions">
+          <div class="form-actions">
+            <button id="setup-back-btn" class="btn btn-secondary" type="button">Back</button>
+            <button id="setup-cancel-btn" class="btn btn-secondary" type="button">Cancel Setup</button>
+          </div>
+        </section>
       </section>
 
       <section id="overview-view" class="view" aria-labelledby="overview-title">
         <header class="view-header overview-header">
           <div>
-            <h1 id="overview-title">Building Overview</h1>
-            <p id="overview-description" class="tagline">Summary of this building and its current status.</p>
+            <h1 id="overview-title">Building Dashboard</h1>
+            <p id="overview-description" class="tagline">Control panel for this building.</p>
             <p id="overview-building-name" class="overview-building-name visually-hidden"></p>
             <p class="overview-building-detail"><strong>Street Address:</strong> <span id="overview-street-address"></span></p>
             <p class="overview-building-detail"><strong>City:</strong> <span id="overview-city"></span></p>
@@ -102,50 +328,40 @@
           </div>
         </header>
 
+        <section class="module-content-card dashboard-summary-card" aria-live="polite">
+          <h3 id="module-content-title">Dashboard Summary</h3>
+          <div id="module-content-body"></div>
+        </section>
+
         <section id="module-nav" class="overview-grid" aria-label="Building modules">
-          <button class="module-nav-card" type="button" data-module="Current Tenancy">
-            <span class="module-nav-title">Current Tenancy</span>
-            <span class="module-nav-desc">Current lease and tenancy details.</span>
-            <span class="chevron">&gt;</span>
-          </button>
-          <button class="module-nav-card" type="button" data-module="Tenancy History">
-            <span class="module-nav-title">Tenancy History</span>
-            <span class="module-nav-desc">Previous tenancy records and notes.</span>
+          <button class="module-nav-card" type="button" data-module="Tenancy">
+            <span class="module-nav-title">👥 Tenancy</span>
+            <span class="module-nav-desc">Current and historical tenancy information.</span>
             <span class="chevron">&gt;</span>
           </button>
           <button class="module-nav-card" type="button" data-module="Contacts">
-            <span class="module-nav-title">Contacts</span>
+            <span class="module-nav-title">📞 Contacts</span>
             <span class="module-nav-desc">Master contacts linked to this building.</span>
             <span class="chevron">&gt;</span>
           </button>
           <button class="module-nav-card" type="button" data-module="Schedule">
-            <span class="module-nav-title">Schedule</span>
-            <span class="module-nav-desc">Daily work and what is due next.</span>
-            <span class="chevron">&gt;</span>
-          </button>
-          <button class="module-nav-card" type="button" data-module="Completed">
-            <span class="module-nav-title">Completed</span>
-            <span class="module-nav-desc">Completed work and permanent records.</span>
+            <span class="module-nav-title">📅 Schedule</span>
+            <span class="module-nav-desc">Upcoming tasks and completed work.</span>
             <span class="chevron">&gt;</span>
           </button>
           <button class="module-nav-card" type="button" data-module="Documents">
-            <span class="module-nav-title">Documents</span>
+            <span class="module-nav-title">📄 Documents</span>
             <span class="module-nav-desc">Files and building records.</span>
             <span class="chevron">&gt;</span>
           </button>
-        </section>
-
-        <section class="module-content-card" aria-live="polite">
-          <h3 id="module-content-title">Overview</h3>
-          <div id="module-content-body"></div>
         </section>
       </section>
 
       <section id="tenancy-view" class="view" aria-labelledby="tenancy-title">
         <header class="view-header overview-header">
           <div>
-            <h1 id="tenancy-title">Current Tenancy</h1>
-            <p class="tagline">View and manage the current tenant for this building.</p>
+            <h1 id="tenancy-title">Tenancy</h1>
+            <p class="tagline">Current tenancy and tenancy history.</p>
             <p id="tenancy-building-name" class="overview-building-name visually-hidden"></p>
           </div>
           <div class="top-right-actions">
@@ -153,66 +369,84 @@
           </div>
         </header>
 
-        <section id="tenancy-empty-state" class="module-content-card">
-          <p class="module-placeholder">No current tenancy has been entered.</p>
-          <div class="actions-row actions-row-tight">
-            <button id="add-tenancy-btn" class="btn btn-primary" type="button">+ Add Current Tenancy</button>
+        <section class="module-content-card">
+          <div class="tab-row" role="tablist" aria-label="Tenancy tabs">
+            <button id="tenancy-tab-current" class="tab-btn is-active" type="button" role="tab" aria-selected="true">Current</button>
+            <button id="tenancy-tab-history" class="tab-btn" type="button" role="tab" aria-selected="false">History</button>
           </div>
         </section>
 
-        <section id="tenancy-details-card" class="module-content-card">
-          <h3>Tenancy Details</h3>
-          <dl id="tenancy-details-list" class="snapshot-list"></dl>
-          <div class="actions-row actions-row-tight tenancy-actions-grid">
-            <button id="edit-tenancy-btn" class="btn btn-secondary" type="button">✏ Edit Tenancy</button>
-            <button id="manage-contacts-btn" class="btn btn-secondary" type="button">👥 Contacts</button>
-            <button id="tenancy-documents-btn" class="btn btn-secondary" type="button">📄 Documents</button>
-          </div>
-        </section>
-
-        <section id="tenancy-form-card" class="module-content-card">
-          <h3 id="tenancy-form-title">Add Current Tenancy</h3>
-          <form id="tenancy-form" class="building-form">
-            <label for="tenancyCompanyName">Company Name</label>
-            <input id="tenancyCompanyName" name="companyName" type="text" required />
-
-            <label for="tenancyTradingName">Trading Name (optional)</label>
-            <input id="tenancyTradingName" name="tradingName" type="text" />
-
-            <label for="tenancyLeaseStart">Lease Start Date</label>
-            <input id="tenancyLeaseStart" name="leaseStart" type="date" required />
-
-            <label for="tenancyLeaseEnd">Lease End Date</label>
-            <input id="tenancyLeaseEnd" name="leaseEnd" type="date" required />
-
-            <fieldset class="status-group">
-              <legend>Status</legend>
-              <label class="radio-option">
-                <input type="radio" name="status" value="Occupied" checked />
-                <span>Occupied</span>
-              </label>
-              <label class="radio-option">
-                <input type="radio" name="status" value="Vacant" />
-                <span>Vacant</span>
-              </label>
-            </fieldset>
-
-            <label for="tenancyNotes">Tenant Notes</label>
-            <textarea id="tenancyNotes" name="notes" rows="4"></textarea>
-
-            <div class="form-actions">
-              <button class="btn btn-primary" type="submit">Save</button>
-              <button id="cancel-tenancy-btn" class="btn btn-secondary" type="button">Cancel</button>
+        <section id="tenancy-current-panel" class="tab-panel is-active">
+          <section id="tenancy-empty-state" class="module-content-card">
+            <p class="module-placeholder">No current tenancy has been entered.</p>
+            <div class="actions-row actions-row-tight">
+              <button id="add-tenancy-btn" class="btn btn-primary" type="button">+ Add Current Tenancy</button>
             </div>
-          </form>
+          </section>
+
+          <section id="tenancy-details-card" class="module-content-card">
+            <h3>Current</h3>
+            <dl id="tenancy-details-list" class="snapshot-list"></dl>
+            <div class="actions-row actions-row-tight tenancy-actions-grid">
+              <button id="edit-tenancy-btn" class="btn btn-secondary" type="button">✏ Edit Tenancy</button>
+              <button id="end-tenancy-btn" class="btn btn-secondary" type="button">End Tenancy</button>
+              <button id="tenancy-contacts-btn" class="btn btn-secondary" type="button">Associated Contacts</button>
+              <button id="tenancy-documents-btn" class="btn btn-secondary" type="button">Lease Document</button>
+            </div>
+          </section>
+
+          <section id="tenancy-form-card" class="module-content-card">
+            <h3 id="tenancy-form-title">Add Current Tenancy</h3>
+            <form id="tenancy-form" class="building-form">
+              <label for="tenancyCompanyName">Company Name</label>
+              <input id="tenancyCompanyName" name="companyName" type="text" required />
+
+              <label for="tenancyTradingName">Trading Name (optional)</label>
+              <input id="tenancyTradingName" name="tradingName" type="text" />
+
+              <label for="tenancyLeaseStart">Lease Start Date</label>
+              <input id="tenancyLeaseStart" name="leaseStart" type="date" required />
+
+              <label for="tenancyLeaseEnd">Lease End Date</label>
+              <input id="tenancyLeaseEnd" name="leaseEnd" type="date" required />
+
+              <fieldset class="status-group">
+                <legend>Status</legend>
+                <label class="radio-option">
+                  <input type="radio" name="status" value="Occupied" checked />
+                  <span>Occupied</span>
+                </label>
+                <label class="radio-option">
+                  <input type="radio" name="status" value="Vacant" />
+                  <span>Vacant</span>
+                </label>
+              </fieldset>
+
+              <label for="tenancyNotes">Tenant Notes</label>
+              <textarea id="tenancyNotes" name="notes" rows="4"></textarea>
+
+              <div class="form-actions">
+                <button class="btn btn-primary" type="submit">Save</button>
+                <button id="cancel-tenancy-btn" class="btn btn-secondary" type="button">Cancel</button>
+              </div>
+            </form>
+          </section>
         </section>
+
+        <section id="tenancy-history-panel" class="tab-panel">
+          <section class="module-content-card">
+            <h3>History</h3>
+            <section id="tenancy-history-list" class="building-list"></section>
+          </section>
+        </section>
+
       </section>
 
       <section id="contacts-view" class="view" aria-labelledby="contacts-title">
         <header class="view-header overview-header">
           <div>
             <h1 id="contacts-title">Contacts</h1>
-            <p class="tagline">Manage contacts linked to this building.</p>
+            <p class="tagline">Single location for every contact linked to this building.</p>
             <p id="contacts-building-name" class="overview-building-name visually-hidden"></p>
           </div>
           <div class="top-right-actions">
@@ -223,20 +457,54 @@
         <section id="contacts-empty-state" class="module-content-card">
           <p class="module-placeholder">No contacts have been added.</p>
           <div class="actions-row actions-row-tight">
-            <button id="add-contact-btn" class="btn btn-primary" type="button">+ Add Contact</button>
+            <button id="add-existing-contact-btn" class="btn btn-secondary" type="button">+ Select Existing Contact</button>
+            <button id="add-contact-btn" class="btn btn-primary" type="button">+ Create New Contact</button>
           </div>
         </section>
 
         <section id="contacts-list-card" class="module-content-card">
           <div class="contacts-list-header">
-            <h3>Contacts</h3>
-            <button id="add-contact-inline-btn" class="btn btn-primary" type="button">+ Add Contact</button>
+            <h3>Contacts by Relationship</h3>
+            <div class="contacts-list-actions">
+              <button id="add-existing-contact-inline-btn" class="btn btn-secondary" type="button">+ Select Existing Contact</button>
+              <button id="add-contact-inline-btn" class="btn btn-primary" type="button">+ Create New Contact</button>
+            </div>
           </div>
+          <label class="visually-hidden" for="contacts-search">Search contacts</label>
+          <input
+            id="contacts-search"
+            class="search-input"
+            type="search"
+            placeholder="Search by name, company, or relationship"
+          />
           <section id="contacts-list" class="building-list" aria-live="polite"></section>
         </section>
 
         <section id="contact-form-card" class="module-content-card">
-          <h3 id="contact-form-title">Add Contact</h3>
+          <h3 id="contact-form-title">Create New Contact</h3>
+          <div class="actions-row actions-row-tight contact-form-switch">
+            <button id="contact-form-select-existing-btn" class="btn btn-secondary" type="button">Select Existing Contact</button>
+            <button id="contact-form-create-new-btn" class="btn btn-primary" type="button">Create New Contact</button>
+          </div>
+
+          <form id="contact-existing-form" class="building-form" style="display: none;">
+            <label for="existingContactId">Select Existing Contact</label>
+            <select id="existingContactId" name="contactId"></select>
+
+            <label for="existingContactRelationship">Relationship</label>
+            <select id="existingContactRelationship" name="relationship"></select>
+
+            <div id="existing-contact-custom-wrap" style="display: none;">
+              <label for="existingContactCustomRelationship">Custom Relationship</label>
+              <input id="existingContactCustomRelationship" name="customRelationship" type="text" />
+            </div>
+
+            <div class="form-actions">
+              <button class="btn btn-primary" type="submit">Link Contact</button>
+              <button id="cancel-existing-contact-btn" class="btn btn-secondary" type="button">Cancel</button>
+            </div>
+          </form>
+
           <form id="contact-form" class="building-form">
             <input id="contactId" name="contactId" type="hidden" />
 
@@ -252,7 +520,12 @@
             <input id="contactName" name="name" type="text" required />
 
             <label for="contactResponsibility">Relationship</label>
-            <input id="contactResponsibility" name="responsibility" type="text" required />
+            <select id="contactResponsibility" name="responsibility" required></select>
+
+            <div id="contact-custom-relationship-wrap" style="display: none;">
+              <label for="contactCustomRelationship">Custom Relationship</label>
+              <input id="contactCustomRelationship" name="customRelationship" type="text" />
+            </div>
 
             <label for="contactMobile">Mobile</label>
             <input id="contactMobile" name="mobile" type="text" />
@@ -384,34 +657,50 @@
         <header class="view-header overview-header">
           <div>
             <h1 id="schedule-title">Schedule</h1>
-            <p class="tagline">Upcoming and overdue scheduled work.</p>
+            <p class="tagline">Upcoming and completed scheduled work.</p>
             <p id="schedule-building-name" class="overview-building-name visually-hidden"></p>
           </div>
           <div class="top-right-actions">
+            <button id="manage-templates-btn" class="btn btn-secondary btn-small" type="button">Manage Templates</button>
             <button id="schedule-back-btn" class="btn btn-secondary" type="button">← Back</button>
           </div>
         </header>
 
-        <section class="schedule-grid" aria-label="Schedule sections">
-          <article class="module-content-card schedule-section">
-            <h3 class="status-overdue">🔴 Overdue</h3>
-            <section id="schedule-overdue-list" class="building-list"></section>
-          </article>
+        <section class="module-content-card">
+          <div class="tab-row" role="tablist" aria-label="Schedule tabs">
+            <button id="schedule-tab-upcoming" class="tab-btn is-active" type="button" role="tab" aria-selected="true">Upcoming</button>
+            <button id="schedule-tab-completed" class="tab-btn" type="button" role="tab" aria-selected="false">Completed</button>
+          </div>
+        </section>
 
-          <article class="module-content-card schedule-section">
-            <h3 class="status-week">🟠 Due This Week</h3>
-            <section id="schedule-week-list" class="building-list"></section>
-          </article>
+        <section id="schedule-upcoming-panel" class="tab-panel is-active">
+          <section class="schedule-grid" aria-label="Schedule sections">
+            <article class="module-content-card schedule-section">
+              <h3 class="status-overdue">🔴 Overdue</h3>
+              <section id="schedule-overdue-list" class="building-list"></section>
+            </article>
 
-          <article class="module-content-card schedule-section">
-            <h3 class="status-month">🟡 Due This Month</h3>
-            <section id="schedule-month-list" class="building-list"></section>
-          </article>
+            <article class="module-content-card schedule-section">
+              <h3 class="status-week">🟠 Due This Week</h3>
+              <section id="schedule-week-list" class="building-list"></section>
+            </article>
 
-          <article class="module-content-card schedule-section">
-            <h3 class="status-future">🟢 Future</h3>
-            <section id="schedule-future-list" class="building-list"></section>
-          </article>
+            <article class="module-content-card schedule-section">
+              <h3 class="status-month">🟡 Due This Month</h3>
+              <section id="schedule-month-list" class="building-list"></section>
+            </article>
+
+            <article class="module-content-card schedule-section">
+              <h3 class="status-future">🟢 Future</h3>
+              <section id="schedule-future-list" class="building-list"></section>
+            </article>
+          </section>
+        </section>
+
+        <section id="schedule-completed-panel" class="tab-panel">
+          <section class="module-content-card">
+            <section id="schedule-completed-list" class="building-list" aria-live="polite"></section>
+          </section>
         </section>
       </section>
 
