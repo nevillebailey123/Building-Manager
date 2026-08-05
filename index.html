@@ -92,6 +92,9 @@
             <label for="templateName">Name</label>
             <input id="templateName" name="name" type="text" required />
 
+            <label for="templateDescription">Description (Optional)</label>
+            <textarea id="templateDescription" name="description" rows="2" placeholder="Short template description"></textarea>
+
             <label for="templateCategory">Category</label>
             <select id="templateCategory" name="category" required></select>
 
@@ -99,7 +102,7 @@
             <select id="templateFrequency" name="defaultFrequency" required></select>
 
             <label for="templateNextDueDate">Next Due Date</label>
-            <input id="templateNextDueDate" name="nextDueDate" type="date" required />
+            <input id="templateNextDueDate" name="nextDueDate" type="date" />
 
             <label for="templateReminderPeriod">Default Reminder Period</label>
             <input id="templateReminderPeriod" name="defaultReminderPeriod" type="text" placeholder="e.g. 30 days before" required />
@@ -458,19 +461,40 @@
             </div>
           </div>
           <div class="top-right-actions">
+            <button id="documents-add-category-btn" class="btn btn-primary btn-small" type="button">+ Add Category</button>
             <button id="lease-back-btn" class="btn btn-secondary" type="button">← Back</button>
           </div>
         </header>
 
         <section class="module-content-card lease-documents-card">
           <div class="lease-dashboard-tools">
-            <button id="documents-add-category-btn" class="btn btn-primary btn-small" type="button">+ Add Category</button>
             <label class="visually-hidden" for="lease-search">Search lease documents</label>
             <input id="lease-search" class="search-input lease-search-input" type="search" placeholder="Search documents and categories..." />
           </div>
 
           <section id="lease-dashboard-panel">
             <section id="lease-category-grid" class="lease-category-grid" aria-live="polite"></section>
+          </section>
+
+          <section id="lease-category-detail" class="lease-category-detail" aria-live="polite">
+            <div class="lease-detail-header">
+              <div>
+                <h3 id="lease-category-detail-title">Category Documents</h3>
+                <p id="lease-category-detail-meta" class="lease-helper-text">Newest documents appear first.</p>
+              </div>
+              <div class="lease-detail-actions">
+                <button id="lease-category-detail-manage-btn" class="btn btn-secondary btn-small" type="button">Manage Category</button>
+                <button id="lease-category-detail-back-btn" class="btn btn-secondary btn-small" type="button">← Back to Documents</button>
+              </div>
+            </div>
+
+            <div class="lease-category-toolbar">
+              <label class="visually-hidden" for="lease-category-search">Search this category</label>
+              <input id="lease-category-search" class="search-input lease-search-input" type="search" placeholder="Search within this category..." />
+              <button id="lease-category-upload-btn" class="btn btn-primary btn-small" type="button">+ Upload Document</button>
+            </div>
+
+            <section id="lease-category-list" class="lease-category-list"></section>
           </section>
         </section>
       </section>
@@ -733,8 +757,8 @@
               <select id="schedule-filter-status" class="schedule-filter-select">
                 <option value="all">All</option>
                 <option value="overdue">Overdue</option>
-                <option value="today">Due Today</option>
-                <option value="upcoming">Upcoming</option>
+                <option value="due30">Due Within 30 Days</option>
+                <option value="scheduled">Scheduled</option>
               </select>
             </label>
             <label>

@@ -70,7 +70,10 @@
   const leaseCategoryDetail = document.getElementById("lease-category-detail");
   const leaseCategoryDetailTitle = document.getElementById("lease-category-detail-title");
   const leaseCategoryDetailMeta = document.getElementById("lease-category-detail-meta");
+  const leaseCategoryDetailManageBtn = document.getElementById("lease-category-detail-manage-btn");
   const leaseCategoryDetailBackBtn = document.getElementById("lease-category-detail-back-btn");
+  const leaseCategorySearch = document.getElementById("lease-category-search");
+  const leaseCategoryUploadBtn = document.getElementById("lease-category-upload-btn");
   const leaseCategoryList = document.getElementById("lease-category-list");
   const tenancyEmptyState = document.getElementById("tenancy-empty-state");
   const tenancyDetailsCard = document.getElementById("tenancy-details-card");
@@ -200,6 +203,7 @@
   };
   let activeLeaseManagedCategoryKey = "";
   let leaseSearchQuery = "";
+  let leaseCategorySearchQuery = "";
   let selectorOpen = false;
   let breadcrumbItems = [];
   let placeholderBackHandler = null;
@@ -495,10 +499,28 @@
   function showLeaseView() {
     hideAllViews();
     leaseView.classList.add("is-active");
-    setBreadcrumbs([
+    const building = getActiveBuildingName();
+    const crumbs = [
       { label: "Buildings", onClick: goToDashboard },
-      { label: getActiveBuildingName(), onClick: function () { openOverviewById(activeBuildingId); } },
+      { label: building, onClick: function () { openOverviewById(activeBuildingId); } },
       { label: "Documents", onClick: function () { openLeaseView(activeBuildingId); } },
+    ];
+
+    if (activeLeaseManagedCategoryKey) {
+      const current = getActiveBuilding();
+      const category = current ? findDocumentCategoryById(ensureWorkflowCollections(current), activeLeaseManagedCategoryKey) : null;
+      if (category) {
+        crumbs.push({
+          label: category.name,
+          onClick: function () {
+            openLeaseCategoryDetail(category.id);
+          },
+        });
+      }
+    }
+
+    setBreadcrumbs([
+      ...crumbs,
     ]);
   }
 
@@ -628,14 +650,14 @@
     const frequency = TEMPLATE_FREQUENCY_OPTIONS.includes(template.defaultFrequency)
       ? template.defaultFrequency
       : (TEMPLATE_FREQUENCY_OPTIONS.includes(template.frequency) ? template.frequency : "Annual");
-    const fallbackNextDueDate = getNextDueDatePlaceholder(new Date().toISOString().slice(0, 10), frequency);
-    const nextDueDate = String(template.nextDueDate || template.dueDate || "").trim() || fallbackNextDueDate;
+    const nextDueDate = String(template.nextDueDate || template.dueDate || "").trim();
     const activeValue = String(template.active || "Yes");
     const active = activeValue === "No" ? "No" : "Yes";
 
     return {
       id: String(template.id || window.BuildingStorage.createId()),
       name: String(template.name || "").trim(),
+      description: String(template.description || "").trim(),
       category: category,
       defaultFrequency: frequency,
       nextDueDate: nextDueDate,
@@ -644,6 +666,34 @@
       defaultNotes: String(template.defaultNotes || "").trim(),
       active: active,
       defaultChecked: Boolean(template.defaultChecked),
+      createdDate: String(template.createdDate || now),
+      lastUpdated: String(template.lastUpdated || now),
+    };
+  }
+
+  function normalizePropertyTemplateRecord(template) {
+    const now = new Date().toISOString();
+    const category = TEMPLATE_CATEGORY_OPTIONS.includes(template.category) ? template.category : "General";
+    const frequency = TEMPLATE_FREQUENCY_OPTIONS.includes(template.defaultFrequency)
+      ? template.defaultFrequency
+      : (TEMPLATE_FREQUENCY_OPTIONS.includes(template.frequency) ? template.frequency : "Annual");
+    const activeValue = String(template.active || "No");
+    const active = activeValue === "Yes" ? "Yes" : "No";
+
+    return {
+      id: String(template.id || window.BuildingStorage.createId()),
+      masterTemplateId: String(template.masterTemplateId || "").trim(),
+      name: String(template.name || "").trim(),
+      category: category,
+      defaultFrequency: frequency,
+      nextDueDate: String(template.nextDueDate || "").trim(),
+      defaultReminderPeriod: String(template.defaultReminderPeriod || "").trim(),
+      suggestedDocuments: normalizeSuggestedDocuments(template.suggestedDocuments),
+      defaultNotes: String(template.defaultNotes || "").trim(),
+      preferredCompanyId: String(template.preferredCompanyId || "").trim(),
+      preferredContactId: String(template.preferredContactId || "").trim(),
+      attachments: Array.isArray(template.attachments) ? template.attachments : [],
+      active: active,
       createdDate: String(template.createdDate || now),
       lastUpdated: String(template.lastUpdated || now),
     };
@@ -685,6 +735,47 @@
 
   function findTemplateById(templateId) {
     return getScheduledItemTemplates().find(function (template) {
+      return template.id === templateId;
+    }) || null;
+  }
+
+  function findMasterTemplateById(templateId) {
+    return findTemplateById(templateId);
+  }
+
+  function createPropertyTemplateFromMaster(masterTemplate, overrides) {
+    const now = new Date().toISOString();
+    const base = {
+      id: window.BuildingStorage.createId(),
+      masterTemplateId: masterTemplate ? masterTemplate.id : "",
+      name: masterTemplate ? masterTemplate.name : "",
+      category: masterTemplate ? masterTemplate.category : "General",
+      defaultFrequency: masterTemplate ? masterTemplate.defaultFrequency : "Annual",
+      nextDueDate: "",
+      defaultReminderPeriod: "",
+      suggestedDocuments: [],
+      defaultNotes: "",
+      preferredCompanyId: "",
+      preferredContactId: "",
+      attachments: [],
+      active: "No",
+      createdDate: now,
+      lastUpdated: now,
+    };
+
+    return normalizePropertyTemplateRecord({
+      ...base,
+      ...(overrides || {}),
+    });
+  }
+
+  function getPropertyTemplates(building) {
+    const templates = building && Array.isArray(building.propertyTemplates) ? building.propertyTemplates : [];
+    return templates.map(normalizePropertyTemplateRecord);
+  }
+
+  function findPropertyTemplateById(building, templateId) {
+    return getPropertyTemplates(building).find(function (template) {
       return template.id === templateId;
     }) || null;
   }
@@ -1056,7 +1147,7 @@
 
   function normalizeDocumentCategories(categories) {
     const defaults = createDefaultDocumentCategories();
-    const source = Array.isArray(categories) && categories.length > 0 ? categories : defaults;
+    const source = Array.isArray(categories) ? categories : defaults;
 
     return source
       .map(function (category, index) {
@@ -1460,11 +1551,26 @@
         return `
           <article class="module-content-card setup-config-card">
             <h3>${item.taskName}</h3>
+            <label for="setupStatus${index}">Status</label>
+            <select id="setupStatus${index}" data-config-index="${index}" data-field="active">
+              <option value="No"${item.active === "No" ? " selected" : ""}>Inactive</option>
+              <option value="Yes"${item.active === "Yes" ? " selected" : ""}>Active</option>
+            </select>
+
             <label for="setupDueDate${index}">Next Due Date</label>
             <input id="setupDueDate${index}" type="date" data-config-index="${index}" data-field="dueDate" value="${item.dueDate}" />
 
             <label for="setupFrequency${index}">Frequency</label>
             <select id="setupFrequency${index}" data-config-index="${index}" data-field="frequency">${getFrequencyOptions(item.frequency)}</select>
+
+            <label for="setupReminder${index}">Reminder</label>
+            <input id="setupReminder${index}" type="text" data-config-index="${index}" data-field="defaultReminderPeriod" value="${escapeHtml(item.defaultReminderPeriod)}" placeholder="e.g. 30 days before" />
+
+            <label for="setupNotes${index}">Default Notes</label>
+            <textarea id="setupNotes${index}" rows="2" data-config-index="${index}" data-field="defaultNotes">${escapeHtml(item.defaultNotes)}</textarea>
+
+            <label for="setupSuggestedDocs${index}">Suggested Documents</label>
+            <input id="setupSuggestedDocs${index}" type="text" data-config-index="${index}" data-field="suggestedDocuments" value="${escapeHtml(item.suggestedDocuments)}" placeholder="Comma separated" />
 
             <label for="setupPreferredCompany${index}">Preferred Company</label>
             <select id="setupPreferredCompany${index}" data-config-index="${index}" data-field="preferredCompanyId">${getSetupCompanyOptions(item.preferredCompanyId)}</select>
@@ -1516,15 +1622,17 @@
       const frequency = template ? template.defaultFrequency : "Quarterly";
       const category = template ? template.category : "General";
       return {
-        templateId: templateId,
+        masterTemplateId: templateId,
         taskName: template ? template.name : templateId,
-        dueDate: template && template.nextDueDate
-          ? template.nextDueDate
-          : getNextDueDatePlaceholder(new Date().toISOString().slice(0, 10), frequency),
+        dueDate: "",
         category: category,
         frequency: frequency,
+        defaultReminderPeriod: "",
+        defaultNotes: "",
+        suggestedDocuments: "",
         preferredCompanyId: "",
         preferredContactId: "",
+        active: "No",
       };
     });
   }
@@ -1604,18 +1712,47 @@
       };
     }
 
-    const scheduleItems = setupState.configuredScheduleItems.map(function (item) {
+    const propertyTemplates = setupState.configuredScheduleItems.map(function (item) {
+      return createPropertyTemplateFromMaster(findMasterTemplateById(item.masterTemplateId), {
+        masterTemplateId: item.masterTemplateId || "",
+        name: item.taskName,
+        category: item.category || "General",
+        defaultFrequency: item.frequency || "Annual",
+        nextDueDate: String(item.dueDate || "").trim(),
+        defaultReminderPeriod: String(item.defaultReminderPeriod || "").trim(),
+        defaultNotes: String(item.defaultNotes || "").trim(),
+        suggestedDocuments: normalizeSuggestedDocuments(item.suggestedDocuments),
+        preferredCompanyId: String(item.preferredCompanyId || "").trim(),
+        preferredContactId: String(item.preferredContactId || "").trim(),
+        active: item.active === "Yes" ? "Yes" : "No",
+      });
+    });
+
+    const missingDueDateForActiveTemplate = propertyTemplates.some(function (template) {
+      return template.active === "Yes" && !String(template.nextDueDate || "").trim();
+    });
+    if (missingDueDateForActiveTemplate) {
+      alert("Please enter a next due date for all active property templates.");
+      return;
+    }
+
+    const scheduleItems = propertyTemplates
+      .filter(function (template) {
+        return template.active === "Yes" && String(template.nextDueDate || "").trim();
+      })
+      .map(function (item) {
       const preferredCompanyName = item.preferredCompanyId
         ? getCompanyNameById(item.preferredCompanyId, "")
         : "";
 
       const scheduleItem = {
         id: window.BuildingStorage.createId(),
-        templateId: item.templateId || "",
-        taskName: item.taskName,
+        templateId: item.id,
+        propertyTemplateId: item.id,
+        taskName: item.name,
         category: item.category || "General",
-        dueDate: item.dueDate,
-        frequency: item.frequency,
+        dueDate: item.nextDueDate,
+        frequency: item.defaultFrequency,
         preferredCompany: preferredCompanyName,
         preferredCompanyId: item.preferredCompanyId,
         preferredContactId: item.preferredContactId,
@@ -1646,6 +1783,7 @@
       buildingRoles: [],
       documents: [],
       documentCategories: createDefaultDocumentCategories(),
+      propertyTemplates: propertyTemplates,
       scheduleItems: scheduleItems,
       historyRecords: [],
     };
@@ -1766,10 +1904,10 @@
 
   function handleSetupStepFiveFinish() {
     const missingDueDate = setupState.configuredScheduleItems.some(function (item) {
-      return !String(item.dueDate || "").trim();
+      return item.active === "Yes" && !String(item.dueDate || "").trim();
     });
     if (missingDueDate) {
-      alert("Please enter a next due date for all selected schedule items.");
+      alert("Please enter a next due date for all active property templates.");
       return;
     }
 
@@ -1948,22 +2086,113 @@
     return created;
   }
 
-  function createDefaultScheduleItems() {
-    const defaultCompany = ensureDefaultCompany();
-    return [
-      {
-        id: window.BuildingStorage.createId(),
-        taskName: "Quarterly HVAC Inspection",
-        dueDate: getNextDueDatePlaceholder(new Date().toISOString().slice(0, 10), "Quarterly"),
-        frequency: "Quarterly",
-        preferredCompany: "ABC HVAC Ltd",
-        preferredCompanyId: defaultCompany.id,
-        preferredContactId: "",
-        status: "Due This Week",
-        createdDate: new Date().toISOString(),
-        lastUpdated: new Date().toISOString(),
-      },
-    ];
+  function createScheduleItemFromPropertyTemplate(template, now) {
+    const createdAt = now || new Date().toISOString();
+    const taskName = String(template.name || "Scheduled Item").trim() || "Scheduled Item";
+    const scheduleItem = {
+      id: window.BuildingStorage.createId(),
+      templateId: template.id,
+      propertyTemplateId: template.id,
+      taskName: taskName,
+      category: template.category || "General",
+      dueDate: String(template.nextDueDate || "").trim(),
+      frequency: template.defaultFrequency || "Annual",
+      preferredCompany: "",
+      preferredCompanyId: template.preferredCompanyId || "",
+      preferredContactId: template.preferredContactId || "",
+      lastCompletionHistoryId: "",
+      status: "Future",
+      createdDate: createdAt,
+      lastUpdated: createdAt,
+    };
+
+    scheduleItem.status = getScheduleStatusText(scheduleItem);
+    return scheduleItem;
+  }
+
+  function getActivePropertyTemplates(building) {
+    return getPropertyTemplates(building).filter(function (template) {
+      return template.active === "Yes" && String(template.nextDueDate || "").trim();
+    });
+  }
+
+  function migrateLegacyPropertyTemplates(building, scheduleItems) {
+    const existing = getPropertyTemplates(building);
+    const now = new Date().toISOString();
+    const existingById = new Set(existing.map(function (template) { return template.id; }));
+    const migrated = existing.slice();
+
+    (scheduleItems || []).forEach(function (item) {
+      const linkedPropertyTemplateId = String(item.propertyTemplateId || item.templateId || "").trim();
+      if (linkedPropertyTemplateId && existingById.has(linkedPropertyTemplateId)) {
+        return;
+      }
+
+      const master = item.templateId ? findMasterTemplateById(item.templateId) : null;
+      const fromItemName = String(item.taskName || "").trim();
+      const duplicate = migrated.some(function (template) {
+        return normalizeText(template.name) === normalizeText(fromItemName)
+          && String(template.nextDueDate || "").trim() === String(item.dueDate || "").trim();
+      });
+      if (duplicate) {
+        return;
+      }
+
+      const created = createPropertyTemplateFromMaster(master, {
+        id: linkedPropertyTemplateId || window.BuildingStorage.createId(),
+        name: fromItemName || (master ? master.name : "Scheduled Item"),
+        category: item.category || (master ? master.category : "General"),
+        defaultFrequency: item.frequency || (master ? master.defaultFrequency : "Annual"),
+        nextDueDate: String(item.dueDate || master && master.nextDueDate || "").trim(),
+        defaultReminderPeriod: master ? master.defaultReminderPeriod : "",
+        suggestedDocuments: master ? master.suggestedDocuments : [],
+        defaultNotes: master ? master.defaultNotes : "",
+        preferredCompanyId: String(item.preferredCompanyId || "").trim(),
+        preferredContactId: String(item.preferredContactId || "").trim(),
+        active: "Yes",
+        createdDate: String(item.createdDate || now),
+        lastUpdated: String(item.lastUpdated || now),
+      });
+
+      migrated.push(created);
+      existingById.add(created.id);
+    });
+
+    return migrated;
+  }
+
+  function syncScheduleItemsFromPropertyTemplates(building, existingScheduleItems) {
+    const now = new Date().toISOString();
+    const activeTemplates = getActivePropertyTemplates(building);
+    const existingMap = new Map((existingScheduleItems || []).map(function (item) {
+      return [String(item.propertyTemplateId || item.templateId || ""), item];
+    }));
+
+    return activeTemplates.map(function (template) {
+      const existing = existingMap.get(template.id);
+      const preferredCompanyName = template.preferredCompanyId
+        ? getCompanyNameById(template.preferredCompanyId, "")
+        : (existing ? existing.preferredCompany : "");
+
+      const next = existing
+        ? {
+          ...existing,
+          templateId: template.id,
+          propertyTemplateId: template.id,
+          taskName: template.name,
+          category: template.category || "General",
+          dueDate: String(template.nextDueDate || "").trim(),
+          frequency: template.defaultFrequency || "Annual",
+          preferredCompanyId: template.preferredCompanyId || "",
+          preferredCompany: preferredCompanyName,
+          preferredContactId: template.preferredContactId || "",
+          lastUpdated: now,
+        }
+        : createScheduleItemFromPropertyTemplate(template, now);
+
+      next.status = getScheduleStatusText(next);
+      return next;
+    });
   }
 
   function ensureWorkflowCollections(building) {
@@ -1971,6 +2200,7 @@
       ...building,
       documents: Array.isArray(building.documents) ? building.documents : [],
       documentCategories: normalizeDocumentCategories(building.documentCategories),
+      propertyTemplates: getPropertyTemplates(building),
       scheduleItems: Array.isArray(building.scheduleItems) ? building.scheduleItems : [],
       historyRecords: Array.isArray(building.historyRecords) ? building.historyRecords : [],
     };
@@ -2071,9 +2301,8 @@
       };
     });
 
-    if (next.scheduleItems.length === 0 && next.historyRecords.length === 0) {
-      next.scheduleItems = createDefaultScheduleItems();
-    }
+    next.propertyTemplates = migrateLegacyPropertyTemplates(next, next.scheduleItems)
+      .map(normalizePropertyTemplateRecord);
 
     next.scheduleItems = next.scheduleItems.map(function (item) {
       let preferredCompanyId = item.preferredCompanyId || "";
@@ -2105,10 +2334,20 @@
 
       return {
         ...item,
+        templateId: item.templateId || item.propertyTemplateId || "",
+        propertyTemplateId: item.propertyTemplateId || item.templateId || "",
+        taskName: item.taskName,
+        category: item.category || "General",
+        dueDate: item.dueDate,
+        frequency: item.frequency,
         preferredCompanyId: preferredCompanyId,
+        preferredCompany: item.preferredCompany || getCompanyNameById(preferredCompanyId, ""),
         preferredContactId: item.preferredContactId || "",
+        lastCompletionHistoryId: item.lastCompletionHistoryId || "",
       };
     });
+
+    next.scheduleItems = syncScheduleItemsFromPropertyTemplates(next, next.scheduleItems);
 
     return next;
   }
@@ -2134,16 +2373,14 @@
   }
 
   function getScheduleStatusText(item) {
-    const bucket = getScheduleBucket(item);
+    const priority = getScheduleVisualPriority(item);
     const map = {
       overdue: "Overdue",
-      today: "Due Today",
-      week: "Due This Week",
-      month: "Due This Month",
-      future: "Future",
+      due30: "Due Within 30 Days",
+      scheduled: "Scheduled",
     };
 
-    return map[bucket] || "Future";
+    return map[priority] || "Scheduled";
   }
 
   function getScheduleDiffDays(item) {
@@ -2162,34 +2399,35 @@
     return "upcoming";
   }
 
-  function getScheduleItemCategory(item) {
+  function getScheduleVisualPriority(item, diffDays) {
+    const resolvedDiffDays = typeof diffDays === "number" ? diffDays : getScheduleDiffDays(item);
+    if (resolvedDiffDays < 0) {
+      return "overdue";
+    }
+
+    if (resolvedDiffDays <= 30) {
+      return "due30";
+    }
+
+    return "scheduled";
+  }
+
+  function getScheduleItemCategory(building, item) {
     if (item.category) {
       return item.category;
     }
 
-    const fromTemplateId = item.templateId ? findTemplateById(item.templateId) : null;
-    if (fromTemplateId && fromTemplateId.category) {
-      return fromTemplateId.category;
+    const fromPropertyTemplateId = building && (item.propertyTemplateId || item.templateId)
+      ? findPropertyTemplateById(building, item.propertyTemplateId || item.templateId)
+      : null;
+    if (fromPropertyTemplateId && fromPropertyTemplateId.category) {
+      return fromPropertyTemplateId.category;
     }
 
-    const fromName = getScheduledItemTemplates().find(function (template) {
+    const fromName = getPropertyTemplates(building || {}).find(function (template) {
       return normalizeText(template.name) === normalizeText(item.taskName);
     });
     return fromName && fromName.category ? fromName.category : "General";
-  }
-
-  function decorateScheduleRows(building, items) {
-    return items.map(function (item) {
-      const diffDays = getScheduleDiffDays(item);
-      return {
-        item: item,
-        state: getScheduleRowState(diffDays),
-        diffDays: diffDays,
-        category: getScheduleItemCategory(item),
-        propertyId: building.id,
-        propertyName: building.buildingName,
-      };
-    });
   }
 
   function renderScheduleSummary(rows, historyRecords) {
@@ -2207,6 +2445,9 @@
       return row.diffDays >= 0 && row.diffDays <= 7;
     }).length;
     const completedThisMonth = (historyRecords || []).filter(function (record) {
+      if (record.revertedAt) {
+        return false;
+      }
       const completed = toDateStart(record.completedDate);
       return completed.getMonth() === month && completed.getFullYear() === year;
     }).length;
@@ -2228,17 +2469,22 @@
     selectElement.value = hasDesired ? desiredValue : "all";
   }
 
-  function renderScheduleFilterOptions(building, rows) {
+  function renderScheduleFilterOptions(buildings, rows) {
     const categories = Array.from(new Set(rows.map(function (row) {
       return row.category;
     }))).sort(function (left, right) {
       return String(left).localeCompare(String(right), undefined, { sensitivity: "base" });
     });
 
+    const sortedBuildings = (buildings || []).slice().sort(function (left, right) {
+      return String(left.buildingName || "").localeCompare(String(right.buildingName || ""), undefined, { sensitivity: "base" });
+    });
+
     scheduleFilterProperty.innerHTML = [
       '<option value="all">All Properties</option>',
-      `<option value="${building.id}">${building.buildingName}</option>`,
-    ].join("");
+    ].concat(sortedBuildings.map(function (entry) {
+      return `<option value="${entry.id}">${escapeHtml(entry.buildingName)}</option>`;
+    })).join("");
 
     scheduleFilterCategory.innerHTML = ['<option value="all">All Categories</option>']
       .concat(categories.map(function (category) {
@@ -2285,7 +2531,7 @@
       if (scheduleFilters.category !== "all" && row.category !== scheduleFilters.category) {
         return false;
       }
-      if (scheduleFilters.status !== "all" && row.state !== scheduleFilters.status) {
+      if (scheduleFilters.status !== "all" && row.visualPriority !== scheduleFilters.status) {
         return false;
       }
       if (!matchesScheduleDuePeriod(row.diffDays, row.item.dueDate, scheduleFilters.duePeriod)) {
@@ -2309,17 +2555,291 @@
     return `${daysOverdue} days overdue`;
   }
 
+  function getPendingRevertRecord(building, scheduleItem) {
+    if (!building || !scheduleItem || !scheduleItem.lastCompletionHistoryId) {
+      return null;
+    }
+
+    const template = findPropertyTemplateById(building, scheduleItem.propertyTemplateId || scheduleItem.templateId);
+    if (!template) {
+      return null;
+    }
+
+    const record = (building.historyRecords || []).find(function (entry) {
+      return entry.id === scheduleItem.lastCompletionHistoryId;
+    }) || null;
+    if (!record || record.revertedAt) {
+      return null;
+    }
+
+    if (String(template.nextDueDate || "") !== String(record.newDueDate || "")) {
+      return null;
+    }
+
+    return record;
+  }
+
+  function decorateScheduleRows(building, items) {
+    return items.map(function (item) {
+      const diffDays = getScheduleDiffDays(item);
+      const visualPriority = getScheduleVisualPriority(item, diffDays);
+      return {
+        item: item,
+        state: getScheduleRowState(diffDays),
+        visualPriority: visualPriority,
+        statusText: getScheduleStatusText(item),
+        diffDays: diffDays,
+        category: getScheduleItemCategory(building, item),
+        propertyId: building.id,
+        propertyName: building.buildingName,
+        lastCompletionRecord: getPendingRevertRecord(building, item),
+      };
+    });
+  }
+
+  function getNormalizedScheduleBuildings() {
+    const buildings = window.BuildingStorage.getBuildings();
+    return buildings.map(function (building) {
+      const normalized = ensureWorkflowCollections(building);
+      if (normalized !== building) {
+        window.BuildingStorage.updateBuilding({
+          ...building,
+          propertyTemplates: normalized.propertyTemplates,
+          scheduleItems: normalized.scheduleItems,
+          historyRecords: normalized.historyRecords,
+        });
+      }
+
+      return normalized;
+    });
+  }
+
+  function confirmScheduleRevertDialog() {
+    return new Promise(function (resolve) {
+      const backdrop = window.document.createElement("div");
+      backdrop.className = "template-delete-modal-backdrop";
+
+      const dialog = window.document.createElement("div");
+      dialog.className = "template-delete-modal";
+      dialog.setAttribute("role", "dialog");
+      dialog.setAttribute("aria-modal", "true");
+      dialog.setAttribute("aria-labelledby", "schedule-revert-modal-title");
+
+      dialog.innerHTML = `
+        <h3 id="schedule-revert-modal-title">Revert Completion</h3>
+        <p>This will undo the last completion and restore the previous due date. Continue?</p>
+        <div class="template-delete-modal-actions">
+          <button class="btn btn-secondary" type="button" data-schedule-revert-action="cancel">Cancel</button>
+          <button class="btn template-delete-btn" type="button" data-schedule-revert-action="revert">Revert</button>
+        </div>
+      `;
+
+      backdrop.appendChild(dialog);
+      window.document.body.appendChild(backdrop);
+
+      let isClosed = false;
+
+      function closeWith(result) {
+        if (isClosed) {
+          return;
+        }
+        isClosed = true;
+        window.document.removeEventListener("keydown", handleEscape);
+        backdrop.remove();
+        resolve(result);
+      }
+
+      function handleEscape(event) {
+        if (event.key === "Escape") {
+          closeWith(false);
+        }
+      }
+
+      window.document.addEventListener("keydown", handleEscape);
+
+      backdrop.addEventListener("click", function (event) {
+        if (event.target === backdrop) {
+          closeWith(false);
+        }
+      });
+
+      dialog.addEventListener("click", function (event) {
+        const target = event.target;
+        if (!(target instanceof HTMLElement)) {
+          return;
+        }
+
+        const action = target.getAttribute("data-schedule-revert-action");
+        if (action === "cancel") {
+          closeWith(false);
+          return;
+        }
+
+        if (action === "revert") {
+          closeWith(true);
+        }
+      });
+    });
+  }
+
+  function applyTemplateCompletion(building, scheduleItem, options) {
+    const template = findPropertyTemplateById(building, scheduleItem.propertyTemplateId || scheduleItem.templateId);
+    if (!template) {
+      return null;
+    }
+
+    const previousDueDate = String(template.nextDueDate || scheduleItem.dueDate || "").trim();
+    const newDueDate = getNextDueDatePlaceholder(previousDueDate, template.defaultFrequency || scheduleItem.frequency);
+    const completedAt = options.completedAt || new Date().toISOString();
+    const completedBy = options.completedBy || "Property Manager";
+    const historyId = window.BuildingStorage.createId();
+
+    const historyRecord = {
+      id: historyId,
+      templateId: template.id,
+      scheduleItemId: scheduleItem.id,
+      completedAt: completedAt,
+      completedDate: completedAt.slice(0, 10),
+      completedBy: completedBy,
+      taskName: scheduleItem.taskName,
+      companyUsed: options.companyUsed || "",
+      companyUsedId: options.companyUsedId || "",
+      contactUsed: options.contactUsed || "",
+      contactUsedId: options.contactUsedId || "",
+      notes: options.notes || "",
+      hasAttachments: false,
+      previousDueDate: previousDueDate,
+      newDueDate: newDueDate,
+      nextDueDate: newDueDate,
+      revertedAt: "",
+      revertedBy: "",
+      createdDate: completedAt,
+    };
+
+    const updatedPropertyTemplates = getPropertyTemplates(building).map(function (entry) {
+      if (entry.id !== template.id) {
+        return entry;
+      }
+
+      return normalizePropertyTemplateRecord({
+        ...entry,
+        nextDueDate: newDueDate,
+        defaultFrequency: template.defaultFrequency,
+        preferredCompanyId: options.companyUsedId || entry.preferredCompanyId || "",
+        preferredContactId: options.contactUsedId || entry.preferredContactId || "",
+        lastUpdated: completedAt,
+      });
+    });
+
+    const activeTemplate = updatedPropertyTemplates.find(function (entry) {
+      return entry.id === template.id;
+    }) || template;
+
+    const updatedScheduleItems = (building.scheduleItems || []).map(function (item) {
+      if (item.id !== scheduleItem.id) {
+        return item;
+      }
+
+      return {
+        ...item,
+        templateId: activeTemplate.id,
+        propertyTemplateId: activeTemplate.id,
+        dueDate: newDueDate,
+        frequency: activeTemplate.defaultFrequency,
+        taskName: activeTemplate.name,
+        category: activeTemplate.category,
+        preferredCompany: options.companyUsed || item.preferredCompany || "",
+        preferredCompanyId: options.companyUsedId || item.preferredCompanyId || "",
+        preferredContactId: options.contactUsedId || item.preferredContactId || "",
+        lastCompletionHistoryId: historyId,
+        lastUpdated: completedAt,
+      };
+    });
+
+    const updated = {
+      ...building,
+      propertyTemplates: updatedPropertyTemplates,
+      scheduleItems: updatedScheduleItems,
+      historyRecords: (building.historyRecords || []).concat(historyRecord),
+      lastUpdated: completedAt,
+    };
+
+    const normalized = ensureWorkflowCollections(updated);
+    window.BuildingStorage.updateBuilding(normalized);
+    return normalized;
+  }
+
+  function revertTemplateCompletion(building, scheduleItem, historyRecord) {
+    const template = findPropertyTemplateById(building, scheduleItem.propertyTemplateId || scheduleItem.templateId);
+    if (!template || !historyRecord) {
+      return null;
+    }
+
+    const revertedAt = new Date().toISOString();
+    const revertedBy = "Property Manager";
+
+    const updatedPropertyTemplates = getPropertyTemplates(building).map(function (entry) {
+      if (entry.id !== template.id) {
+        return entry;
+      }
+
+      return normalizePropertyTemplateRecord({
+        ...entry,
+        nextDueDate: historyRecord.previousDueDate,
+        lastUpdated: revertedAt,
+      });
+    });
+
+    const updated = {
+      ...building,
+      propertyTemplates: updatedPropertyTemplates,
+      scheduleItems: (building.scheduleItems || []).map(function (item) {
+        if (item.id !== scheduleItem.id) {
+          return item;
+        }
+
+        return {
+          ...item,
+          dueDate: historyRecord.previousDueDate,
+          lastCompletionHistoryId: "",
+          lastUpdated: revertedAt,
+        };
+      }),
+      historyRecords: (building.historyRecords || []).map(function (record) {
+        if (record.id !== historyRecord.id) {
+          return record;
+        }
+
+        return {
+          ...record,
+          revertedAt: revertedAt,
+          revertedBy: revertedBy,
+        };
+      }),
+      lastUpdated: revertedAt,
+    };
+
+    const normalized = ensureWorkflowCollections(updated);
+    window.BuildingStorage.updateBuilding(normalized);
+    return normalized;
+  }
+
   function renderScheduleRow(row) {
-    const dueClass = row.state === "overdue"
-      ? "schedule-row-due-overdue"
-      : (row.state === "today" ? "schedule-row-due-today" : "");
+    const dueClass = `schedule-row-due-${row.visualPriority}`;
     const overdueMeta = row.state === "overdue"
       ? `<p class="schedule-row-overdue">${getOverdueLabel(Math.abs(row.diffDays))}</p>`
       : "";
     const contractor = getCompanyNameById(row.item.preferredCompanyId, row.item.preferredCompany || "") || "Not assigned";
+    const showCompleteButton = row.visualPriority === "overdue" || row.visualPriority === "due30";
+    const completeButton = showCompleteButton
+      ? `<button class="btn btn-primary btn-small schedule-complete-btn" type="button" data-schedule-complete-id="${row.item.id}">Completed</button>`
+      : "";
+    const revertButton = row.lastCompletionRecord
+      ? `<button class="btn btn-secondary btn-small schedule-revert-btn" type="button" data-schedule-revert-id="${row.item.id}">Revert</button>`
+      : "";
 
     return `
-      <article class="schedule-ops-row schedule-ops-row-${row.state}" data-schedule-id="${row.item.id}">
+      <article class="schedule-ops-row schedule-ops-row-${row.state} schedule-ops-priority-${row.visualPriority}" data-schedule-id="${row.item.id}" data-schedule-building-id="${row.propertyId}">
         <span class="schedule-ops-marker" aria-hidden="true"></span>
         <div class="schedule-ops-main">
           <p class="schedule-row-due ${dueClass}">${formatDate(row.item.dueDate)}</p>
@@ -2327,30 +2847,27 @@
           <h3 class="schedule-row-title">${escapeHtml(row.item.taskName)}</h3>
           <p class="schedule-row-meta">${escapeHtml(row.propertyName)} • ${escapeHtml(row.category)} • ${escapeHtml(row.item.frequency)}</p>
           <p class="schedule-row-meta">Contractor: ${escapeHtml(contractor)}</p>
+          <p class="schedule-row-status schedule-row-status-${row.visualPriority}">Status: ${escapeHtml(row.statusText)}</p>
         </div>
         <div class="schedule-ops-actions">
-          <button class="btn btn-primary btn-small schedule-complete-btn" type="button" data-schedule-complete-id="${row.item.id}">Completed</button>
+          ${completeButton}
+          ${revertButton}
         </div>
       </article>
     `;
   }
 
-  function renderScheduleGroup(title, stateKey, rows) {
+  function renderScheduleGroup(title, priorityKey, rows) {
     const rowsForGroup = sortScheduleRows(rows.filter(function (row) {
-      return row.state === stateKey;
+      return row.visualPriority === priorityKey;
     }));
 
     if (rowsForGroup.length === 0) {
-      return `
-        <section class="schedule-ops-group schedule-ops-group-${stateKey}">
-          <h3 class="schedule-ops-group-title">${title}</h3>
-          <p class="module-placeholder">No items.</p>
-        </section>
-      `;
+      return "";
     }
 
     return `
-      <section class="schedule-ops-group schedule-ops-group-${stateKey}">
+      <section class="schedule-ops-group schedule-ops-group-${priorityKey}">
         <h3 class="schedule-ops-group-title">${title}</h3>
         <div class="schedule-ops-group-list">
           ${rowsForGroup.map(renderScheduleRow).join("")}
@@ -2361,15 +2878,19 @@
 
   function renderScheduleOperationsList(rows) {
     if (rows.length === 0) {
-      scheduleOpsList.innerHTML = '<p class="module-placeholder">No scheduled items match the selected filters.</p>';
+      scheduleOpsList.innerHTML = '<p class="module-placeholder schedule-ops-empty">No scheduled items.</p>';
       return;
     }
 
-    scheduleOpsList.innerHTML = [
+    const sections = [
       renderScheduleGroup("Overdue", "overdue", rows),
-      renderScheduleGroup("Due Today", "today", rows),
-      renderScheduleGroup("Upcoming", "upcoming", rows),
-    ].join("");
+      renderScheduleGroup("Due Within 30 Days", "due30", rows),
+      renderScheduleGroup("Scheduled", "scheduled", rows),
+    ].filter(function (section) {
+      return Boolean(section);
+    });
+
+    scheduleOpsList.innerHTML = sections.join("");
   }
 
   function renderCompletedRecords(container, records) {
@@ -2402,13 +2923,19 @@
       .join("");
   }
 
-  function renderSchedulePage(building) {
-    const normalized = ensureWorkflowCollections(building);
-    scheduleBuildingName.textContent = normalized.buildingName;
+  function renderSchedulePage() {
+    const buildings = getNormalizedScheduleBuildings();
+    scheduleBuildingName.textContent = "All Properties";
 
-    const rows = decorateScheduleRows(normalized, normalized.scheduleItems || []);
-    renderScheduleSummary(rows, normalized.historyRecords || []);
-    renderScheduleFilterOptions(normalized, rows);
+    const rows = buildings.flatMap(function (building) {
+      return decorateScheduleRows(building, building.scheduleItems || []);
+    });
+    const historyRecords = buildings.flatMap(function (building) {
+      return building.historyRecords || [];
+    });
+
+    renderScheduleSummary(rows, historyRecords);
+    renderScheduleFilterOptions(buildings, rows);
     const filteredRows = filterScheduleRows(rows);
     renderScheduleOperationsList(filteredRows);
   }
@@ -2421,23 +2948,30 @@
   }
 
   function openScheduleView(buildingId) {
-    const building = findBuildingById(buildingId);
-    if (!building) {
+    const buildings = window.BuildingStorage.getBuildings();
+    if (buildings.length === 0) {
       showDashboard();
       return;
     }
 
-    activeBuildingId = building.id;
-    const normalized = ensureWorkflowCollections(building);
-    if (normalized !== building) {
+    if (buildingId && findBuildingById(buildingId)) {
+      activeBuildingId = buildingId;
+    } else {
+      ensureActiveBuildingSelection(buildings);
+    }
+
+    const activeBuilding = findBuildingById(activeBuildingId);
+    if (activeBuilding) {
+      const normalized = ensureWorkflowCollections(activeBuilding);
       window.BuildingStorage.updateBuilding({
-        ...building,
+        ...activeBuilding,
+        propertyTemplates: normalized.propertyTemplates,
         scheduleItems: normalized.scheduleItems,
         historyRecords: normalized.historyRecords,
       });
     }
 
-    renderSchedulePage(normalized);
+    renderSchedulePage();
     showScheduleView();
   }
 
@@ -2912,25 +3446,40 @@
   }
 
   function renderCategoryDocumentsList(building, category, documents) {
-    if (documents.length === 0) {
-      return '<p class="module-placeholder">No documents in this category.</p>';
-    }
-
     return documents.map(function (documentRecord) {
+      const notesMarkup = documentRecord.notes
+        ? '<span class="document-note-indicator">Notes</span>'
+        : "";
       return `
         <article class="document-item-row">
           <div class="document-item-main">
             <h4 class="document-item-title">${escapeHtml(documentRecord.fileName || "Untitled")}</h4>
-            <p class="document-item-meta">${escapeHtml(documentRecord.documentType || category.name)} • ${escapeHtml(formatLeaseLatestDocumentDate(documentRecord))}</p>
+            <p class="document-item-meta">Document Date: ${escapeHtml(formatDate(documentRecord.documentDate || documentRecord.uploadedAt))}</p>
+            <p class="document-item-meta">Upload Date: ${escapeHtml(formatDate(documentRecord.uploadedAt))}</p>
+            <p class="document-item-meta">Uploaded By: ${escapeHtml(documentRecord.uploadedBy || "Not recorded")}${notesMarkup ? ` • ${notesMarkup}` : ""}</p>
           </div>
           <div class="document-item-actions">
             <button class="btn btn-secondary lease-tile-btn" type="button" data-document-module-action="view" data-document-category-id="${category.id}" data-document-id="${documentRecord.id}">View</button>
             <button class="btn btn-secondary lease-tile-btn" type="button" data-document-module-action="download" data-document-category-id="${category.id}" data-document-id="${documentRecord.id}">Download</button>
             <button class="btn btn-secondary lease-tile-btn" type="button" data-document-module-action="replace" data-document-category-id="${category.id}" data-document-id="${documentRecord.id}">Edit / Replace</button>
+            <button class="btn template-delete-btn lease-tile-btn" type="button" data-document-module-action="delete-document" data-document-category-id="${category.id}" data-document-id="${documentRecord.id}">Delete</button>
           </div>
         </article>
       `;
     }).join("");
+  }
+
+  function matchesCategoryDocumentSearch(documentRecord) {
+    const query = normalizeText(leaseCategorySearchQuery);
+    if (!query) {
+      return true;
+    }
+
+    return normalizeText(documentRecord.fileName).includes(query)
+      || normalizeText(documentRecord.documentType).includes(query)
+      || normalizeText(documentRecord.description).includes(query)
+      || normalizeText(documentRecord.uploadedBy).includes(query)
+      || normalizeText(documentRecord.notes).includes(query);
   }
 
   function renderLeaseCategoryTiles(building) {
@@ -2950,41 +3499,80 @@
       const category = entry.category;
       const documents = entry.documents;
       const latestDocument = documents[0] || null;
-      const expandLabel = category.isCollapsed ? "Expand" : "Collapse";
-      const latestDate = latestDocument ? formatLeaseLatestDocumentDate(latestDocument) : "No upload date";
-      const bodyMarkup = category.isCollapsed
-        ? ""
-        : `<div class="document-category-body">${renderCategoryDocumentsList(normalized, category, documents)}</div>`;
+      const latestDate = latestDocument ? formatLeaseLatestDocumentDate(latestDocument) : "";
+      const latestName = latestDocument ? latestDocument.fileName : "";
+      const buttonLabel = documents.length > 0 ? "Open" : "Add";
+      const latestNameMarkup = latestName
+        ? `<p class="document-category-meta">${escapeHtml(latestName)}</p>`
+        : "";
+      const latestDateMarkup = latestDate
+        ? `<p class="document-category-meta">${escapeHtml(latestDate)}</p>`
+        : "";
 
       return `
-        <article class="document-category-card${category.source === "lease" ? " is-primary" : ""}" data-document-category-id="${category.id}">
+        <article class="document-category-card${category.source === "lease" ? " is-primary" : ""}" data-document-category-id="${category.id}" role="button" tabindex="0" aria-label="Open ${escapeHtml(category.name)}">
           <div class="document-category-header">
             <div class="document-category-summary">
-              <span class="document-category-icon" aria-hidden="true">${escapeHtml(category.icon || "📁")}</span>
-              <div>
+              <div class="document-category-text">
                 <h3 class="document-category-title">${escapeHtml(category.name)}</h3>
-                <p class="document-category-meta">${escapeHtml(formatLeaseDocumentCount(documents.length))} • Latest: ${escapeHtml(latestDate)}</p>
+                <p class="document-category-meta">${escapeHtml(formatLeaseDocumentCount(documents.length))}</p>
+                ${latestNameMarkup}
+                ${latestDateMarkup}
               </div>
             </div>
+            <div class="document-category-card-menu">
+              <button class="btn btn-secondary lease-tile-btn document-category-menu-btn" type="button" aria-label="Manage ${escapeHtml(category.name)}" data-document-module-action="manage" data-document-category-id="${category.id}">⋮</button>
+            </div>
             <div class="document-category-actions">
-              <button class="btn btn-secondary lease-tile-btn" type="button" data-document-module-action="toggle" data-document-category-id="${category.id}">${expandLabel}</button>
-              <button class="btn btn-primary lease-tile-btn" type="button" data-document-module-action="add" data-document-category-id="${category.id}">Add Document</button>
-              <button class="btn btn-secondary lease-tile-btn" type="button" data-document-module-action="manage" data-document-category-id="${category.id}">Manage Category</button>
+              <button class="btn ${documents.length > 0 ? "btn-secondary" : "btn-primary"} lease-tile-btn" type="button" data-document-module-action="${documents.length > 0 ? "open" : "add"}" data-document-category-id="${category.id}">${buttonLabel}</button>
             </div>
           </div>
-          ${bodyMarkup}
         </article>
       `;
     }).join("") || '<p class="module-placeholder">No document categories match your search.</p>';
   }
 
-  function renderLeaseCategoryDetail() {
-    if (leaseCategoryDetail) {
-      leaseCategoryDetail.classList.remove("is-active");
+  function renderLeaseCategoryDetail(building) {
+    if (!leaseCategoryDetail || !leaseDashboardPanel) {
+      return;
     }
-    if (leaseDashboardPanel) {
+
+    if (!activeLeaseManagedCategoryKey) {
       leaseDashboardPanel.style.display = "block";
+      leaseCategoryDetail.classList.remove("is-active");
+      return;
     }
+
+    const normalized = ensureWorkflowCollections(building);
+    const category = findDocumentCategoryById(normalized, activeLeaseManagedCategoryKey);
+    if (!category) {
+      activeLeaseManagedCategoryKey = "";
+      leaseDashboardPanel.style.display = "block";
+      leaseCategoryDetail.classList.remove("is-active");
+      return;
+    }
+
+    const documents = getDocumentsForCategoryContainer(normalized, category).filter(matchesCategoryDocumentSearch);
+    leaseDashboardPanel.style.display = "none";
+    leaseCategoryDetail.classList.add("is-active");
+    leaseCategoryDetailTitle.textContent = category.name;
+    leaseCategoryDetailMeta.textContent = `${formatLeaseDocumentCount(getDocumentsForCategoryContainer(normalized, category).length)}. Newest first.`;
+
+    if (leaseCategorySearch) {
+      leaseCategorySearch.value = leaseCategorySearchQuery;
+    }
+
+    if (documents.length === 0) {
+      leaseCategoryList.innerHTML = `
+        <div class="document-category-empty-state">
+          <p class="module-placeholder">No documents yet.</p>
+          <button class="btn btn-primary" type="button" data-document-module-action="add" data-document-category-id="${category.id}">Load First Document</button>
+        </div>
+      `;
+      return;
+    }
+
+    leaseCategoryList.innerHTML = renderCategoryDocumentsList(normalized, category, documents);
   }
 
   function renderLeasePage(building) {
@@ -2998,7 +3586,8 @@
     leaseExpiryDate.textContent = tenancy ? formatDate(tenancy.leaseEnd) : "Not set";
 
     renderLeaseCategoryTiles(data.building);
-    renderLeaseCategoryDetail();
+    renderLeaseCategoryDetail(data.building);
+    showLeaseView();
   }
 
   function openLeaseView(buildingId) {
@@ -3050,6 +3639,668 @@
 
     window.BuildingStorage.updateBuilding(updated);
     return updated;
+  }
+
+  function updateActiveBuildingDocumentsState(mutator) {
+    const current = findBuildingById(activeBuildingId);
+    if (!current) {
+      return null;
+    }
+
+    const normalized = ensureWorkflowCollections(current);
+    const draft = {
+      ...normalized,
+      documents: (normalized.documents || []).map(function (documentRecord) {
+        return {
+          ...documentRecord,
+          storage: documentRecord.storage ? { ...documentRecord.storage } : null,
+        };
+      }),
+      documentCategories: (normalized.documentCategories || []).map(function (category) {
+        return { ...category };
+      }),
+      tenancy: normalized.tenancy
+        ? {
+          ...normalized.tenancy,
+          lease: {
+            ...(normalized.tenancy.lease || {}),
+            documents: ((normalized.tenancy.lease && normalized.tenancy.lease.documents) || []).map(function (documentRecord) {
+              return {
+                ...documentRecord,
+                storage: documentRecord.storage ? { ...documentRecord.storage } : null,
+              };
+            }),
+            versionHistory: ((normalized.tenancy.lease && normalized.tenancy.lease.versionHistory) || []).map(function (entry) {
+              return {
+                ...entry,
+                archivedDocument: entry.archivedDocument
+                  ? {
+                    ...entry.archivedDocument,
+                    storage: entry.archivedDocument.storage ? { ...entry.archivedDocument.storage } : null,
+                  }
+                  : entry.archivedDocument,
+              };
+            }),
+          },
+        }
+        : null,
+    };
+
+    const next = mutator(draft) || draft;
+    const updated = {
+      ...next,
+      lastUpdated: new Date().toISOString(),
+    };
+
+    window.BuildingStorage.updateBuilding(updated);
+    return updated;
+  }
+
+  function buildDocumentCategoryKey(name) {
+    const base = String(name || "")
+      .trim()
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-+|-+$/g, "");
+    return base || `document-category-${Date.now()}`;
+  }
+
+  function resequenceDocumentCategories(categories) {
+    return categories.map(function (category, index) {
+      return {
+        ...category,
+        sortOrder: index,
+      };
+    });
+  }
+
+  function getAllLeaseDocumentTypes() {
+    return LEASE_DOCUMENT_CATEGORIES.reduce(function (items, category) {
+      return items.concat(category.documentTypes || []);
+    }, []);
+  }
+
+  function resolveLeaseDocumentTypeForModule() {
+    const documentTypes = getAllLeaseDocumentTypes();
+    if (documentTypes.length === 0) {
+      return "Lease Document";
+    }
+
+    const defaultType = documentTypes[0];
+    const response = window.prompt(`Select document type: ${documentTypes.join(", ")}`, defaultType);
+    const selected = String(response || "").trim();
+    if (documentTypes.includes(selected)) {
+      return selected;
+    }
+
+    return defaultType;
+  }
+
+  function showDocumentCategoryFormDialog(totalCount) {
+    return new Promise(function (resolve) {
+      const backdrop = window.document.createElement("div");
+      backdrop.className = "document-modal-backdrop";
+
+      const dialog = window.document.createElement("div");
+      dialog.className = "document-modal";
+      dialog.setAttribute("role", "dialog");
+      dialog.setAttribute("aria-modal", "true");
+      dialog.setAttribute("aria-labelledby", "document-category-form-title");
+
+      dialog.innerHTML = `
+        <h3 id="document-category-form-title">Create Category</h3>
+        <form class="document-modal-form">
+          <label>
+            <span>Category Name</span>
+            <input name="name" type="text" required />
+          </label>
+          <label>
+            <span>Description</span>
+            <textarea name="description" rows="3"></textarea>
+          </label>
+          <label>
+            <span>Icon</span>
+            <input name="icon" type="text" placeholder="📁" />
+          </label>
+          <label>
+            <span>Display Order</span>
+            <input name="displayOrder" type="number" min="1" max="${Math.max(1, totalCount + 1)}" value="${Math.max(1, totalCount + 1)}" required />
+          </label>
+          <div class="document-modal-actions">
+            <button class="btn btn-secondary" type="button" data-document-modal-action="cancel">Cancel</button>
+            <button class="btn btn-primary" type="submit">Create Category</button>
+          </div>
+        </form>
+      `;
+
+      backdrop.appendChild(dialog);
+      window.document.body.appendChild(backdrop);
+
+      let isClosed = false;
+
+      function closeWith(result) {
+        if (isClosed) {
+          return;
+        }
+        isClosed = true;
+        window.document.removeEventListener("keydown", handleEscape);
+        backdrop.remove();
+        resolve(result);
+      }
+
+      function handleEscape(event) {
+        if (event.key === "Escape") {
+          closeWith(null);
+        }
+      }
+
+      window.document.addEventListener("keydown", handleEscape);
+
+      backdrop.addEventListener("click", function (event) {
+        if (event.target === backdrop) {
+          closeWith(null);
+        }
+      });
+
+      const form = dialog.querySelector(".document-modal-form");
+      const cancelButton = dialog.querySelector('[data-document-modal-action="cancel"]');
+      if (cancelButton instanceof HTMLButtonElement) {
+        cancelButton.addEventListener("click", function () {
+          closeWith(null);
+        });
+      }
+
+      if (form instanceof HTMLFormElement) {
+        form.addEventListener("submit", function (event) {
+          event.preventDefault();
+          const formData = new FormData(form);
+          const name = String(formData.get("name") || "").trim();
+          if (!name) {
+            const nameInput = form.elements.namedItem("name");
+            if (nameInput instanceof HTMLInputElement) {
+              nameInput.reportValidity();
+            }
+            return;
+          }
+
+          closeWith({
+            name: name,
+            description: String(formData.get("description") || "").trim(),
+            icon: String(formData.get("icon") || "").trim(),
+            displayOrder: Number(formData.get("displayOrder") || totalCount + 1),
+          });
+        });
+
+        const firstInput = form.elements.namedItem("name");
+        if (firstInput instanceof HTMLInputElement) {
+          firstInput.focus();
+        }
+      }
+    });
+  }
+
+  function showDocumentCategoryManageDialog(category, canMoveUp, canMoveDown) {
+    return new Promise(function (resolve) {
+      const backdrop = window.document.createElement("div");
+      backdrop.className = "document-modal-backdrop";
+
+      const dialog = window.document.createElement("div");
+      dialog.className = "document-modal document-manage-modal";
+      dialog.setAttribute("role", "dialog");
+      dialog.setAttribute("aria-modal", "true");
+      dialog.setAttribute("aria-labelledby", "document-manage-title");
+
+      dialog.innerHTML = `
+        <h3 id="document-manage-title">Manage Category</h3>
+        <p class="document-manage-subtitle">${escapeHtml(category.name)}</p>
+        <div class="document-manage-actions">
+          <button class="btn btn-secondary" type="button" data-document-manage-action="rename">Rename Category</button>
+          <button class="btn btn-secondary" type="button" data-document-manage-action="icon">Change Icon</button>
+          <button class="btn btn-secondary" type="button" data-document-manage-action="move-up"${canMoveUp ? "" : " disabled"}>Move Up</button>
+          <button class="btn btn-secondary" type="button" data-document-manage-action="move-down"${canMoveDown ? "" : " disabled"}>Move Down</button>
+          <button class="btn template-delete-btn" type="button" data-document-manage-action="delete">Delete Category</button>
+          <button class="btn btn-secondary" type="button" data-document-manage-action="close">Close</button>
+        </div>
+      `;
+
+      backdrop.appendChild(dialog);
+      window.document.body.appendChild(backdrop);
+
+      let isClosed = false;
+
+      function closeWith(result) {
+        if (isClosed) {
+          return;
+        }
+        isClosed = true;
+        window.document.removeEventListener("keydown", handleEscape);
+        backdrop.remove();
+        resolve(result);
+      }
+
+      function handleEscape(event) {
+        if (event.key === "Escape") {
+          closeWith(null);
+        }
+      }
+
+      window.document.addEventListener("keydown", handleEscape);
+
+      backdrop.addEventListener("click", function (event) {
+        if (event.target === backdrop) {
+          closeWith(null);
+        }
+      });
+
+      dialog.addEventListener("click", function (event) {
+        const target = event.target;
+        if (!(target instanceof HTMLElement)) {
+          return;
+        }
+
+        const action = target.getAttribute("data-document-manage-action");
+        if (!action || target.hasAttribute("disabled")) {
+          return;
+        }
+
+        if (action === "close") {
+          closeWith(null);
+          return;
+        }
+
+        closeWith(action);
+      });
+    });
+  }
+
+  function findDocumentRecordById(building, category, documentId) {
+    const documents = getDocumentsForCategoryContainer(building, category);
+    return documents.find(function (documentRecord) {
+      return documentRecord.id === documentId;
+    }) || null;
+  }
+
+  async function handleAddDocumentCategory() {
+    const building = findBuildingById(activeBuildingId);
+    if (!building) {
+      return;
+    }
+
+    const normalized = ensureWorkflowCollections(building);
+    const result = await showDocumentCategoryFormDialog((normalized.documentCategories || []).length);
+    if (!result) {
+      return;
+    }
+
+    const updated = updateActiveBuildingDocumentsState(function (draft) {
+      const categories = resequenceDocumentCategories((draft.documentCategories || []).slice());
+      const insertIndex = Math.max(0, Math.min(categories.length, Number(result.displayOrder || categories.length + 1) - 1));
+      categories.splice(insertIndex, 0, {
+        id: window.BuildingStorage.createId(),
+        key: buildDocumentCategoryKey(result.name),
+        name: result.name,
+        description: result.description,
+        icon: result.icon || "📁",
+        source: "building",
+        sortOrder: insertIndex,
+        isCollapsed: false,
+      });
+      draft.documentCategories = resequenceDocumentCategories(categories);
+      return draft;
+    });
+
+    if (!updated) {
+      return;
+    }
+
+    renderBuildings();
+    renderLeasePage(updated);
+  }
+
+  function toggleDocumentCategory(categoryId) {
+    const updated = updateActiveBuildingDocumentsState(function (draft) {
+      draft.documentCategories = (draft.documentCategories || []).map(function (category) {
+        if (category.id !== categoryId) {
+          return category;
+        }
+
+        return {
+          ...category,
+          isCollapsed: !category.isCollapsed,
+        };
+      });
+      return draft;
+    });
+
+    if (!updated) {
+      return;
+    }
+
+    renderLeasePage(updated);
+  }
+
+  async function handleManageDocumentCategory(categoryId) {
+    const building = findBuildingById(activeBuildingId);
+    if (!building) {
+      return;
+    }
+
+    const normalized = ensureWorkflowCollections(building);
+    const categories = getDocumentsModuleCategories(normalized);
+    const category = categories.find(function (entry) {
+      return entry.id === categoryId;
+    });
+    if (!category) {
+      return;
+    }
+
+    const index = categories.findIndex(function (entry) {
+      return entry.id === category.id;
+    });
+    const action = await showDocumentCategoryManageDialog(category, index > 0, index < categories.length - 1);
+    if (!action) {
+      return;
+    }
+
+    if (action === "rename") {
+      const response = window.prompt("Rename Category", category.name);
+      const nextName = String(response || "").trim();
+      if (!nextName) {
+        return;
+      }
+
+      const updatedByName = updateActiveBuildingDocumentsState(function (draft) {
+        draft.documentCategories = (draft.documentCategories || []).map(function (entry) {
+          return entry.id === category.id
+            ? { ...entry, name: nextName }
+            : entry;
+        });
+        return draft;
+      });
+      if (updatedByName) {
+        renderBuildings();
+        renderLeasePage(updatedByName);
+      }
+      return;
+    }
+
+    if (action === "icon") {
+      const response = window.prompt("Change Icon", category.icon || "📁");
+      const nextIcon = String(response || "").trim() || "📁";
+      const updatedByIcon = updateActiveBuildingDocumentsState(function (draft) {
+        draft.documentCategories = (draft.documentCategories || []).map(function (entry) {
+          return entry.id === category.id
+            ? { ...entry, icon: nextIcon }
+            : entry;
+        });
+        return draft;
+      });
+      if (updatedByIcon) {
+        renderLeasePage(updatedByIcon);
+      }
+      return;
+    }
+
+    if (action === "move-up" || action === "move-down") {
+      const offset = action === "move-up" ? -1 : 1;
+      const updatedByMove = updateActiveBuildingDocumentsState(function (draft) {
+        const nextCategories = resequenceDocumentCategories((draft.documentCategories || []).slice());
+        const currentIndex = nextCategories.findIndex(function (entry) {
+          return entry.id === category.id;
+        });
+        const targetIndex = currentIndex + offset;
+        if (currentIndex < 0 || targetIndex < 0 || targetIndex >= nextCategories.length) {
+          return draft;
+        }
+
+        const swapped = nextCategories.slice();
+        const moved = swapped.splice(currentIndex, 1)[0];
+        swapped.splice(targetIndex, 0, moved);
+        draft.documentCategories = resequenceDocumentCategories(swapped);
+        return draft;
+      });
+      if (updatedByMove) {
+        renderLeasePage(updatedByMove);
+      }
+      return;
+    }
+
+    if (action === "delete") {
+      const documentCount = getDocumentsForCategoryContainer(normalized, category).length;
+      const warning = documentCount > 0
+        ? `Deleting this category will also delete ${documentCount} contained document${documentCount === 1 ? "" : "s"}.`
+        : "This category has no documents.";
+      const shouldDelete = window.confirm(`Delete category \"${category.name}\"?\n\n${warning}`);
+      if (!shouldDelete) {
+        return;
+      }
+
+      const updatedByDelete = updateActiveBuildingDocumentsState(function (draft) {
+        draft.documentCategories = resequenceDocumentCategories((draft.documentCategories || []).filter(function (entry) {
+          return entry.id !== category.id;
+        }));
+
+        if (category.source === "lease" && draft.tenancy && draft.tenancy.lease) {
+          draft.tenancy.lease = {
+            ...draft.tenancy.lease,
+            documents: [],
+            versionHistory: [],
+          };
+          draft.tenancy.documents = [];
+          return draft;
+        }
+
+        draft.documents = (draft.documents || []).filter(function (documentRecord) {
+          return documentRecord.categoryId !== category.id;
+        });
+        return draft;
+      });
+      if (updatedByDelete) {
+        renderBuildings();
+        renderLeasePage(updatedByDelete);
+      }
+    }
+  }
+
+  async function handleLeaseCategoryLoad(categoryId) {
+    const building = findBuildingById(activeBuildingId);
+    if (!building) {
+      return;
+    }
+
+    const normalized = ensureWorkflowCollections(building);
+    const category = findDocumentCategoryById(normalized, categoryId);
+    if (!category) {
+      return;
+    }
+
+    if (category.source === "lease" && !normalized.tenancy) {
+      alert("Add a current tenancy before loading lease documents.");
+      return;
+    }
+
+    const selectedFile = await requestDocumentFileSelection();
+    if (!selectedFile) {
+      return;
+    }
+
+    const now = new Date().toISOString();
+    const uploadedBy = window.prompt("Uploaded by", "Property Manager") || "Property Manager";
+    const documentType = category.source === "lease" ? resolveLeaseDocumentTypeForModule() : category.name;
+    const payload = {
+      id: window.BuildingStorage.createId(),
+      categoryId: category.id,
+      documentType: documentType,
+      version: "v1",
+      documentDate: now.slice(0, 10),
+      description: `${category.name} upload`,
+      uploadedBy: String(uploadedBy).trim() || "Property Manager",
+      fileName: selectedFile.name,
+      mimeType: selectedFile.type || "application/octet-stream",
+      sizeBytes: selectedFile.size || 0,
+      uploadedAt: now,
+      lastUpdated: now,
+      notes: "Initial document upload.",
+      storage: {
+        kind: "data-url",
+        dataUrl: await readFileAsDataUrl(selectedFile),
+        previewStatus: "not-generated",
+        ocrStatus: "not-indexed",
+      },
+    };
+
+    const updated = updateActiveBuildingDocumentsState(function (draft) {
+      if (category.source === "lease") {
+        if (!draft.tenancy) {
+          return draft;
+        }
+        const lease = draft.tenancy.lease || { notes: "", documents: [], versionHistory: [] };
+        lease.documents = (lease.documents || []).concat(payload);
+        lease.versionHistory = (lease.versionHistory || []).concat({
+          id: window.BuildingStorage.createId(),
+          uploadedAt: now,
+          documentType: payload.documentType,
+          version: payload.version,
+          user: payload.uploadedBy,
+          notes: payload.notes,
+        });
+        draft.tenancy.lease = lease;
+        draft.tenancy.documents = lease.documents;
+        return draft;
+      }
+
+      draft.documents = (draft.documents || []).concat(payload);
+      return draft;
+    });
+
+    if (!updated) {
+      return;
+    }
+
+    renderBuildings();
+    renderLeasePage(updated);
+  }
+
+  async function handleLeaseDocumentReplace(categoryId, documentId) {
+    const building = findBuildingById(activeBuildingId);
+    if (!building) {
+      return;
+    }
+
+    const normalized = ensureWorkflowCollections(building);
+    const category = findDocumentCategoryById(normalized, categoryId);
+    if (!category) {
+      return;
+    }
+
+    const existing = findDocumentRecordById(normalized, category, documentId);
+    if (!existing) {
+      alert("Document not found.");
+      return;
+    }
+
+    const selectedFile = await requestDocumentFileSelection();
+    if (!selectedFile) {
+      return;
+    }
+
+    const shouldReplace = window.confirm(`Replace \"${existing.fileName || "current document"}\" with \"${selectedFile.name}\"?\n\n${category.source === "lease" ? "The previous version will be kept in version history." : "The current file will be replaced."}`);
+    if (!shouldReplace) {
+      return;
+    }
+
+    const now = new Date().toISOString();
+    const nextVersion = getNextLeaseDocumentVersion(existing.version);
+    const uploadedByDefault = String(existing.uploadedBy || "Property Manager").trim() || "Property Manager";
+    const uploadedByInput = window.prompt("Uploaded by", uploadedByDefault);
+    const uploadedBy = String(uploadedByInput || uploadedByDefault).trim() || "Property Manager";
+    const replacementDataUrl = await readFileAsDataUrl(selectedFile);
+
+    const updated = updateActiveBuildingDocumentsState(function (draft) {
+      if (category.source === "lease" && draft.tenancy && draft.tenancy.lease) {
+        const lease = draft.tenancy.lease;
+        const documents = Array.isArray(lease.documents) ? lease.documents.slice() : [];
+        const targetIndex = documents.findIndex(function (documentRecord) {
+          return documentRecord.id === documentId;
+        });
+        if (targetIndex === -1) {
+          return draft;
+        }
+
+        const currentRecord = documents[targetIndex];
+        const previousVersionNote = `Replaced by ${selectedFile.name} on ${formatDate(now)}.`;
+        const replacementRecord = {
+          ...currentRecord,
+          version: nextVersion,
+          documentDate: now.slice(0, 10),
+          description: `${currentRecord.documentType || "Document"} replacement upload`,
+          uploadedBy: uploadedBy,
+          fileName: selectedFile.name,
+          mimeType: selectedFile.type || "application/octet-stream",
+          sizeBytes: selectedFile.size || 0,
+          uploadedAt: now,
+          lastUpdated: now,
+          notes: `Replaced previous version (${currentRecord.version || "v1"}).`,
+          storage: {
+            kind: "data-url",
+            dataUrl: replacementDataUrl,
+            previewStatus: "not-generated",
+            ocrStatus: "not-indexed",
+          },
+        };
+
+        documents[targetIndex] = replacementRecord;
+        lease.documents = documents;
+        lease.versionHistory = (lease.versionHistory || []).concat(
+          createLeaseVersionHistoryEntry(currentRecord, now, previousVersionNote),
+          {
+            id: window.BuildingStorage.createId(),
+            uploadedAt: now,
+            documentType: replacementRecord.documentType,
+            version: replacementRecord.version,
+            user: replacementRecord.uploadedBy,
+            notes: "Replacement upload completed.",
+            sourceDocumentId: replacementRecord.id,
+          }
+        );
+        draft.tenancy.lease = lease;
+        draft.tenancy.documents = lease.documents;
+        return draft;
+      }
+
+      draft.documents = (draft.documents || []).map(function (documentRecord) {
+        if (documentRecord.id !== documentId) {
+          return documentRecord;
+        }
+
+        return {
+          ...documentRecord,
+          version: nextVersion,
+          documentDate: now.slice(0, 10),
+          uploadedBy: uploadedBy,
+          fileName: selectedFile.name,
+          mimeType: selectedFile.type || "application/octet-stream",
+          sizeBytes: selectedFile.size || 0,
+          uploadedAt: now,
+          lastUpdated: now,
+          notes: `Replaced previous version (${documentRecord.version || "v1"}).`,
+          storage: {
+            kind: "data-url",
+            dataUrl: replacementDataUrl,
+            previewStatus: "not-generated",
+            ocrStatus: "not-indexed",
+          },
+        };
+      });
+      return draft;
+    });
+
+    if (!updated) {
+      return;
+    }
+
+    renderBuildings();
+    renderLeasePage(updated);
   }
 
   function readFileAsDataUrl(file) {
@@ -3137,159 +4388,6 @@
         storage: documentRecord.storage ? { ...documentRecord.storage } : null,
       },
     };
-  }
-
-  async function handleLeaseCategoryLoad(categoryKey) {
-    const building = findBuildingById(activeBuildingId);
-    if (!building || !building.tenancy) {
-      alert("Add a current tenancy before loading lease documents.");
-      return;
-    }
-
-    const category = getLeaseCategoryByKey(categoryKey);
-    const selectedFile = await requestDocumentFileSelection();
-    if (!selectedFile) {
-      return;
-    }
-
-    const now = new Date().toISOString();
-    const documentType = resolveDocumentTypeForCategory(category);
-    const uploadedBy = window.prompt("Uploaded by", "Property Manager") || "Property Manager";
-    const payload = {
-      id: window.BuildingStorage.createId(),
-      documentType: documentType,
-      version: "v1",
-      documentDate: now.slice(0, 10),
-      description: `${category.title} initial upload`,
-      uploadedBy: String(uploadedBy).trim() || "Property Manager",
-      fileName: selectedFile.name,
-      mimeType: selectedFile.type || "application/octet-stream",
-      sizeBytes: selectedFile.size || 0,
-      uploadedAt: now,
-      lastUpdated: now,
-      notes: "Initial category document upload.",
-      storage: {
-        kind: "data-url",
-        dataUrl: await readFileAsDataUrl(selectedFile),
-        previewStatus: "not-generated",
-        ocrStatus: "not-indexed",
-      },
-    };
-
-    const updated = updateActiveBuildingLease(function (lease) {
-      const documents = Array.isArray(lease.documents) ? lease.documents.slice() : [];
-      documents.push(payload);
-
-      return {
-        ...lease,
-        documents: documents,
-        versionHistory: (Array.isArray(lease.versionHistory) ? lease.versionHistory : []).concat({
-          id: window.BuildingStorage.createId(),
-          uploadedAt: now,
-          documentType: payload.documentType,
-          version: payload.version,
-          user: payload.uploadedBy,
-          notes: payload.notes,
-        }),
-      };
-    });
-
-    if (!updated) {
-      return;
-    }
-
-    renderBuildings();
-    renderLeasePage(updated);
-  }
-
-  async function handleLeaseDocumentReplace(documentId) {
-    const building = findBuildingById(activeBuildingId);
-    if (!building || !building.tenancy) {
-      alert("Add a current tenancy before replacing lease documents.");
-      return;
-    }
-
-    const existing = findLeaseDocumentById(building, documentId);
-    if (!existing) {
-      alert("Document not found.");
-      return;
-    }
-
-    const selectedFile = await requestDocumentFileSelection();
-    if (!selectedFile) {
-      return;
-    }
-
-    const shouldReplace = window.confirm(`Replace \"${existing.fileName || "current document"}\" with \"${selectedFile.name}\"?\n\nThe previous version will be kept in version history.`);
-    if (!shouldReplace) {
-      return;
-    }
-
-    const now = new Date().toISOString();
-    const nextVersion = getNextLeaseDocumentVersion(existing.version);
-    const uploadedByDefault = String(existing.uploadedBy || "Property Manager").trim() || "Property Manager";
-    const uploadedByInput = window.prompt("Uploaded by", uploadedByDefault);
-    const uploadedBy = String(uploadedByInput || uploadedByDefault).trim() || "Property Manager";
-    const replacementDataUrl = await readFileAsDataUrl(selectedFile);
-
-    const updated = updateActiveBuildingLease(function (lease) {
-      const documents = Array.isArray(lease.documents) ? lease.documents.slice() : [];
-      const targetIndex = documents.findIndex(function (documentRecord) {
-        return documentRecord.id === documentId;
-      });
-      if (targetIndex === -1) {
-        return lease;
-      }
-
-      const currentRecord = documents[targetIndex];
-      const previousVersionNote = `Replaced by ${selectedFile.name} on ${formatDate(now)}.`;
-      const replacementRecord = {
-        ...currentRecord,
-        version: nextVersion,
-        documentDate: now.slice(0, 10),
-        description: `${currentRecord.documentType || "Document"} replacement upload`,
-        uploadedBy: uploadedBy,
-        fileName: selectedFile.name,
-        mimeType: selectedFile.type || "application/octet-stream",
-        sizeBytes: selectedFile.size || 0,
-        uploadedAt: now,
-        lastUpdated: now,
-        notes: `Replaced previous version (${currentRecord.version || "v1"}).`,
-        storage: {
-          kind: "data-url",
-          dataUrl: replacementDataUrl,
-          previewStatus: "not-generated",
-          ocrStatus: "not-indexed",
-        },
-      };
-
-      documents[targetIndex] = replacementRecord;
-
-      const versionHistory = Array.isArray(lease.versionHistory) ? lease.versionHistory.slice() : [];
-      versionHistory.push(createLeaseVersionHistoryEntry(currentRecord, now, previousVersionNote));
-      versionHistory.push({
-        id: window.BuildingStorage.createId(),
-        uploadedAt: now,
-        documentType: replacementRecord.documentType,
-        version: replacementRecord.version,
-        user: replacementRecord.uploadedBy,
-        notes: "Replacement upload completed.",
-        sourceDocumentId: replacementRecord.id,
-      });
-
-      return {
-        ...lease,
-        documents: documents,
-        versionHistory: versionHistory,
-      };
-    });
-
-    if (!updated) {
-      return;
-    }
-
-    renderBuildings();
-    renderLeasePage(updated);
   }
 
   function openOrDownloadLeaseDocument(documentRecord, shouldDownload) {
@@ -3628,6 +4726,7 @@
   function resetTemplateForm() {
     templateForm.reset();
     templateForm.elements.templateId.value = "";
+    templateForm.elements.description.value = "";
     populateTemplateFormOptions("General", "Annual");
     templateForm.elements.nextDueDate.value = "";
     templateForm.elements.defaultReminderPeriod.value = "30 days before";
@@ -3651,21 +4750,23 @@
 
     return `
       <article class="building-card template-card${inactiveClass}" data-template-id="${template.id}">
-        <h3>${template.name}</h3>
-        <div class="template-directory-grid">
-          <p><strong>Name:</strong> ${template.name}</p>
-          <p><strong>Category:</strong> ${template.category}</p>
-          <p><strong>Frequency:</strong> ${template.defaultFrequency}</p>
-          <p><strong>Next Due Date:</strong> ${formatDate(template.nextDueDate)}</p>
-          <p><strong>Status:</strong> ${template.active === "Yes" ? "Active" : "Inactive"}</p>
-        </div>
-        <p><strong>Default Reminder:</strong> ${template.defaultReminderPeriod}</p>
-        <p><strong>Suggested Documents:</strong> ${getSuggestedDocumentsText(template.suggestedDocuments)}</p>
-        <p><strong>Default Notes:</strong> ${template.defaultNotes || "Not set"}</p>
-        <div class="card-meta">
-          <button class="btn btn-secondary template-edit-btn" type="button">Edit</button>
-          <button class="btn template-delete-btn" type="button" data-template-action="delete">Delete</button>
-          <button class="btn ${statusToggleClass}" type="button" data-template-toggle-action="${statusToggleAction}">${statusToggleLabel}</button>
+        <div class="template-card-layout">
+          <section class="template-card-column template-card-column-left">
+            <h3 class="template-card-title">${template.name}</h3>
+            <p class="template-card-field"><span class="template-card-label">Frequency</span><span class="template-card-value">${template.defaultFrequency}</span></p>
+            <p class="template-card-field"><span class="template-card-label">Status</span><span class="template-card-value">${template.active === "Yes" ? "Active" : "Inactive"}</span></p>
+            <p class="template-card-field"><span class="template-card-label">Category</span><span class="template-card-value">${template.category}</span></p>
+            <p class="template-card-field"><span class="template-card-label">Due Date</span><span class="template-card-value">${formatDate(template.nextDueDate)}</span></p>
+          </section>
+          <section class="template-card-column template-card-column-right">
+            <p class="template-card-field"><span class="template-card-label">Reminder</span><span class="template-card-value">${template.defaultReminderPeriod}</span></p>
+            <p class="template-card-field template-card-notes"><span class="template-card-label">Default Notes</span><span class="template-card-value">${template.defaultNotes || "Not set"}</span></p>
+            <div class="template-card-actions">
+              <button class="btn btn-secondary template-edit-btn" type="button">Edit</button>
+              <button class="btn template-delete-btn" type="button" data-template-action="delete">Delete</button>
+              <button class="btn ${statusToggleClass}" type="button" data-template-toggle-action="${statusToggleAction}">${statusToggleLabel}</button>
+            </div>
+          </section>
         </div>
       </article>
     `;
@@ -3811,6 +4912,7 @@
     if (mode === "edit" && template) {
       templateForm.elements.templateId.value = template.id;
       templateForm.elements.name.value = template.name || "";
+      templateForm.elements.description.value = template.description || "";
       templateForm.elements.nextDueDate.value = template.nextDueDate || "";
       templateForm.elements.defaultReminderPeriod.value = template.defaultReminderPeriod || "30 days before";
       templateForm.elements.suggestedDocuments.value = getSuggestedDocumentsText(template.suggestedDocuments);
@@ -3834,6 +4936,7 @@
     return normalizeTemplateRecord({
       id: existingTemplate && existingTemplate.id ? existingTemplate.id : window.BuildingStorage.createId(),
       name: String(formData.get("name") || "").trim(),
+      description: String(formData.get("description") || "").trim(),
       category: String(formData.get("category") || "General").trim(),
       defaultFrequency: String(formData.get("defaultFrequency") || "Annual").trim(),
       nextDueDate: String(formData.get("nextDueDate") || "").trim(),
@@ -3865,19 +4968,29 @@
     openTemplateLibrary();
   }
 
+  function syncActiveBuildingScheduleFromTemplates() {
+    if (!activeBuildingId) {
+      return null;
+    }
+
+    const building = findBuildingById(activeBuildingId);
+    if (!building) {
+      return null;
+    }
+
+    const normalized = ensureWorkflowCollections(building);
+    window.BuildingStorage.updateBuilding({
+      ...building,
+      propertyTemplates: normalized.propertyTemplates,
+      scheduleItems: normalized.scheduleItems,
+      historyRecords: normalized.historyRecords,
+      lastUpdated: new Date().toISOString(),
+    });
+    return normalized;
+  }
+
   function handleSaveTemplate(event) {
     event.preventDefault();
-
-    const nextDueDateInput = templateForm.elements.nextDueDate;
-    if (nextDueDateInput instanceof HTMLInputElement) {
-      const nextDueDate = String(nextDueDateInput.value || "").trim();
-      if (!nextDueDate) {
-        nextDueDateInput.setCustomValidity("Please select a next due date.");
-        nextDueDateInput.reportValidity();
-        return;
-      }
-      nextDueDateInput.setCustomValidity("");
-    }
 
     const templates = getScheduledItemTemplates();
     const existing = templateFormMode === "edit"
@@ -3888,6 +5001,7 @@
 
     const payload = buildTemplatePayload(existing);
     upsertTemplate(payload);
+    syncActiveBuildingScheduleFromTemplates();
     openTemplateLibrary();
   }
 
@@ -3902,6 +5016,7 @@
       active: "No",
       lastUpdated: new Date().toISOString(),
     });
+    syncActiveBuildingScheduleFromTemplates();
   }
 
   function activateTemplate(templateId) {
@@ -3915,6 +5030,7 @@
       active: "Yes",
       lastUpdated: new Date().toISOString(),
     });
+    syncActiveBuildingScheduleFromTemplates();
   }
 
   function deleteTemplate(templateId) {
@@ -3928,6 +5044,7 @@
     }
 
     saveScheduledItemTemplates(next);
+    syncActiveBuildingScheduleFromTemplates();
   }
 
   async function handleTemplateLibraryListClick(event) {
@@ -4407,7 +5524,8 @@
       lastUpdated: new Date().toISOString(),
       buildingContactAssignments: Array.isArray(current.buildingContactAssignments) ? current.buildingContactAssignments : [],
       buildingRoles: Array.isArray(current.buildingRoles) ? current.buildingRoles : [],
-      scheduleItems: Array.isArray(current.scheduleItems) ? current.scheduleItems : createDefaultScheduleItems(),
+      propertyTemplates: Array.isArray(current.propertyTemplates) ? current.propertyTemplates : [],
+      scheduleItems: Array.isArray(current.scheduleItems) ? current.scheduleItems : [],
       historyRecords: Array.isArray(current.historyRecords) ? current.historyRecords : [],
     };
 
@@ -4671,6 +5789,10 @@
 
   function openLeaseCategoryDetail(categoryKey) {
     activeLeaseManagedCategoryKey = categoryKey;
+    leaseCategorySearchQuery = "";
+    if (leaseCategorySearch) {
+      leaseCategorySearch.value = "";
+    }
     const building = findBuildingById(activeBuildingId);
     if (!building) {
       return;
@@ -4681,7 +5803,6 @@
 
   function handleLeaseSearch() {
     leaseSearchQuery = String(leaseSearch.value || "");
-    activeLeaseManagedCategoryKey = "";
 
     const building = findBuildingById(activeBuildingId);
     if (!building) {
@@ -4697,30 +5818,43 @@
       return;
     }
 
-    const actionButton = target.closest("[data-lease-category-action]");
+    const actionButton = target.closest("[data-document-module-action]");
     if (actionButton) {
       const building = findBuildingById(activeBuildingId);
       if (!building) {
         return;
       }
 
-      const categoryKey = actionButton.getAttribute("data-lease-category-key") || "";
+      const categoryId = actionButton.getAttribute("data-document-category-id") || "";
       const documentId = actionButton.getAttribute("data-document-id") || "";
-      const action = actionButton.getAttribute("data-lease-category-action") || "";
+      const action = actionButton.getAttribute("data-document-module-action") || "";
 
-      if (action === "load") {
-        await handleLeaseCategoryLoad(categoryKey);
+      const category = findDocumentCategoryById(ensureWorkflowCollections(building), categoryId);
+      if (!category && action !== "add") {
         return;
       }
 
-      if (!documentId) {
-        if (action === "view") {
-          openLeaseCategoryDetail(categoryKey);
-        }
+      if (action === "toggle") {
+        toggleDocumentCategory(categoryId);
         return;
       }
 
-      const documentRecord = findLeaseDocumentById(building, documentId);
+      if (action === "open") {
+        openLeaseCategoryDetail(categoryId);
+        return;
+      }
+
+      if (action === "add") {
+        await handleLeaseCategoryLoad(categoryId);
+        return;
+      }
+
+      if (action === "manage") {
+        await handleManageDocumentCategory(categoryId);
+        return;
+      }
+
+      const documentRecord = findDocumentRecordById(ensureWorkflowCollections(building), category, documentId);
       if (!documentRecord) {
         return;
       }
@@ -4735,28 +5869,50 @@
         return;
       }
 
-      if (action === "edit-replace") {
-        await handleLeaseDocumentReplace(documentId);
+      if (action === "replace") {
+        await handleLeaseDocumentReplace(categoryId, documentId);
         return;
       }
 
-      if (action === "manage") {
-        openLeaseCategoryDetail(categoryKey);
+      if (action === "delete-document") {
+        const shouldDelete = window.confirm(`Delete document \"${documentRecord.fileName || "Untitled"}\"?`);
+        if (!shouldDelete) {
+          return;
+        }
+
+        const updated = updateActiveBuildingDocumentsState(function (draft) {
+          const targetCategory = findDocumentCategoryById(draft, categoryId);
+          if (targetCategory && targetCategory.source === "lease" && draft.tenancy && draft.tenancy.lease) {
+            const lease = draft.tenancy.lease;
+            lease.documents = (lease.documents || []).filter(function (entry) {
+              return entry.id !== documentId;
+            });
+            draft.tenancy.lease = lease;
+            draft.tenancy.documents = lease.documents;
+            return draft;
+          }
+
+          draft.documents = (draft.documents || []).filter(function (entry) {
+            return entry.id !== documentId;
+          });
+          return draft;
+        });
+
+        if (updated) {
+          renderBuildings();
+          renderLeasePage(updated);
+        }
       }
       return;
     }
 
-    const tile = target.closest("[data-lease-category-key]");
-    if (!tile) {
-      return;
+    const categoryCard = target.closest("[data-document-category-id]");
+    if (categoryCard && !target.closest("button")) {
+      const categoryId = categoryCard.getAttribute("data-document-category-id") || "";
+      if (categoryId) {
+        openLeaseCategoryDetail(categoryId);
+      }
     }
-
-    const categoryKey = tile.getAttribute("data-lease-category-key") || "";
-    if (!categoryKey) {
-      return;
-    }
-
-    openLeaseCategoryDetail(categoryKey);
   }
 
   function handleLeaseCategoryGridKeydown(event) {
@@ -4769,22 +5925,25 @@
       return;
     }
 
-    const tile = target.closest("[data-lease-category-key]");
-    if (!tile || target.closest("button")) {
+    const card = target.closest("[data-document-category-id]");
+    if (!card || target.closest("button")) {
       return;
     }
 
     event.preventDefault();
-    const categoryKey = tile.getAttribute("data-lease-category-key") || "";
-    if (!categoryKey) {
-      return;
+    const categoryId = card.getAttribute("data-document-category-id") || "";
+    if (categoryId) {
+      openLeaseCategoryDetail(categoryId);
     }
-
-    openLeaseCategoryDetail(categoryKey);
   }
 
   function handleLeaseCategoryDetailBack() {
     activeLeaseManagedCategoryKey = "";
+    leaseCategorySearchQuery = "";
+    if (leaseCategorySearch) {
+      leaseCategorySearch.value = "";
+    }
+
     const building = findBuildingById(activeBuildingId);
     if (!building) {
       return;
@@ -4799,8 +5958,26 @@
       return;
     }
 
-    const actionButton = target.closest("[data-document-id]");
+    const actionButton = target.closest("[data-document-module-action]");
     if (!actionButton) {
+      return;
+    }
+
+    const categoryId = actionButton.getAttribute("data-document-category-id") || activeLeaseManagedCategoryKey || "";
+    const action = actionButton.getAttribute("data-document-module-action") || "";
+
+    if (action === "add") {
+      await handleLeaseCategoryLoad(categoryId);
+      return;
+    }
+
+    if (action === "manage") {
+      await handleManageDocumentCategory(categoryId);
+      return;
+    }
+
+    const documentId = actionButton.getAttribute("data-document-id") || "";
+    if (!documentId) {
       return;
     }
 
@@ -4809,13 +5986,17 @@
       return;
     }
 
-    const documentId = actionButton.getAttribute("data-document-id") || "";
-    const documentRecord = findLeaseDocumentById(building, documentId);
+    const normalized = ensureWorkflowCollections(building);
+    const category = findDocumentCategoryById(normalized, categoryId);
+    if (!category) {
+      return;
+    }
+
+    const documentRecord = findDocumentRecordById(normalized, category, documentId);
     if (!documentRecord) {
       return;
     }
 
-    const action = actionButton.getAttribute("data-lease-action") || "";
     if (action === "view") {
       openOrDownloadLeaseDocument(documentRecord, false);
       return;
@@ -4826,17 +6007,801 @@
       return;
     }
 
-    if (action === "edit-replace") {
-      await handleLeaseDocumentReplace(documentId);
+    if (action === "replace") {
+      await handleLeaseDocumentReplace(categoryId, documentId);
+      return;
     }
+
+    if (action === "delete-document") {
+      const shouldDelete = window.confirm(`Delete document \"${documentRecord.fileName || "Untitled"}\"?`);
+      if (!shouldDelete) {
+        return;
+      }
+
+      const updated = updateActiveBuildingDocumentsState(function (draft) {
+        const targetCategory = findDocumentCategoryById(draft, categoryId);
+        if (targetCategory && targetCategory.source === "lease" && draft.tenancy && draft.tenancy.lease) {
+          const lease = draft.tenancy.lease;
+          lease.documents = (lease.documents || []).filter(function (entry) {
+            return entry.id !== documentId;
+          });
+          draft.tenancy.lease = lease;
+          draft.tenancy.documents = lease.documents;
+          return draft;
+        }
+
+        draft.documents = (draft.documents || []).filter(function (entry) {
+          return entry.id !== documentId;
+        });
+        return draft;
+      });
+
+      if (updated) {
+        renderBuildings();
+        renderLeasePage(updated);
+      }
+    }
+  }
+
+  function handleLeaseCategorySearch() {
+    leaseCategorySearchQuery = String(leaseCategorySearch.value || "");
+    const building = findBuildingById(activeBuildingId);
+    if (!building) {
+      return;
+    }
+
+    renderLeasePage(building);
+  }
+
+  function handleLeaseCategoryManage() {
+    if (!activeLeaseManagedCategoryKey) {
+      return;
+    }
+    handleManageDocumentCategory(activeLeaseManagedCategoryKey);
+  }
+
+  function handleLeaseCategoryUpload() {
+    if (!activeLeaseManagedCategoryKey) {
+      return;
+    }
+    handleLeaseCategoryLoad(activeLeaseManagedCategoryKey);
+  }
+
+  function openInlineMasterTemplateCreateDialog() {
+    return new Promise(function (resolve) {
+      const backdrop = window.document.createElement("div");
+      backdrop.className = "template-delete-modal-backdrop";
+
+      const dialog = window.document.createElement("div");
+      dialog.className = "template-delete-modal template-master-create-modal";
+      dialog.setAttribute("role", "dialog");
+      dialog.setAttribute("aria-modal", "true");
+      dialog.setAttribute("aria-labelledby", "template-master-create-title");
+
+      dialog.innerHTML = `
+        <h3 id="template-master-create-title">New Master Template</h3>
+        <form class="template-master-create-form">
+          <label>
+            <span>Name</span>
+            <input name="name" type="text" required />
+          </label>
+          <label>
+            <span>Description (Optional)</span>
+            <textarea name="description" rows="2" placeholder="Short template description"></textarea>
+          </label>
+          <label>
+            <span>Category</span>
+            <select name="category">${TEMPLATE_CATEGORY_OPTIONS.map(function (option) {
+              return `<option value="${option}">${option}</option>`;
+            }).join("")}</select>
+          </label>
+          <label>
+            <span>Default Frequency</span>
+            <select name="defaultFrequency">${TEMPLATE_FREQUENCY_OPTIONS.map(function (option) {
+              return `<option value="${option}">${option}</option>`;
+            }).join("")}</select>
+          </label>
+          <div class="template-delete-modal-actions">
+            <button class="btn btn-secondary" type="button" data-template-master-create-action="cancel">Cancel</button>
+            <button class="btn btn-primary" type="submit">Save Template</button>
+          </div>
+        </form>
+      `;
+
+      backdrop.appendChild(dialog);
+      window.document.body.appendChild(backdrop);
+
+      function closeWith(template) {
+        window.document.removeEventListener("keydown", handleEscape);
+        backdrop.remove();
+        resolve(template || null);
+      }
+
+      function handleEscape(event) {
+        if (event.key === "Escape") {
+          closeWith(null);
+        }
+      }
+
+      window.document.addEventListener("keydown", handleEscape);
+
+      backdrop.addEventListener("click", function (event) {
+        if (event.target === backdrop) {
+          closeWith(null);
+        }
+      });
+
+      const form = dialog.querySelector(".template-master-create-form");
+      if (form instanceof HTMLFormElement) {
+        form.addEventListener("submit", function (event) {
+          event.preventDefault();
+          const formData = new FormData(form);
+          const payload = normalizeTemplateRecord({
+            id: window.BuildingStorage.createId(),
+            name: String(formData.get("name") || "").trim(),
+            description: String(formData.get("description") || "").trim(),
+            category: String(formData.get("category") || "General").trim(),
+            defaultFrequency: String(formData.get("defaultFrequency") || "Annual").trim(),
+            nextDueDate: "",
+            defaultReminderPeriod: "",
+            suggestedDocuments: [],
+            defaultNotes: "",
+            active: "Yes",
+            defaultChecked: false,
+            createdDate: new Date().toISOString(),
+            lastUpdated: new Date().toISOString(),
+          });
+
+          if (!payload.name) {
+            const nameInput = form.elements.namedItem("name");
+            if (nameInput instanceof HTMLInputElement) {
+              nameInput.reportValidity();
+            }
+            return;
+          }
+
+          upsertTemplate(payload);
+          closeWith(payload);
+        });
+      }
+
+      dialog.addEventListener("click", function (event) {
+        const target = event.target;
+        if (!(target instanceof HTMLElement)) {
+          return;
+        }
+
+        const action = target.getAttribute("data-template-master-create-action");
+        if (action === "cancel") {
+          closeWith(null);
+        }
+      });
+    });
+  }
+
+  function openInlineMasterTemplateEditDialog(template) {
+    return new Promise(function (resolve) {
+      if (!template) {
+        resolve(null);
+        return;
+      }
+
+      const backdrop = window.document.createElement("div");
+      backdrop.className = "template-delete-modal-backdrop";
+
+      const dialog = window.document.createElement("div");
+      dialog.className = "template-delete-modal template-master-create-modal";
+      dialog.setAttribute("role", "dialog");
+      dialog.setAttribute("aria-modal", "true");
+      dialog.setAttribute("aria-labelledby", "template-master-edit-title");
+
+      dialog.innerHTML = `
+        <h3 id="template-master-edit-title">Edit Master Template</h3>
+        <form class="template-master-create-form">
+          <label>
+            <span>Name</span>
+            <input name="name" type="text" value="${escapeHtml(template.name)}" required />
+          </label>
+          <label>
+            <span>Category</span>
+            <select name="category">${TEMPLATE_CATEGORY_OPTIONS.map(function (option) {
+              return `<option value="${option}"${option === template.category ? " selected" : ""}>${option}</option>`;
+            }).join("")}</select>
+          </label>
+          <label>
+            <span>Default Frequency</span>
+            <select name="defaultFrequency">${TEMPLATE_FREQUENCY_OPTIONS.map(function (option) {
+              return `<option value="${option}"${option === template.defaultFrequency ? " selected" : ""}>${option}</option>`;
+            }).join("")}</select>
+          </label>
+          <label>
+            <span>Default Reminder</span>
+            <input name="defaultReminderPeriod" type="text" value="${escapeHtml(template.defaultReminderPeriod || "")}" placeholder="e.g. 30 days before" />
+          </label>
+          <label>
+            <span>Suggested Documents</span>
+            <textarea name="suggestedDocuments" rows="2" placeholder="Comma separated">${escapeHtml(getSuggestedDocumentsText(template.suggestedDocuments))}</textarea>
+          </label>
+          <label>
+            <span>Default Notes</span>
+            <textarea name="defaultNotes" rows="2">${escapeHtml(template.defaultNotes || "")}</textarea>
+          </label>
+          <div class="template-delete-modal-actions">
+            <button class="btn btn-secondary" type="button" data-template-master-edit-action="cancel">Cancel</button>
+            <button class="btn btn-primary" type="submit">Save Changes</button>
+          </div>
+        </form>
+      `;
+
+      backdrop.appendChild(dialog);
+      window.document.body.appendChild(backdrop);
+
+      function closeWith(updated) {
+        window.document.removeEventListener("keydown", handleEscape);
+        backdrop.remove();
+        resolve(updated || null);
+      }
+
+      function handleEscape(event) {
+        if (event.key === "Escape") {
+          closeWith(null);
+        }
+      }
+
+      window.document.addEventListener("keydown", handleEscape);
+
+      backdrop.addEventListener("click", function (event) {
+        if (event.target === backdrop) {
+          closeWith(null);
+        }
+      });
+
+      dialog.addEventListener("click", function (event) {
+        const target = event.target;
+        if (!(target instanceof HTMLElement)) {
+          return;
+        }
+
+        const action = target.getAttribute("data-template-master-edit-action");
+        if (action === "cancel") {
+          closeWith(null);
+        }
+      });
+
+      const form = dialog.querySelector(".template-master-create-form");
+      if (form instanceof HTMLFormElement) {
+        form.addEventListener("submit", function (event) {
+          event.preventDefault();
+          const formData = new FormData(form);
+          const updated = normalizeTemplateRecord({
+            ...template,
+            name: String(formData.get("name") || "").trim(),
+            category: String(formData.get("category") || template.category || "General").trim(),
+            defaultFrequency: String(formData.get("defaultFrequency") || template.defaultFrequency || "Annual").trim(),
+            defaultReminderPeriod: String(formData.get("defaultReminderPeriod") || "").trim(),
+            suggestedDocuments: String(formData.get("suggestedDocuments") || "").trim(),
+            defaultNotes: String(formData.get("defaultNotes") || "").trim(),
+            lastUpdated: new Date().toISOString(),
+          });
+
+          if (!updated.name) {
+            const nameInput = form.elements.namedItem("name");
+            if (nameInput instanceof HTMLInputElement) {
+              nameInput.reportValidity();
+            }
+            return;
+          }
+
+          upsertTemplate(updated);
+          closeWith(updated);
+        });
+      }
+    });
+  }
+
+  function confirmMasterTemplateDeleteDialog() {
+    return new Promise(function (resolve) {
+      const backdrop = window.document.createElement("div");
+      backdrop.className = "template-delete-modal-backdrop";
+
+      const dialog = window.document.createElement("div");
+      dialog.className = "template-delete-modal";
+      dialog.setAttribute("role", "dialog");
+      dialog.setAttribute("aria-modal", "true");
+      dialog.setAttribute("aria-labelledby", "master-template-delete-title");
+
+      dialog.innerHTML = `
+        <h3 id="master-template-delete-title">Delete Master Template</h3>
+        <p>Are you sure you want to permanently delete this Master Template?</p>
+        <p>This will not affect any Property Templates that have already been created from it.</p>
+        <div class="template-delete-modal-actions">
+          <button class="btn btn-secondary" type="button" data-master-template-delete-action="cancel">Cancel</button>
+          <button class="btn template-delete-btn" type="button" data-master-template-delete-action="delete">Delete</button>
+        </div>
+      `;
+
+      backdrop.appendChild(dialog);
+      window.document.body.appendChild(backdrop);
+
+      function closeWith(confirmed) {
+        window.document.removeEventListener("keydown", handleEscape);
+        backdrop.remove();
+        resolve(Boolean(confirmed));
+      }
+
+      function handleEscape(event) {
+        if (event.key === "Escape") {
+          closeWith(false);
+        }
+      }
+
+      window.document.addEventListener("keydown", handleEscape);
+
+      backdrop.addEventListener("click", function (event) {
+        if (event.target === backdrop) {
+          closeWith(false);
+        }
+      });
+
+      dialog.addEventListener("click", function (event) {
+        const target = event.target;
+        if (!(target instanceof HTMLElement)) {
+          return;
+        }
+
+        const action = target.getAttribute("data-master-template-delete-action");
+        if (action === "cancel") {
+          closeWith(false);
+          return;
+        }
+        if (action === "delete") {
+          closeWith(true);
+        }
+      });
+    });
+  }
+
+  function showMasterTemplatePickerDialog() {
+    return new Promise(function (resolve) {
+      const selectedIds = new Set();
+      let searchQuery = "";
+      let createdTemplateId = "";
+
+      const backdrop = window.document.createElement("div");
+      backdrop.className = "template-delete-modal-backdrop";
+
+      const dialog = window.document.createElement("div");
+      dialog.className = "template-delete-modal template-picker-modal";
+      dialog.setAttribute("role", "dialog");
+      dialog.setAttribute("aria-modal", "true");
+      dialog.setAttribute("aria-labelledby", "template-picker-title");
+
+      dialog.innerHTML = `
+        <h3 id="template-picker-title">Add Templates To Property</h3>
+        <div class="template-picker-toolbar">
+          <button class="btn btn-secondary btn-small" type="button" data-template-picker-action="new-master">+ New Master Template</button>
+        </div>
+        <label class="template-picker-search-wrap">
+          <span class="visually-hidden">Search templates</span>
+          <input id="template-picker-search" class="search-input template-picker-search" type="search" placeholder="Search by template name, category, or description" />
+        </label>
+        <div class="template-picker-bulk-actions">
+          <button class="btn btn-secondary btn-small" type="button" data-template-picker-action="select-all">Select All</button>
+          <button class="btn btn-secondary btn-small" type="button" data-template-picker-action="clear-all">Clear All</button>
+        </div>
+        <div class="template-picker-list" data-template-picker-list></div>
+        <div class="template-delete-modal-actions">
+          <button class="btn btn-secondary" type="button" data-template-picker-action="cancel">Cancel</button>
+          <button class="btn btn-primary" type="button" data-template-picker-action="add">Add Selected</button>
+        </div>
+      `;
+
+      backdrop.appendChild(dialog);
+      window.document.body.appendChild(backdrop);
+
+      const listContainer = dialog.querySelector("[data-template-picker-list]");
+      const searchInput = dialog.querySelector("#template-picker-search");
+
+      function getFilteredTemplates() {
+        const activeTemplates = getScheduledItemTemplates().filter(function (template) {
+          return template.active === "Yes";
+        });
+
+        if (!searchQuery) {
+          return activeTemplates;
+        }
+
+        const query = normalizeText(searchQuery);
+        return activeTemplates.filter(function (template) {
+          return normalizeText(template.name).includes(query)
+            || normalizeText(template.category).includes(query)
+            || normalizeText(template.description).includes(query);
+        });
+      }
+
+      function renderList() {
+        const filtered = getFilteredTemplates();
+        if (!(listContainer instanceof HTMLElement)) {
+          return;
+        }
+
+        if (createdTemplateId) {
+          selectedIds.add(createdTemplateId);
+          createdTemplateId = "";
+        }
+
+        if (filtered.length === 0) {
+          listContainer.innerHTML = '<p class="module-placeholder">No templates match your search.</p>';
+          return;
+        }
+
+        listContainer.innerHTML = filtered.map(function (template) {
+          const checked = selectedIds.has(template.id) ? " checked" : "";
+          return `
+            <article class="template-picker-item" data-template-id="${template.id}">
+              <input type="checkbox" value="${template.id}"${checked} />
+              <span class="template-picker-item-content">
+                <strong>${escapeHtml(template.name)}</strong>
+                <span>${escapeHtml(template.category)}</span>
+                <span>${escapeHtml(template.defaultFrequency)}</span>
+              </span>
+              <span class="template-picker-item-actions">
+                <button class="btn btn-secondary btn-small" type="button" data-template-picker-template-action="edit" data-template-id="${template.id}">Edit</button>
+                <button class="btn template-delete-btn btn-small" type="button" data-template-picker-template-action="delete" data-template-id="${template.id}">Delete</button>
+              </span>
+            </article>
+          `;
+        }).join("");
+      }
+
+      function closeWith(selected) {
+        window.document.removeEventListener("keydown", handleEscape);
+        backdrop.remove();
+        resolve(selected);
+      }
+
+      function handleEscape(event) {
+        if (event.key === "Escape") {
+          closeWith([]);
+        }
+      }
+
+      window.document.addEventListener("keydown", handleEscape);
+
+      backdrop.addEventListener("click", function (event) {
+        if (event.target === backdrop) {
+          closeWith([]);
+        }
+      });
+
+      dialog.addEventListener("change", function (event) {
+        const target = event.target;
+        if (!(target instanceof HTMLInputElement)) {
+          return;
+        }
+
+        if (target.type === "checkbox") {
+          const templateId = String(target.value || "");
+          if (!templateId) {
+            return;
+          }
+
+          if (target.checked) {
+            selectedIds.add(templateId);
+          } else {
+            selectedIds.delete(templateId);
+          }
+        }
+      });
+
+      if (searchInput instanceof HTMLInputElement) {
+        searchInput.addEventListener("input", function () {
+          searchQuery = String(searchInput.value || "").trim();
+          renderList();
+        });
+      }
+
+      dialog.addEventListener("click", async function (event) {
+        const target = event.target;
+        if (!(target instanceof HTMLElement)) {
+          return;
+        }
+
+        const rowActionButton = target.closest("[data-template-picker-template-action]");
+        if (rowActionButton instanceof HTMLElement) {
+          const rowAction = rowActionButton.getAttribute("data-template-picker-template-action") || "";
+          const templateId = rowActionButton.getAttribute("data-template-id") || "";
+          if (!templateId) {
+            return;
+          }
+
+          if (rowAction === "edit") {
+            const template = findMasterTemplateById(templateId);
+            if (!template) {
+              return;
+            }
+            const updated = await openInlineMasterTemplateEditDialog(template);
+            if (!updated) {
+              return;
+            }
+            renderList();
+            return;
+          }
+
+          if (rowAction === "delete") {
+            const shouldDelete = await confirmMasterTemplateDeleteDialog();
+            if (!shouldDelete) {
+              return;
+            }
+
+            const remaining = getScheduledItemTemplates().filter(function (template) {
+              return template.id !== templateId;
+            });
+            saveScheduledItemTemplates(remaining);
+            selectedIds.delete(templateId);
+            renderList();
+            return;
+          }
+        }
+
+        const action = target.getAttribute("data-template-picker-action");
+        if (!action) {
+          return;
+        }
+
+        if (action === "cancel") {
+          closeWith([]);
+          return;
+        }
+
+        if (action === "add") {
+          closeWith(Array.from(selectedIds));
+          return;
+        }
+
+        if (action === "select-all") {
+          getFilteredTemplates().forEach(function (template) {
+            selectedIds.add(template.id);
+          });
+          renderList();
+          return;
+        }
+
+        if (action === "clear-all") {
+          selectedIds.clear();
+          renderList();
+          return;
+        }
+
+        if (action === "new-master") {
+          const created = await openInlineMasterTemplateCreateDialog();
+          if (!created) {
+            return;
+          }
+          createdTemplateId = created.id;
+          renderList();
+        }
+      });
+
+      renderList();
+    });
+  }
+
+  function showPropertyTemplateEditorDialog(building, propertyTemplateIds) {
+    return new Promise(function (resolve) {
+      const sourceTemplates = getPropertyTemplates(building).filter(function (template) {
+        return (propertyTemplateIds || []).includes(template.id);
+      });
+
+      if (sourceTemplates.length === 0) {
+        resolve(null);
+        return;
+      }
+
+      const backdrop = window.document.createElement("div");
+      backdrop.className = "template-delete-modal-backdrop";
+
+      const dialog = window.document.createElement("div");
+      dialog.className = "template-delete-modal template-property-editor-modal";
+      dialog.setAttribute("role", "dialog");
+      dialog.setAttribute("aria-modal", "true");
+      dialog.setAttribute("aria-labelledby", "property-template-editor-title");
+
+      dialog.innerHTML = `
+        <h3 id="property-template-editor-title">Complete Property Templates</h3>
+        <p>Fill in property-specific fields before activating templates.</p>
+        <form class="template-property-editor-form">
+          <div class="template-property-editor-list">
+            ${sourceTemplates.map(function (template) {
+              return `
+                <article class="template-property-editor-item" data-property-template-id="${template.id}">
+                  <h4>${escapeHtml(template.name)}</h4>
+                  <label>Category<input type="text" data-field="category" value="${escapeHtml(template.category)}" /></label>
+                  <label>Frequency<select data-field="defaultFrequency">${TEMPLATE_FREQUENCY_OPTIONS.map(function (option) {
+                    return `<option value="${option}"${option === template.defaultFrequency ? " selected" : ""}>${option}</option>`;
+                  }).join("")}</select></label>
+                  <label>Due Date<input type="date" data-field="nextDueDate" value="${escapeHtml(template.nextDueDate)}" /></label>
+                  <label>Reminder<input type="text" data-field="defaultReminderPeriod" value="${escapeHtml(template.defaultReminderPeriod)}" placeholder="e.g. 30 days before" /></label>
+                  <label>Contractor<select data-field="preferredCompanyId">${getSetupCompanyOptions(template.preferredCompanyId)}</select></label>
+                  <label>Notes<textarea rows="2" data-field="defaultNotes">${escapeHtml(template.defaultNotes)}</textarea></label>
+                  <label>Suggested Documents<input type="text" data-field="suggestedDocuments" value="${escapeHtml(getSuggestedDocumentsText(template.suggestedDocuments))}" placeholder="Comma separated" /></label>
+                  <label>Status<select data-field="active"><option value="No"${template.active === "No" ? " selected" : ""}>Inactive</option><option value="Yes"${template.active === "Yes" ? " selected" : ""}>Active</option></select></label>
+                </article>
+              `;
+            }).join("")}
+          </div>
+          <div class="template-delete-modal-actions">
+            <button class="btn btn-secondary" type="button" data-property-template-editor-action="cancel">Cancel</button>
+            <button class="btn btn-primary" type="submit">Save Property Templates</button>
+          </div>
+        </form>
+      `;
+
+      backdrop.appendChild(dialog);
+      window.document.body.appendChild(backdrop);
+
+      function closeWith(result) {
+        window.document.removeEventListener("keydown", handleEscape);
+        backdrop.remove();
+        resolve(result);
+      }
+
+      function handleEscape(event) {
+        if (event.key === "Escape") {
+          closeWith(null);
+        }
+      }
+
+      window.document.addEventListener("keydown", handleEscape);
+
+      backdrop.addEventListener("click", function (event) {
+        if (event.target === backdrop) {
+          closeWith(null);
+        }
+      });
+
+      dialog.addEventListener("click", function (event) {
+        const target = event.target;
+        if (!(target instanceof HTMLElement)) {
+          return;
+        }
+
+        const action = target.getAttribute("data-property-template-editor-action");
+        if (action === "cancel") {
+          closeWith(null);
+        }
+      });
+
+      const form = dialog.querySelector(".template-property-editor-form");
+      if (form instanceof HTMLFormElement) {
+        form.addEventListener("submit", function (event) {
+          event.preventDefault();
+
+          const updates = sourceTemplates.map(function (template) {
+            const card = form.querySelector(`[data-property-template-id="${template.id}"]`);
+            if (!(card instanceof HTMLElement)) {
+              return template;
+            }
+
+            function getValue(field) {
+              const input = card.querySelector(`[data-field="${field}"]`);
+              if (input instanceof HTMLInputElement || input instanceof HTMLTextAreaElement || input instanceof HTMLSelectElement) {
+                return String(input.value || "").trim();
+              }
+              return "";
+            }
+
+            return normalizePropertyTemplateRecord({
+              ...template,
+              category: getValue("category") || template.category,
+              defaultFrequency: getValue("defaultFrequency") || template.defaultFrequency,
+              nextDueDate: getValue("nextDueDate"),
+              defaultReminderPeriod: getValue("defaultReminderPeriod"),
+              preferredCompanyId: getValue("preferredCompanyId"),
+              defaultNotes: getValue("defaultNotes"),
+              suggestedDocuments: getValue("suggestedDocuments"),
+              active: getValue("active") === "Yes" ? "Yes" : "No",
+              lastUpdated: new Date().toISOString(),
+            });
+          });
+
+          closeWith(updates);
+        });
+      }
+    });
+  }
+
+  function addMasterTemplatesToActiveBuilding(masterTemplateIds) {
+    const building = findBuildingById(activeBuildingId);
+    if (!building) {
+      return null;
+    }
+
+    const normalized = ensureWorkflowCollections(building);
+    const existing = getPropertyTemplates(normalized);
+    const alreadyLinked = new Set(existing.map(function (template) {
+      return template.masterTemplateId;
+    }));
+
+    const newPropertyTemplates = (masterTemplateIds || []).map(function (masterTemplateId) {
+      const master = findMasterTemplateById(masterTemplateId);
+      if (!master || alreadyLinked.has(master.id)) {
+        return null;
+      }
+      alreadyLinked.add(master.id);
+      return createPropertyTemplateFromMaster(master);
+    }).filter(function (template) {
+      return Boolean(template);
+    });
+
+    if (newPropertyTemplates.length === 0) {
+      return {
+        building: normalized,
+        addedTemplateIds: [],
+      };
+    }
+
+    const updated = {
+      ...normalized,
+      propertyTemplates: existing.concat(newPropertyTemplates),
+      lastUpdated: new Date().toISOString(),
+    };
+
+    const rehydrated = ensureWorkflowCollections(updated);
+    window.BuildingStorage.updateBuilding(rehydrated);
+    return {
+      building: rehydrated,
+      addedTemplateIds: newPropertyTemplates.map(function (template) {
+        return template.id;
+      }),
+    };
+  }
+
+  async function handleManageTemplatesForProperty() {
+    if (!activeBuildingId) {
+      openTemplateLibrary();
+      return;
+    }
+
+    const selected = await showMasterTemplatePickerDialog();
+    if (!selected || selected.length === 0) {
+      return;
+    }
+
+    const addResult = addMasterTemplatesToActiveBuilding(selected);
+    if (!addResult || addResult.addedTemplateIds.length === 0) {
+      renderBuildings();
+      renderSchedulePage();
+      return;
+    }
+
+    const editedTemplates = await showPropertyTemplateEditorDialog(addResult.building, addResult.addedTemplateIds);
+    if (editedTemplates && editedTemplates.length > 0) {
+      const updateMap = new Map(editedTemplates.map(function (template) {
+        return [template.id, template];
+      }));
+      const updated = {
+        ...addResult.building,
+        propertyTemplates: getPropertyTemplates(addResult.building).map(function (template) {
+          return updateMap.get(template.id) || template;
+        }),
+        lastUpdated: new Date().toISOString(),
+      };
+      const normalized = ensureWorkflowCollections(updated);
+      window.BuildingStorage.updateBuilding(normalized);
+    }
+
+    renderBuildings();
+    renderSchedulePage();
   }
 
   function handleScheduleBack() {
     openOverviewById(activeBuildingId);
   }
 
-  function completeScheduleItemInline(itemId) {
-    const building = findBuildingById(activeBuildingId);
+  function completeScheduleItemInline(itemId, buildingId) {
+    const targetBuildingId = buildingId || activeBuildingId;
+    const building = findBuildingById(targetBuildingId);
     if (!building) {
       return;
     }
@@ -4851,42 +6816,23 @@
     const companyUsed = getCompanyNameById(companyUsedId, scheduleItem.preferredCompany || "");
     const contactUsedId = scheduleItem.preferredContactId || "";
     const contactUsed = contactUsedId ? getContactNameById(contactUsedId) : "";
-    const nextDueDate = getNextDueDatePlaceholder(scheduleItem.dueDate, scheduleItem.frequency);
-
+    const completedAt = new Date().toISOString();
     const normalized = ensureWorkflowCollections(building);
-    const remainingSchedule = normalized.scheduleItems.filter(function (item) {
-      return item.id !== scheduleItem.id;
-    });
-
-    const nextItem = createNextScheduleOccurrence(scheduleItem, completionDate, companyUsed);
-    nextItem.preferredCompanyId = companyUsedId;
-    nextItem.preferredContactId = contactUsedId;
-
-    const historyRecord = {
-      id: window.BuildingStorage.createId(),
-      scheduleItemId: scheduleItem.id,
-      completedDate: completionDate,
-      taskName: scheduleItem.taskName,
+    const updated = applyTemplateCompletion(normalized, scheduleItem, {
+      completedAt: completedAt,
+      completedBy: "Property Manager",
       companyUsed: companyUsed,
       companyUsedId: companyUsedId,
       contactUsed: contactUsed,
       contactUsedId: contactUsedId,
       notes: "Completed from schedule dashboard.",
-      hasAttachments: false,
-      nextDueDate: nextDueDate,
-      createdDate: new Date().toISOString(),
-    };
+    });
+    if (!updated) {
+      return;
+    }
 
-    const updated = {
-      ...building,
-      scheduleItems: remainingSchedule.concat(nextItem),
-      historyRecords: normalized.historyRecords.concat(historyRecord),
-      lastUpdated: new Date().toISOString(),
-    };
-
-    window.BuildingStorage.updateBuilding(updated);
     renderBuildings();
-    renderSchedulePage(updated);
+    renderSchedulePage();
   }
 
   function handleScheduleFilterChange() {
@@ -4897,12 +6843,7 @@
       duePeriod: String(scheduleFilterDuePeriod.value || "all"),
     };
 
-    const building = findBuildingById(activeBuildingId);
-    if (!building) {
-      return;
-    }
-
-    renderSchedulePage(building);
+    renderSchedulePage();
   }
 
   function handleHistoryBack() {
@@ -4934,41 +6875,24 @@
     const contactUsedId = String(formData.get("contactUsed") || "").trim();
     const companyUsed = getCompanyNameById(companyUsedId, "");
     const contactUsed = contactUsedId ? getContactNameById(contactUsedId) : "";
-    const nextDueDate = getNextDueDatePlaceholder(scheduleItem.dueDate, scheduleItem.frequency);
-
+    const now = new Date();
+    const timeFragment = now.toTimeString().slice(0, 8);
+    const completedAt = new Date(`${completionDate}T${timeFragment}`).toISOString();
     const normalized = ensureWorkflowCollections(building);
-    const remainingSchedule = normalized.scheduleItems.filter(function (item) {
-      return item.id !== scheduleItem.id;
-    });
-
-    const nextItem = createNextScheduleOccurrence(scheduleItem, completionDate, companyUsed);
-    nextItem.preferredCompanyId = companyUsedId || scheduleItem.preferredCompanyId || "";
-    nextItem.preferredContactId = contactUsedId || "";
-    const historyRecord = {
-      id: window.BuildingStorage.createId(),
-      scheduleItemId: scheduleItem.id,
-      completedDate: completionDate,
-      taskName: scheduleItem.taskName,
+    const updated = applyTemplateCompletion(normalized, scheduleItem, {
+      completedAt: completedAt,
+      completedBy: "Property Manager",
       companyUsed: companyUsed,
-      companyUsedId: companyUsedId,
+      companyUsedId: companyUsedId || scheduleItem.preferredCompanyId || "",
       contactUsed: contactUsed,
-      contactUsedId: contactUsedId,
+      contactUsedId: contactUsedId || "",
       notes: notes,
-      hasAttachments: false,
-      nextDueDate: nextDueDate,
-      createdDate: new Date().toISOString(),
-    };
+    });
+    if (!updated) {
+      return;
+    }
 
-    const updated = {
-      ...building,
-      scheduleItems: remainingSchedule.concat(nextItem),
-      historyRecords: normalized.historyRecords.concat(historyRecord),
-      lastUpdated: new Date().toISOString(),
-    };
-
-    window.BuildingStorage.updateBuilding(updated);
     renderBuildings();
-    activeScheduleTab = "completed";
     openScheduleView(activeBuildingId);
   }
 
@@ -4984,7 +6908,45 @@
     }
 
     const completeButton = target.closest("[data-schedule-complete-id]");
-    if (!completeButton) {
+    const revertButton = target.closest("[data-schedule-revert-id]");
+    if (!completeButton && !revertButton) {
+      return;
+    }
+
+    const row = target.closest(".schedule-ops-row");
+    const rowBuildingId = row ? (row.getAttribute("data-schedule-building-id") || "") : "";
+
+    if (revertButton) {
+      const itemId = revertButton.getAttribute("data-schedule-revert-id") || "";
+      if (!itemId) {
+        return;
+      }
+
+      const building = findBuildingById(rowBuildingId || activeBuildingId);
+      if (!building) {
+        return;
+      }
+
+      const normalized = ensureWorkflowCollections(building);
+      const scheduleItem = findScheduleItemById(normalized, itemId);
+      const historyRecord = scheduleItem ? getPendingRevertRecord(normalized, scheduleItem) : null;
+      if (!scheduleItem || !historyRecord) {
+        return;
+      }
+
+      confirmScheduleRevertDialog().then(function (shouldRevert) {
+        if (!shouldRevert) {
+          return;
+        }
+
+        const updated = revertTemplateCompletion(normalized, scheduleItem, historyRecord);
+        if (!updated) {
+          return;
+        }
+
+        renderBuildings();
+        renderSchedulePage();
+      });
       return;
     }
 
@@ -4993,7 +6955,7 @@
       return;
     }
 
-    completeScheduleItemInline(itemId);
+    completeScheduleItemInline(itemId, rowBuildingId);
   }
 
   function handleScheduleListKeydown(event) {
@@ -5002,6 +6964,9 @@
       return;
     }
 
+    const row = target.closest(".schedule-ops-row");
+    const rowBuildingId = row ? (row.getAttribute("data-schedule-building-id") || "") : "";
+
     if ((event.key === "Enter" || event.key === " ") && target.matches("[data-schedule-complete-id]")) {
       event.preventDefault();
       const itemId = target.getAttribute("data-schedule-complete-id") || "";
@@ -5009,7 +6974,42 @@
         return;
       }
 
-      completeScheduleItemInline(itemId);
+      completeScheduleItemInline(itemId, rowBuildingId);
+      return;
+    }
+
+    if ((event.key === "Enter" || event.key === " ") && target.matches("[data-schedule-revert-id]")) {
+      event.preventDefault();
+      const itemId = target.getAttribute("data-schedule-revert-id") || "";
+      if (!itemId) {
+        return;
+      }
+
+      const building = findBuildingById(rowBuildingId || activeBuildingId);
+      if (!building) {
+        return;
+      }
+
+      const normalized = ensureWorkflowCollections(building);
+      const scheduleItem = findScheduleItemById(normalized, itemId);
+      const historyRecord = scheduleItem ? getPendingRevertRecord(normalized, scheduleItem) : null;
+      if (!scheduleItem || !historyRecord) {
+        return;
+      }
+
+      confirmScheduleRevertDialog().then(function (shouldRevert) {
+        if (!shouldRevert) {
+          return;
+        }
+
+        const updated = revertTemplateCompletion(normalized, scheduleItem, historyRecord);
+        if (!updated) {
+          return;
+        }
+
+        renderBuildings();
+        renderSchedulePage();
+      });
     }
   }
 
@@ -5247,7 +7247,7 @@
   contactsBackBtn.addEventListener("click", handleContactsBack);
   companiesBackBtn.addEventListener("click", handleCompaniesBack);
   scheduleBackBtn.addEventListener("click", handleScheduleBack);
-  manageTemplatesBtn.addEventListener("click", openTemplateLibrary);
+  manageTemplatesBtn.addEventListener("click", handleManageTemplatesForProperty);
   historyBackBtn.addEventListener("click", handleHistoryBack);
   templateLibraryBackBtn.addEventListener("click", handleTemplateLibraryBack);
   editBuildingBtn.addEventListener("click", handleOpenEdit);
@@ -5262,7 +7262,10 @@
   tenancyTabHistory.addEventListener("click", handleTenancyTabHistory);
   tenancyContactsBtn.addEventListener("click", handleTenancyContacts);
   tenancyDocumentsBtn.addEventListener("click", handleTenancyDocuments);
+  documentsAddCategoryBtn.addEventListener("click", handleAddDocumentCategory);
+  leaseCategoryDetailManageBtn.addEventListener("click", handleLeaseCategoryManage);
   leaseCategoryDetailBackBtn.addEventListener("click", handleLeaseCategoryDetailBack);
+  leaseCategoryUploadBtn.addEventListener("click", handleLeaseCategoryUpload);
   cancelTenancyBtn.addEventListener("click", handleCancelTenancy);
   addExistingContactBtn.addEventListener("click", handleAddExistingContact);
   addContactBtn.addEventListener("click", handleAddContact);
@@ -5283,6 +7286,7 @@
   editBuildingForm.addEventListener("submit", handleEditSave);
   tenancyForm.addEventListener("submit", handleSaveTenancy);
   leaseSearch.addEventListener("input", handleLeaseSearch);
+  leaseCategorySearch.addEventListener("input", handleLeaseCategorySearch);
   contactForm.addEventListener("submit", handleSaveContact);
   contactExistingForm.addEventListener("submit", handleLinkExistingContact);
   contactForm.elements.companyId.addEventListener("change", handleContactCompanyChange);

@@ -236,12 +236,88 @@ body {
   margin: 0.2rem 0;
 }
 
+.template-card {
+  min-height: 198px;
+  padding: 0.78rem 0.85rem;
+  display: grid;
+}
+
+.template-card-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 0.7rem;
+  min-height: 100%;
+}
+
+.template-card-column {
+  display: grid;
+  gap: 0.26rem;
+  align-content: start;
+}
+
+.template-card-column-right {
+  display: flex;
+  flex-direction: column;
+  gap: 0.26rem;
+}
+
+.template-card-title {
+  margin: 0 0 0.16rem;
+  font-size: 1.04rem;
+  line-height: 1.25;
+  color: var(--text-main);
+}
+
+.template-card-field {
+  margin: 0;
+  display: grid;
+  grid-template-columns: 96px minmax(0, 1fr);
+  gap: 0.42rem;
+  align-items: start;
+  font-size: 0.84rem;
+  line-height: 1.3;
+  color: var(--text-muted);
+}
+
+.template-card-label {
+  color: #9fadc0;
+  font-weight: 700;
+}
+
+.template-card-value {
+  color: #c7d2e2;
+  overflow-wrap: anywhere;
+}
+
+.template-card-notes .template-card-value {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.template-card-actions {
+  margin-top: auto;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.45rem;
+}
+
+.template-card-actions .btn {
+  min-height: 34px;
+  padding: 0.42rem 0.35rem;
+  font-size: 0.78rem;
+  white-space: nowrap;
+}
+
 .template-card-inactive {
   background: linear-gradient(180deg, #1c2531 0%, #18202c 100%);
   border-color: #3a4658;
 }
 
-.template-card-inactive p {
+.template-card-inactive .template-card-title,
+.template-card-inactive .template-card-value,
+.template-card-inactive .template-card-label {
   color: #a1afc1;
 }
 
@@ -424,6 +500,153 @@ body {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 0.65rem;
+}
+
+.template-picker-modal {
+  width: min(620px, 100%);
+}
+
+.template-picker-toolbar {
+  display: flex;
+  justify-content: flex-start;
+}
+
+.template-picker-search {
+  min-height: 42px;
+}
+
+.template-picker-bulk-actions {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.template-picker-list {
+  max-height: 300px;
+  overflow-y: auto;
+  border: 1px solid var(--border);
+  border-radius: 0.65rem;
+  padding: 0.55rem;
+  display: grid;
+  gap: 0.35rem;
+  background: #101722;
+}
+
+.template-picker-item {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  gap: 0.55rem;
+  border: 1px solid var(--border);
+  border-radius: 0.55rem;
+  background: #141d2a;
+  padding: 0.5rem 0.55rem;
+  align-items: center;
+}
+
+.template-picker-item input[type="checkbox"] {
+  margin-top: 0.15rem;
+}
+
+.template-picker-item-content {
+  display: grid;
+  gap: 0.12rem;
+}
+
+.template-picker-item-content strong {
+  font-size: 0.92rem;
+}
+
+.template-picker-item-content span {
+  font-size: 0.82rem;
+  color: var(--text-muted);
+}
+
+.template-picker-item-actions {
+  display: flex;
+  gap: 0.35rem;
+  justify-content: flex-end;
+}
+
+.template-picker-item-actions .btn {
+  min-height: 30px;
+  padding: 0.35rem 0.55rem;
+  font-size: 0.76rem;
+}
+
+.template-master-create-modal {
+  width: min(620px, 100%);
+}
+
+.template-master-create-form {
+  display: grid;
+  gap: 0.55rem;
+}
+
+.template-master-create-form label {
+  display: grid;
+  gap: 0.2rem;
+}
+
+.template-master-create-form input,
+.template-master-create-form textarea,
+.template-master-create-form select {
+  width: 100%;
+  min-height: 42px;
+  border-radius: 0.55rem;
+  border: 1px solid var(--border);
+  background: #111823;
+  color: var(--text-main);
+  padding: 0.5rem 0.6rem;
+}
+
+.template-property-editor-modal {
+  width: min(880px, 100%);
+}
+
+.template-property-editor-form {
+  display: grid;
+  gap: 0.7rem;
+}
+
+.template-property-editor-list {
+  max-height: 56vh;
+  overflow-y: auto;
+  display: grid;
+  gap: 0.6rem;
+}
+
+.template-property-editor-item {
+  border: 1px solid var(--border);
+  border-radius: 0.6rem;
+  background: #101722;
+  padding: 0.6rem;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.45rem 0.7rem;
+}
+
+.template-property-editor-item h4 {
+  margin: 0;
+  grid-column: 1 / -1;
+}
+
+.template-property-editor-item label {
+  display: grid;
+  gap: 0.18rem;
+  font-size: 0.84rem;
+  color: var(--text-muted);
+}
+
+.template-property-editor-item input,
+.template-property-editor-item textarea,
+.template-property-editor-item select {
+  width: 100%;
+  min-height: 40px;
+  border-radius: 0.55rem;
+  border: 1px solid var(--border);
+  background: #111823;
+  color: var(--text-main);
+  padding: 0.45rem 0.55rem;
 }
 
 .building-form {
@@ -860,6 +1083,11 @@ body {
   align-content: start;
 }
 
+.schedule-ops-empty {
+  text-align: center;
+  align-self: center;
+}
+
 .schedule-ops-group {
   display: grid;
   gap: 0.5rem;
@@ -899,16 +1127,16 @@ body {
   border-radius: 0.3rem;
 }
 
-.schedule-ops-row-overdue .schedule-ops-marker {
-  background: #c96b6b;
+.schedule-ops-priority-overdue .schedule-ops-marker {
+  background: #df5656;
 }
 
-.schedule-ops-row-today .schedule-ops-marker {
-  background: #d79b62;
+.schedule-ops-priority-due30 .schedule-ops-marker {
+  background: #e4923e;
 }
 
-.schedule-ops-row-upcoming .schedule-ops-marker {
-  background: #5a8f76;
+.schedule-ops-priority-scheduled .schedule-ops-marker {
+  background: #56a478;
 }
 
 .schedule-ops-main {
@@ -924,11 +1152,15 @@ body {
 }
 
 .schedule-row-due-overdue {
-  color: #ef9c9c;
+  color: #f37f7f;
 }
 
-.schedule-row-due-today {
-  color: #f0b27c;
+.schedule-row-due-due30 {
+  color: #f0ae62;
+}
+
+.schedule-row-due-scheduled {
+  color: #72c595;
 }
 
 .schedule-row-overdue {
@@ -951,12 +1183,41 @@ body {
   line-height: 1.3;
 }
 
+.schedule-row-status {
+  margin: 0;
+  font-size: 0.82rem;
+  line-height: 1.3;
+  font-weight: 600;
+}
+
+.schedule-row-status-overdue {
+  color: #f37f7f;
+}
+
+.schedule-row-status-due30 {
+  color: #f0ae62;
+}
+
+.schedule-row-status-scheduled {
+  color: #72c595;
+}
+
 .schedule-ops-actions {
   padding-right: 0.56rem;
 }
 
 .schedule-complete-btn {
   min-height: 34px;
+  background: #38567f;
+  border-color: #4b6b98;
+  color: #e9f2ff;
+  transition: background 0.16s ease, border-color 0.16s ease, transform 0.16s ease;
+}
+
+.schedule-complete-btn:hover {
+  background: #42638f;
+  border-color: #5a7aa8;
+  transform: translateY(-1px);
 }
 
 .lease-header-meta {
@@ -971,6 +1232,7 @@ body {
 
 .lease-dashboard-tools {
   display: grid;
+  gap: 0.55rem;
   margin-bottom: 0.42rem;
 }
 
@@ -989,6 +1251,199 @@ body {
 .lease-category-grid {
   display: grid;
   gap: 0.72rem;
+}
+
+.document-category-card {
+  border: 1px solid var(--border);
+  border-radius: 0.8rem;
+  background: linear-gradient(180deg, #1a2431 0%, #141c27 100%);
+  padding: 0.72rem;
+  display: grid;
+  min-height: 220px;
+  grid-template-rows: 1fr;
+  cursor: pointer;
+  transition: transform 0.14s ease, border-color 0.14s ease, box-shadow 0.14s ease;
+}
+
+.document-category-card.is-primary {
+  border-color: rgba(47, 158, 119, 0.4);
+  box-shadow: inset 0 0 0 1px rgba(47, 158, 119, 0.16);
+}
+
+.document-category-card:hover {
+  transform: translateY(-1px);
+  border-color: #415166;
+}
+
+.document-category-card:focus-visible {
+  outline: 2px solid rgba(196, 212, 235, 0.45);
+  outline-offset: 2px;
+}
+
+.document-category-header {
+  display: grid;
+  min-height: 100%;
+  grid-template-rows: auto 1fr auto;
+  gap: 0.55rem;
+}
+
+.document-category-summary {
+  display: block;
+}
+
+.document-category-title {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.document-category-text {
+  display: grid;
+  gap: 0.18rem;
+}
+
+.document-category-meta {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 0.84rem;
+}
+
+.document-category-card-menu {
+  justify-self: end;
+}
+
+.document-category-menu-btn {
+  width: 40px;
+  min-width: 40px;
+  padding: 0;
+  font-size: 1rem;
+  line-height: 1;
+}
+
+.document-category-actions {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 0.45rem;
+  margin-top: auto;
+  padding-top: 0.55rem;
+}
+
+.document-item-row {
+  display: grid;
+  gap: 0.55rem;
+  border: 1px solid rgba(64, 76, 96, 0.4);
+  border-radius: 0.7rem;
+  background: #101721;
+  padding: 0.62rem;
+}
+
+.document-item-main {
+  display: grid;
+  gap: 0.18rem;
+}
+
+.document-item-title {
+  margin: 0;
+  font-size: 0.94rem;
+  color: var(--text-main);
+}
+
+.document-item-meta {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 0.82rem;
+}
+
+.document-item-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.45rem;
+}
+
+.document-note-indicator {
+  display: inline-block;
+  border-radius: 999px;
+  padding: 0.1rem 0.42rem;
+  background: rgba(176, 188, 209, 0.12);
+  color: #d4dcea;
+  font-size: 0.74rem;
+  font-weight: 600;
+}
+
+.lease-detail-actions,
+.lease-category-toolbar {
+  display: grid;
+  gap: 0.55rem;
+}
+
+.document-category-empty-state {
+  display: grid;
+  gap: 0.65rem;
+  padding: 0.8rem 0;
+}
+
+.document-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 2100;
+  background: rgba(6, 10, 16, 0.7);
+  display: grid;
+  place-items: center;
+  padding: 1rem;
+}
+
+.document-modal {
+  width: min(520px, 100%);
+  border: 1px solid var(--border);
+  border-radius: 0.85rem;
+  background: #141c27;
+  box-shadow: 0 12px 32px rgba(3, 7, 12, 0.55);
+  padding: 1rem;
+  display: grid;
+  gap: 0.85rem;
+}
+
+.document-modal h3,
+.document-manage-subtitle {
+  margin: 0;
+}
+
+.document-modal-form,
+.document-manage-actions {
+  display: grid;
+  gap: 0.65rem;
+}
+
+.document-modal-form label {
+  display: grid;
+  gap: 0.28rem;
+  font-weight: 600;
+}
+
+.document-modal-form input,
+.document-modal-form textarea {
+  width: 100%;
+  min-height: 42px;
+  border-radius: 0.6rem;
+  border: 1px solid var(--border);
+  background: #111823;
+  color: var(--text-main);
+  padding: 0.6rem 0.72rem;
+  font-size: 0.95rem;
+}
+
+.document-modal-form textarea {
+  min-height: 96px;
+  resize: vertical;
+}
+
+.document-modal-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.65rem;
+}
+
+.document-manage-subtitle {
+  color: var(--text-muted);
 }
 
 .lease-category-tile {
@@ -1340,16 +1795,58 @@ body {
   }
 
   .lease-dashboard-tools {
-    justify-content: end;
+    grid-template-columns: minmax(260px, 360px);
+    justify-content: start;
+    align-items: end;
   }
 
   .lease-search-input {
     justify-self: end;
-    width: min(320px, 100%);
+    width: 100%;
   }
 
   .lease-category-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .document-category-header {
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-rows: auto 1fr auto;
+    align-items: start;
+  }
+
+  .document-category-summary {
+    grid-column: 1 / 2;
+    grid-row: 1 / 3;
+  }
+
+  .document-category-card-menu {
+    grid-column: 2 / 3;
+    grid-row: 1 / 2;
+  }
+
+  .document-category-actions {
+    grid-column: 1 / 3;
+    grid-row: 3 / 4;
+  }
+
+  .lease-detail-actions {
+    grid-template-columns: repeat(2, auto);
+    justify-content: end;
+  }
+
+  .lease-category-toolbar {
+    grid-template-columns: minmax(240px, 1fr) auto;
+    align-items: center;
+  }
+
+  .document-item-row {
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+  }
+
+  .document-item-actions {
+    grid-template-columns: repeat(4, auto);
   }
 
   .lease-tile-actions {
