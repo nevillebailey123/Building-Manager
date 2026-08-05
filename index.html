@@ -371,6 +371,7 @@
             <p id="tenancy-building-name" class="overview-building-name visually-hidden"></p>
           </div>
           <div class="top-right-actions">
+            <button id="edit-tenancy-btn" class="btn btn-secondary" type="button">✏ Edit Tenancy</button>
             <button id="tenancy-back-btn" class="btn btn-secondary" type="button">← Back</button>
           </div>
         </header>
@@ -393,12 +394,6 @@
           <section id="tenancy-details-card" class="module-content-card">
             <h3>Current</h3>
             <dl id="tenancy-details-list" class="snapshot-list"></dl>
-            <div class="actions-row actions-row-tight tenancy-actions-grid">
-              <button id="edit-tenancy-btn" class="btn btn-secondary" type="button">✏ Edit Tenancy</button>
-              <button id="end-tenancy-btn" class="btn btn-secondary" type="button">End Tenancy</button>
-              <button id="tenancy-contacts-btn" class="btn btn-secondary" type="button">Associated Contacts</button>
-              <button id="tenancy-documents-btn" class="btn btn-secondary" type="button">Lease Documents</button>
-            </div>
           </section>
 
           <section id="tenancy-form-card" class="module-content-card">
@@ -433,6 +428,7 @@
 
               <div class="form-actions">
                 <button class="btn btn-primary" type="submit">Save</button>
+                <button id="archive-tenancy-btn" class="btn btn-secondary" type="button" style="display: none;">Archive Tenancy</button>
                 <button id="cancel-tenancy-btn" class="btn btn-secondary" type="button">Cancel</button>
               </div>
             </form>
@@ -507,6 +503,7 @@
             <p id="contacts-building-name" class="overview-building-name visually-hidden"></p>
           </div>
           <div class="top-right-actions">
+            <button id="contacts-create-btn" class="btn btn-primary" type="button">+ Create New Contact</button>
             <button id="contacts-back-btn" class="btn btn-secondary" type="button">← Back</button>
           </div>
         </header>
@@ -514,7 +511,6 @@
         <section id="contacts-empty-state" class="module-content-card">
           <p class="module-placeholder">No contacts have been added.</p>
           <div class="actions-row actions-row-tight">
-            <button id="add-existing-contact-btn" class="btn btn-secondary" type="button">+ Select Existing Contact</button>
             <button id="add-contact-btn" class="btn btn-primary" type="button">+ Create New Contact</button>
           </div>
         </section>
@@ -523,7 +519,6 @@
           <div class="contacts-list-header">
             <h3>Contacts by Relationship</h3>
             <div class="contacts-list-actions">
-              <button id="add-existing-contact-inline-btn" class="btn btn-secondary" type="button">+ Select Existing Contact</button>
               <button id="add-contact-inline-btn" class="btn btn-primary" type="button">+ Create New Contact</button>
             </div>
           </div>
@@ -539,29 +534,6 @@
 
         <section id="contact-form-card" class="module-content-card">
           <h3 id="contact-form-title">Create New Contact</h3>
-          <div class="actions-row actions-row-tight contact-form-switch">
-            <button id="contact-form-select-existing-btn" class="btn btn-secondary" type="button">Select Existing Contact</button>
-            <button id="contact-form-create-new-btn" class="btn btn-primary" type="button">Create New Contact</button>
-          </div>
-
-          <form id="contact-existing-form" class="building-form" style="display: none;">
-            <label for="existingContactId">Select Existing Contact</label>
-            <select id="existingContactId" name="contactId"></select>
-
-            <label for="existingContactRelationship">Relationship</label>
-            <select id="existingContactRelationship" name="relationship"></select>
-
-            <div id="existing-contact-custom-wrap" style="display: none;">
-              <label for="existingContactCustomRelationship">Custom Relationship</label>
-              <input id="existingContactCustomRelationship" name="customRelationship" type="text" />
-            </div>
-
-            <div class="form-actions">
-              <button class="btn btn-primary" type="submit">Link Contact</button>
-              <button id="cancel-existing-contact-btn" class="btn btn-secondary" type="button">Cancel</button>
-            </div>
-          </form>
-
           <form id="contact-form" class="building-form">
             <input id="contactId" name="contactId" type="hidden" />
 
@@ -576,7 +548,7 @@
             <label for="contactName">Name</label>
             <input id="contactName" name="name" type="text" required />
 
-            <label for="contactResponsibility">Relationship</label>
+            <label for="contactResponsibility">Contact Type</label>
             <select id="contactResponsibility" name="responsibility" required></select>
 
             <div id="contact-custom-relationship-wrap" style="display: none;">
@@ -593,42 +565,23 @@
             <label for="contactEmail">Email</label>
             <input id="contactEmail" name="email" type="email" />
 
-            <fieldset class="status-group">
-              <legend>Preferred Contact</legend>
-              <label class="radio-option">
-                <input type="radio" name="preferredContact" value="Phone" checked />
-                <span>Phone</span>
-              </label>
-              <label class="radio-option">
-                <input type="radio" name="preferredContact" value="Email" />
-                <span>Email</span>
-              </label>
-              <label class="radio-option">
-                <input type="radio" name="preferredContact" value="Either" />
-                <span>Either</span>
-              </label>
-            </fieldset>
-
-            <fieldset class="status-group">
-              <legend>Active</legend>
-              <label class="radio-option">
-                <input type="radio" name="active" value="Yes" checked />
-                <span>Yes</span>
-              </label>
-              <label class="radio-option">
-                <input type="radio" name="active" value="No" />
-                <span>No</span>
-              </label>
-            </fieldset>
-
             <label for="contactNotes">Notes</label>
             <textarea id="contactNotes" name="notes" rows="4"></textarea>
 
             <div class="form-actions">
-              <button class="btn btn-primary" type="submit">Save</button>
               <button id="cancel-contact-btn" class="btn btn-secondary" type="button">Cancel</button>
+              <button id="contact-save-btn" class="btn btn-primary" type="submit">Save</button>
+              <button id="delete-contact-btn" class="btn btn-danger" type="button" style="display: none;">Delete Contact</button>
             </div>
           </form>
+
+          <section id="contact-linked-schedule-section" class="contact-linked-schedule-section" style="display: none;">
+            <div class="contacts-list-header">
+              <h3>Linked Schedule Items</h3>
+              <button id="contact-add-schedule-link-btn" class="btn btn-secondary" type="button">Add Link</button>
+            </div>
+            <section id="contact-linked-schedule-list" class="building-list" aria-live="polite"></section>
+          </section>
         </section>
       </section>
 
@@ -724,25 +677,6 @@
         </header>
 
         <section class="module-content-card schedule-operations-card">
-          <section class="schedule-summary-bar" aria-label="Schedule summary">
-            <div class="schedule-summary-item">
-              <span class="schedule-summary-label">Overdue</span>
-              <span id="schedule-summary-overdue" class="schedule-summary-value">0</span>
-            </div>
-            <div class="schedule-summary-item">
-              <span class="schedule-summary-label">Due Today</span>
-              <span id="schedule-summary-today" class="schedule-summary-value">0</span>
-            </div>
-            <div class="schedule-summary-item">
-              <span class="schedule-summary-label">Due This Week</span>
-              <span id="schedule-summary-week" class="schedule-summary-value">0</span>
-            </div>
-            <div class="schedule-summary-item">
-              <span class="schedule-summary-label">Completed This Month</span>
-              <span id="schedule-summary-completed-month" class="schedule-summary-value">0</span>
-            </div>
-          </section>
-
           <div class="schedule-filter-row" aria-label="Schedule filters">
             <label>
               <span class="schedule-filter-label">Property</span>
