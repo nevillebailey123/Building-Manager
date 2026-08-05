@@ -42,7 +42,6 @@
   const cancelContactBtn = document.getElementById("cancel-contact-btn");
   const addTenancyBtn = document.getElementById("add-tenancy-btn");
   const addContactBtn = document.getElementById("add-contact-btn");
-  const addContactInlineBtn = document.getElementById("add-contact-inline-btn");
   const addCompanyBtn = document.getElementById("add-company-btn");
   const addCompanyInlineBtn = document.getElementById("add-company-inline-btn");
   const editTenancyBtn = document.getElementById("edit-tenancy-btn");
@@ -8742,7 +8741,6 @@
   leaseCategoryUploadBtn.addEventListener("click", handleLeaseCategoryUpload);
   cancelTenancyBtn.addEventListener("click", handleCancelTenancy);
   addContactBtn.addEventListener("click", handleAddContact);
-  addContactInlineBtn.addEventListener("click", handleAddContact);
   addCompanyBtn.addEventListener("click", handleAddCompany);
   addCompanyInlineBtn.addEventListener("click", handleAddCompany);
   cancelContactBtn.addEventListener("click", handleCancelContact);
