@@ -50,9 +50,9 @@
             <span class="module-nav-desc">Upcoming and completed scheduled work.</span>
             <span class="chevron">&gt;</span>
           </button>
-          <button class="module-nav-card" type="button" data-workspace-module="Documents">
+          <button class="module-nav-card" type="button" data-workspace-module="Lease">
             <span class="module-nav-title module-nav-title-documents">Documents</span>
-            <span class="module-nav-desc">Files and building records.</span>
+            <span class="module-nav-desc">Lease agreements, versions and supporting records.</span>
             <span class="chevron">&gt;</span>
           </button>
         </section>
@@ -97,6 +97,9 @@
 
             <label for="templateFrequency">Default Frequency</label>
             <select id="templateFrequency" name="defaultFrequency" required></select>
+
+            <label for="templateNextDueDate">Next Due Date</label>
+            <input id="templateNextDueDate" name="nextDueDate" type="date" required />
 
             <label for="templateReminderPeriod">Default Reminder Period</label>
             <input id="templateReminderPeriod" name="defaultReminderPeriod" type="text" placeholder="e.g. 30 days before" required />
@@ -349,9 +352,9 @@
             <span class="module-nav-desc">Upcoming tasks and completed work.</span>
             <span class="chevron">&gt;</span>
           </button>
-          <button class="module-nav-card" type="button" data-module="Documents">
+          <button class="module-nav-card" type="button" data-module="Lease">
             <span class="module-nav-title">📄 Documents</span>
-            <span class="module-nav-desc">Files and building records.</span>
+            <span class="module-nav-desc">Lease documentation, versions and notes.</span>
             <span class="chevron">&gt;</span>
           </button>
         </section>
@@ -391,7 +394,7 @@
               <button id="edit-tenancy-btn" class="btn btn-secondary" type="button">✏ Edit Tenancy</button>
               <button id="end-tenancy-btn" class="btn btn-secondary" type="button">End Tenancy</button>
               <button id="tenancy-contacts-btn" class="btn btn-secondary" type="button">Associated Contacts</button>
-              <button id="tenancy-documents-btn" class="btn btn-secondary" type="button">Lease Document</button>
+              <button id="tenancy-documents-btn" class="btn btn-secondary" type="button">Lease Documents</button>
             </div>
           </section>
 
@@ -440,6 +443,36 @@
           </section>
         </section>
 
+      </section>
+
+      <section id="lease-view" class="view" aria-labelledby="lease-title">
+        <header class="view-header overview-header">
+          <div>
+            <h1 id="lease-title">Documents</h1>
+            <p class="overview-building-detail"><strong>Tenant:</strong> <span id="lease-tenant-name"></span></p>
+            <p class="overview-building-detail"><strong>Property:</strong> <span id="lease-property-name"></span></p>
+            <div class="lease-header-meta" aria-label="Lease summary">
+              <p class="overview-building-detail"><strong>Status:</strong> <span id="lease-status"></span></p>
+              <p class="overview-building-detail"><strong>Commencement:</strong> <span id="lease-commencement-date"></span></p>
+              <p class="overview-building-detail"><strong>Expiry:</strong> <span id="lease-expiry-date"></span></p>
+            </div>
+          </div>
+          <div class="top-right-actions">
+            <button id="lease-back-btn" class="btn btn-secondary" type="button">← Back</button>
+          </div>
+        </header>
+
+        <section class="module-content-card lease-documents-card">
+          <div class="lease-dashboard-tools">
+            <button id="documents-add-category-btn" class="btn btn-primary btn-small" type="button">+ Add Category</button>
+            <label class="visually-hidden" for="lease-search">Search lease documents</label>
+            <input id="lease-search" class="search-input lease-search-input" type="search" placeholder="Search documents and categories..." />
+          </div>
+
+          <section id="lease-dashboard-panel">
+            <section id="lease-category-grid" class="lease-category-grid" aria-live="polite"></section>
+          </section>
+        </section>
       </section>
 
       <section id="contacts-view" class="view" aria-labelledby="contacts-title">
@@ -657,7 +690,7 @@
         <header class="view-header overview-header">
           <div>
             <h1 id="schedule-title">Schedule</h1>
-            <p class="tagline">Upcoming and completed scheduled work.</p>
+            <p class="tagline">Live operations queue for scheduled work.</p>
             <p id="schedule-building-name" class="overview-building-name visually-hidden"></p>
           </div>
           <div class="top-right-actions">
@@ -666,41 +699,58 @@
           </div>
         </header>
 
-        <section class="module-content-card">
-          <div class="tab-row" role="tablist" aria-label="Schedule tabs">
-            <button id="schedule-tab-upcoming" class="tab-btn is-active" type="button" role="tab" aria-selected="true">Upcoming</button>
-            <button id="schedule-tab-completed" class="tab-btn" type="button" role="tab" aria-selected="false">Completed</button>
+        <section class="module-content-card schedule-operations-card">
+          <section class="schedule-summary-bar" aria-label="Schedule summary">
+            <div class="schedule-summary-item">
+              <span class="schedule-summary-label">Overdue</span>
+              <span id="schedule-summary-overdue" class="schedule-summary-value">0</span>
+            </div>
+            <div class="schedule-summary-item">
+              <span class="schedule-summary-label">Due Today</span>
+              <span id="schedule-summary-today" class="schedule-summary-value">0</span>
+            </div>
+            <div class="schedule-summary-item">
+              <span class="schedule-summary-label">Due This Week</span>
+              <span id="schedule-summary-week" class="schedule-summary-value">0</span>
+            </div>
+            <div class="schedule-summary-item">
+              <span class="schedule-summary-label">Completed This Month</span>
+              <span id="schedule-summary-completed-month" class="schedule-summary-value">0</span>
+            </div>
+          </section>
+
+          <div class="schedule-filter-row" aria-label="Schedule filters">
+            <label>
+              <span class="schedule-filter-label">Property</span>
+              <select id="schedule-filter-property" class="schedule-filter-select"></select>
+            </label>
+            <label>
+              <span class="schedule-filter-label">Category</span>
+              <select id="schedule-filter-category" class="schedule-filter-select"></select>
+            </label>
+            <label>
+              <span class="schedule-filter-label">Status</span>
+              <select id="schedule-filter-status" class="schedule-filter-select">
+                <option value="all">All</option>
+                <option value="overdue">Overdue</option>
+                <option value="today">Due Today</option>
+                <option value="upcoming">Upcoming</option>
+              </select>
+            </label>
+            <label>
+              <span class="schedule-filter-label">Due Period</span>
+              <select id="schedule-filter-due-period" class="schedule-filter-select">
+                <option value="all">All</option>
+                <option value="today">Today</option>
+                <option value="7-days">Next 7 Days</option>
+                <option value="30-days">Next 30 Days</option>
+                <option value="this-month">This Month</option>
+                <option value="overdue">Overdue</option>
+              </select>
+            </label>
           </div>
-        </section>
 
-        <section id="schedule-upcoming-panel" class="tab-panel is-active">
-          <section class="schedule-grid" aria-label="Schedule sections">
-            <article class="module-content-card schedule-section">
-              <h3 class="status-overdue">🔴 Overdue</h3>
-              <section id="schedule-overdue-list" class="building-list"></section>
-            </article>
-
-            <article class="module-content-card schedule-section">
-              <h3 class="status-week">🟠 Due This Week</h3>
-              <section id="schedule-week-list" class="building-list"></section>
-            </article>
-
-            <article class="module-content-card schedule-section">
-              <h3 class="status-month">🟡 Due This Month</h3>
-              <section id="schedule-month-list" class="building-list"></section>
-            </article>
-
-            <article class="module-content-card schedule-section">
-              <h3 class="status-future">🟢 Future</h3>
-              <section id="schedule-future-list" class="building-list"></section>
-            </article>
-          </section>
-        </section>
-
-        <section id="schedule-completed-panel" class="tab-panel">
-          <section class="module-content-card">
-            <section id="schedule-completed-list" class="building-list" aria-live="polite"></section>
-          </section>
+          <section id="schedule-ops-list" class="schedule-ops-list" aria-live="polite"></section>
         </section>
       </section>
 
