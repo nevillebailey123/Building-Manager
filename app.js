@@ -3028,10 +3028,16 @@
           return item;
         }
 
+        const restoredStatus = getScheduleStatusText({
+          ...item,
+          status: "",
+          dueDate: historyRecord.previousDueDate,
+        });
+
         return {
           ...item,
           dueDate: historyRecord.previousDueDate,
-          status: getScheduleStatusText({ ...item, dueDate: historyRecord.previousDueDate }),
+          status: restoredStatus,
           lastCompletionHistoryId: "",
           lastUpdated: revertedAt,
         };
@@ -3058,6 +3064,10 @@
   function renderScheduleRow(row) {
     const dueClass = `schedule-row-due-${row.visualPriority === "completed" ? "scheduled" : row.visualPriority}`;
     const statusClass = `schedule-row-status-${row.visualPriority === "completed" ? "scheduled" : row.visualPriority}`;
+    const linkedContactText = getScheduleLinkedContactText(row);
+    const linkedContactMarkup = linkedContactText
+      ? `<p class="schedule-row-meta">Linked Contact: ${escapeHtml(linkedContactText)}</p>`
+      : "";
 
     return `
       <article class="schedule-ops-row schedule-ops-row-${row.state} schedule-ops-priority-${row.visualPriority}" data-schedule-id="${row.item.id}" data-schedule-building-id="${row.propertyId}">
@@ -3065,6 +3075,7 @@
         <div class="schedule-ops-main">
           <h3 class="schedule-row-title">${escapeHtml(row.item.taskName)}</h3>
           <p class="schedule-row-meta">${escapeHtml(row.item.frequency)}</p>
+          ${linkedContactMarkup}
           <p class="schedule-row-due ${dueClass}">Due: ${formatDate(row.item.dueDate)}</p>
           <p class="schedule-row-status ${statusClass}">Status: ${escapeHtml(row.statusText)}</p>
         </div>
@@ -3078,16 +3089,25 @@
 
   function renderCompletedRow(row) {
     const completedDate = row.latestCompletionRecord ? formatDate(row.latestCompletionRecord.completedDate) : "-";
+    const linkedContactText = getScheduleLinkedContactText(row);
+    const linkedContactMarkup = linkedContactText
+      ? `<p class="schedule-row-meta">Linked Contact: ${escapeHtml(linkedContactText)}</p>`
+      : "";
+    const revertButtonMarkup = row.lastCompletionRecord
+      ? `<button class="btn btn-secondary btn-small schedule-revert-btn" type="button" data-schedule-revert-id="${row.item.id}">Revert</button>`
+      : "";
     return `
       <article class="schedule-ops-row schedule-ops-row-completed schedule-ops-priority-completed" data-schedule-id="${row.item.id}" data-schedule-building-id="${row.propertyId}">
         <span class="schedule-ops-marker" aria-hidden="true"></span>
         <div class="schedule-ops-main">
           <h3 class="schedule-row-title">${escapeHtml(row.item.taskName)}</h3>
           <p class="schedule-row-meta">${escapeHtml(row.item.frequency)}</p>
+          ${linkedContactMarkup}
           <p class="schedule-row-due schedule-row-due-scheduled">Completed: ${completedDate}</p>
           <p class="schedule-row-status schedule-row-status-scheduled">Status: Completed</p>
         </div>
         <div class="schedule-ops-actions">
+          ${revertButtonMarkup}
           <button class="btn btn-secondary btn-small schedule-details-btn" type="button" data-schedule-details-id="${row.item.id}">Details</button>
         </div>
       </article>
@@ -3107,6 +3127,26 @@
         </div>
       </section>
     `;
+  }
+
+  function getScheduleLinkedContactText(row) {
+    if (!row || !row.item) {
+      return "";
+    }
+
+    const contactId = String(row.item.preferredContactId || "").trim();
+    if (!contactId) {
+      return "";
+    }
+
+    const building = findBuildingById(row.propertyId);
+    const contact = findContactById(contactId);
+    if (!building || !contact) {
+      return "";
+    }
+
+    const relationship = getBuildingRelationshipForContact(building, contact);
+    return `${contact.name} (${relationship})`;
   }
 
   function renderScheduleGroup(title, priorityKey, rows) {
