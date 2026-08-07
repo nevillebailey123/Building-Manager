@@ -527,28 +527,18 @@
         </section>
 
         <section id="contact-form-card" class="module-content-card">
-          <h3 id="contact-form-title">Create New Contact</h3>
+          <h3 id="contact-form-title">New Contact</h3>
           <form id="contact-form" class="building-form">
             <input id="contactId" name="contactId" type="hidden" />
 
             <label for="contactCompany">Company</label>
             <select id="contactCompany" name="companyId" required></select>
 
-            <div id="contact-new-company-wrap" style="display: none;">
-              <label for="contactNewCompany">New Company Name</label>
-              <input id="contactNewCompany" name="newCompanyName" type="text" />
-            </div>
-
             <label for="contactName">Name</label>
             <input id="contactName" name="name" type="text" required />
 
-            <label for="contactResponsibility">Contact Type</label>
-            <select id="contactResponsibility" name="responsibility" required></select>
-
-            <div id="contact-custom-relationship-wrap" style="display: none;">
-              <label for="contactCustomRelationship">Custom Relationship</label>
-              <input id="contactCustomRelationship" name="customRelationship" type="text" />
-            </div>
+            <label for="contactResponsibility">Role</label>
+            <input id="contactResponsibility" name="responsibility" type="text" required />
 
             <label for="contactMobile">Mobile</label>
             <input id="contactMobile" name="mobile" type="text" />
@@ -561,21 +551,23 @@
 
             <label for="contactNotes">Notes</label>
             <textarea id="contactNotes" name="notes" rows="4"></textarea>
-
-            <div class="form-actions">
-              <button id="cancel-contact-btn" class="btn btn-secondary" type="button">Cancel</button>
-              <button id="contact-save-btn" class="btn btn-primary" type="submit">Save</button>
-              <button id="delete-contact-btn" class="btn btn-danger" type="button" style="display: none;">Delete Contact</button>
-            </div>
           </form>
 
-          <section id="contact-linked-schedule-section" class="contact-linked-schedule-section" style="display: none;">
+          <section id="contact-linked-schedule-section" class="contact-linked-schedule-section" style="display: block;">
             <div class="contacts-list-header">
               <h3>Linked Schedule Items</h3>
-              <button id="contact-add-schedule-link-btn" class="btn btn-secondary" type="button">Add Link</button>
+              <div class="contacts-list-actions">
+                <button id="contact-add-schedule-link-btn" class="btn btn-secondary" type="button">Add Link</button>
+                <button id="contact-remove-schedule-link-btn" class="btn btn-secondary" type="button">Remove Link</button>
+              </div>
             </div>
             <section id="contact-linked-schedule-list" class="building-list" aria-live="polite"></section>
           </section>
+
+          <div class="form-actions">
+            <button id="delete-contact-btn" class="btn btn-danger" type="button" style="display: none;">Delete Contact</button>
+            <button id="contact-save-btn" class="btn btn-primary" type="submit" form="contact-form">Save</button>
+          </div>
         </section>
       </section>
 

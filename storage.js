@@ -210,6 +210,7 @@
             id: legacyContact.id || createId(),
             companyId: company.id,
             name: legacyContact.name || "",
+            contactType: legacyContact.contactType || "Other",
             responsibility: responsibility,
             mobile: legacyContact.mobile || "",
             officePhone: legacyContact.officePhone || "",

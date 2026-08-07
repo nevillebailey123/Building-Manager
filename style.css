@@ -22,6 +22,12 @@
   --template-activate-border: #3d725b;
   --template-delete-bg: #5b3a3f;
   --template-delete-border: #765259;
+  --type-heading-contacts: 0.98rem;
+  --type-label-contacts: 0.95rem;
+  --type-meta-contacts: 0.92rem;
+  --type-body-contacts: 1rem;
+  --spacing-stack-contacts: 0.65rem;
+  --spacing-card-pad-contacts: 0.85rem;
 }
 
 * {
@@ -217,10 +223,10 @@ body {
 .template-status-heading {
   margin: 0;
   color: #b5c1d3;
-  font-size: 0.84rem;
+  font-size: var(--type-heading-contacts);
   font-weight: 700;
-  letter-spacing: 0.05em;
-  text-transform: uppercase;
+  letter-spacing: normal;
+  text-transform: none;
 }
 
 .template-status-list {
@@ -238,7 +244,7 @@ body {
 
 .template-card {
   min-height: 198px;
-  padding: 0.78rem 0.85rem;
+  padding: var(--spacing-card-pad-contacts);
   display: grid;
 }
 
@@ -263,7 +269,8 @@ body {
 
 .template-card-title {
   margin: 0 0 0.16rem;
-  font-size: 1.04rem;
+  font-size: 1.08rem;
+  font-weight: 700;
   line-height: 1.25;
   color: var(--text-main);
 }
@@ -274,8 +281,8 @@ body {
   grid-template-columns: 96px minmax(0, 1fr);
   gap: 0.42rem;
   align-items: start;
-  font-size: 0.84rem;
-  line-height: 1.3;
+  font-size: var(--type-meta-contacts);
+  line-height: 1.35;
   color: var(--text-muted);
 }
 
@@ -300,13 +307,13 @@ body {
   margin-top: auto;
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 0.45rem;
+  gap: var(--spacing-stack-contacts);
 }
 
 .template-card-actions .btn {
   min-height: 34px;
   padding: 0.42rem 0.35rem;
-  font-size: 0.78rem;
+  font-size: var(--type-meta-contacts);
   white-space: nowrap;
 }
 
@@ -482,9 +489,9 @@ body {
   border-radius: 0.8rem;
   background: #141c27;
   box-shadow: 0 10px 28px rgba(3, 7, 12, 0.5);
-  padding: 1rem;
+  padding: var(--spacing-card-pad-contacts);
   display: grid;
-  gap: 0.8rem;
+  gap: var(--spacing-stack-contacts);
 }
 
 .template-delete-modal.contact-assignment-modal {
@@ -493,11 +500,42 @@ body {
 
 .primary-contact-search-wrap {
   display: block;
+  width: 100%;
+}
+
+.primary-contact-search-input {
+  width: 100%;
+  min-height: 48px;
+}
+
+.primary-contact-context-line {
+  margin: 0;
+}
+
+.primary-contact-current {
+  border: 1px solid var(--border);
+  border-radius: 0.55rem;
+  background: #101722;
+  padding: 0.5rem 0.6rem;
+  display: grid;
+  gap: 0.2rem;
+}
+
+.primary-contact-current h4 {
+  margin: 0;
+  font-size: var(--type-heading-contacts);
+  color: #b5c1d3;
+  letter-spacing: normal;
+  text-transform: none;
+}
+
+.primary-contact-current p {
+  margin: 0;
 }
 
 .primary-contact-card-list {
   display: grid;
-  gap: 0.65rem;
+  gap: var(--spacing-stack-contacts);
   max-height: 54vh;
   overflow-y: auto;
 }
@@ -505,19 +543,24 @@ body {
 .primary-contact-card {
   width: 100%;
   text-align: left;
-  padding: 0.85rem;
+  padding: 0.62rem 0.72rem;
   display: grid;
-  gap: 0.3rem;
+  gap: 0.14rem;
   border: 1px solid var(--border);
   background: #182230;
+  position: relative;
 }
 
 .primary-contact-card h3 {
-  margin: 0 0 0.15rem;
+  margin: 0 0 0.08rem;
+  font-size: 1rem;
+  font-weight: 700;
 }
 
 .primary-contact-card p {
   margin: 0;
+  line-height: 1.3;
+  font-size: var(--type-meta-contacts);
 }
 
 .primary-contact-card.is-selected {
@@ -526,8 +569,26 @@ body {
   background: #1d2a3b;
 }
 
-.primary-contact-card .contact-type-pill {
-  vertical-align: middle;
+.primary-contact-selected-indicator {
+  position: absolute;
+  top: 0.5rem;
+  right: 0.55rem;
+  width: 1.05rem;
+  height: 1.05rem;
+  border-radius: 999px;
+  border: 1px solid #3f4f64;
+  color: transparent;
+  display: grid;
+  place-items: center;
+  font-size: 0.75rem;
+  line-height: 1;
+  background: rgba(20, 28, 39, 0.75);
+}
+
+.primary-contact-card.is-selected .primary-contact-selected-indicator {
+  color: #0c1a12;
+  border-color: #6bd0a4;
+  background: #6bd0a4;
 }
 
 .primary-contact-card-meta {
@@ -584,7 +645,7 @@ body {
 }
 
 .template-picker-search {
-  min-height: 42px;
+  min-height: 48px;
 }
 
 .template-picker-bulk-actions {
@@ -598,20 +659,20 @@ body {
   overflow-y: auto;
   border: 1px solid var(--border);
   border-radius: 0.65rem;
-  padding: 0.55rem;
+  padding: var(--spacing-stack-contacts);
   display: grid;
-  gap: 0.35rem;
+  gap: 0.5rem;
   background: #101722;
 }
 
 .template-picker-item {
   display: grid;
   grid-template-columns: auto 1fr auto;
-  gap: 0.55rem;
+  gap: var(--spacing-stack-contacts);
   border: 1px solid var(--border);
   border-radius: 0.55rem;
   background: #141d2a;
-  padding: 0.5rem 0.55rem;
+  padding: 0.65rem;
   align-items: center;
 }
 
@@ -625,11 +686,11 @@ body {
 }
 
 .template-picker-item-content strong {
-  font-size: 0.92rem;
+  font-size: var(--type-body-contacts);
 }
 
 .template-picker-item-content span {
-  font-size: 0.82rem;
+  font-size: var(--type-meta-contacts);
   color: var(--text-muted);
 }
 
@@ -642,7 +703,7 @@ body {
 .template-picker-item-actions .btn {
   min-height: 30px;
   padding: 0.35rem 0.55rem;
-  font-size: 0.76rem;
+  font-size: var(--type-meta-contacts);
 }
 
 .template-master-create-modal {
@@ -656,19 +717,22 @@ body {
 
 .template-master-create-form label {
   display: grid;
-  gap: 0.2rem;
+  gap: 0.28rem;
+  font-size: var(--type-label-contacts);
+  font-weight: 600;
 }
 
 .template-master-create-form input,
 .template-master-create-form textarea,
 .template-master-create-form select {
   width: 100%;
-  min-height: 42px;
+  min-height: 48px;
   border-radius: 0.55rem;
   border: 1px solid var(--border);
   background: #111823;
   color: var(--text-main);
-  padding: 0.5rem 0.6rem;
+  padding: 0.65rem 0.75rem;
+  font-size: var(--type-body-contacts);
 }
 
 .template-property-editor-modal {
@@ -704,8 +768,9 @@ body {
 
 .template-property-editor-item label {
   display: grid;
-  gap: 0.18rem;
-  font-size: 0.84rem;
+  gap: 0.28rem;
+  font-size: var(--type-label-contacts);
+  font-weight: 600;
   color: var(--text-muted);
 }
 
@@ -713,12 +778,13 @@ body {
 .template-property-editor-item textarea,
 .template-property-editor-item select {
   width: 100%;
-  min-height: 40px;
+  min-height: 48px;
   border-radius: 0.55rem;
   border: 1px solid var(--border);
   background: #111823;
   color: var(--text-main);
-  padding: 0.45rem 0.55rem;
+  padding: 0.65rem 0.75rem;
+  font-size: var(--type-body-contacts);
 }
 
 .building-form {
@@ -1084,36 +1150,37 @@ body {
 .schedule-operations-card {
   display: grid;
   grid-template-rows: auto 1fr;
-  gap: 0.7rem;
+  gap: var(--spacing-stack-contacts);
   min-height: calc(100vh - 250px);
 }
 
 .schedule-filter-row {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 0.55rem;
+  gap: var(--spacing-stack-contacts);
 }
 
 .schedule-filter-row label {
   display: grid;
-  gap: 0.24rem;
+  gap: 0.28rem;
 }
 
 .schedule-filter-label {
   color: var(--text-muted);
-  font-size: 0.76rem;
-  letter-spacing: 0.03em;
-  text-transform: uppercase;
+  font-size: var(--type-label-contacts);
+  font-weight: 600;
+  letter-spacing: normal;
+  text-transform: none;
 }
 
 .schedule-filter-select {
-  min-height: 38px;
+  min-height: 48px;
   border-radius: 0.55rem;
   border: 1px solid var(--border);
   background: #111823;
   color: var(--text-main);
-  padding: 0.35rem 0.55rem;
-  font-size: 0.88rem;
+  padding: 0.65rem 0.75rem;
+  font-size: var(--type-body-contacts);
 }
 
 .schedule-ops-list {
@@ -1121,9 +1188,9 @@ body {
   border: 1px solid var(--border);
   border-radius: 0.72rem;
   background: #111823;
-  padding: 0.62rem;
+  padding: var(--spacing-card-pad-contacts);
   display: grid;
-  gap: 0.75rem;
+  gap: var(--spacing-stack-contacts);
   align-content: start;
 }
 
@@ -1134,7 +1201,7 @@ body {
 
 .schedule-ops-group {
   display: grid;
-  gap: 0.5rem;
+  gap: var(--spacing-stack-contacts);
 }
 
 .schedule-ops-group + .schedule-ops-group {
@@ -1144,26 +1211,27 @@ body {
 
 .schedule-ops-group-title {
   margin: 0;
-  font-size: 0.9rem;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
+  font-size: var(--type-heading-contacts);
+  font-weight: 700;
+  letter-spacing: normal;
+  text-transform: none;
   color: #b2bed1;
 }
 
 .schedule-ops-group-list {
   display: grid;
-  gap: 0.5rem;
+  gap: var(--spacing-stack-contacts);
 }
 
 .schedule-ops-row {
   display: grid;
   grid-template-columns: 4px 1fr auto;
-  gap: 0.65rem;
+  gap: var(--spacing-stack-contacts);
   align-items: center;
   border: 1px solid var(--border);
   border-radius: 0.65rem;
   background: #171f2c;
-  padding: 0.58rem 0.58rem 0.58rem 0;
+  padding: 0.72rem 0.72rem 0.72rem 0;
 }
 
 .schedule-ops-marker {
@@ -1189,12 +1257,13 @@ body {
 
 .schedule-ops-main {
   display: grid;
-  gap: 0.16rem;
+  gap: 0.2rem;
 }
 
 .schedule-row-due {
   margin: 0;
-  font-size: 0.83rem;
+  font-size: var(--type-meta-contacts);
+  line-height: 1.35;
   color: #c3d0e3;
   font-weight: 700;
 }
@@ -1214,28 +1283,30 @@ body {
 .schedule-row-overdue {
   margin: 0;
   color: #df8f8f;
-  font-size: 0.78rem;
+  font-size: var(--type-meta-contacts);
   font-weight: 600;
 }
 
 .schedule-row-title {
   margin: 0;
-  font-size: 0.96rem;
+  font-size: var(--type-body-contacts);
+  font-weight: 700;
+  line-height: 1.35;
   color: var(--text-main);
 }
 
 .schedule-row-meta {
   margin: 0;
   color: var(--text-muted);
-  font-size: 0.82rem;
-  line-height: 1.3;
+  font-size: var(--type-meta-contacts);
+  line-height: 1.35;
 }
 
 .schedule-row-status {
   margin: 0;
-  font-size: 0.82rem;
-  line-height: 1.3;
-  font-weight: 600;
+  font-size: var(--type-meta-contacts);
+  line-height: 1.35;
+  font-weight: 700;
 }
 
 .schedule-row-status-overdue {
@@ -1317,13 +1388,15 @@ body {
   border: 1px solid var(--border);
   border-radius: 0.7rem;
   background: #111823;
-  padding: 0.75rem;
+  padding: var(--spacing-card-pad-contacts);
   display: grid;
-  gap: 0.65rem;
+  gap: var(--spacing-stack-contacts);
 }
 
 .schedule-details-section h4 {
   margin: 0;
+  font-size: var(--type-heading-contacts);
+  font-weight: 700;
 }
 
 .schedule-details-section-header {
@@ -1337,7 +1410,7 @@ body {
   margin: 0;
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 0.5rem 0.8rem;
+  gap: 0.65rem 1rem;
 }
 
 .schedule-details-grid div {
@@ -1347,23 +1420,28 @@ body {
 
 .schedule-details-grid dt {
   color: var(--text-muted);
-  font-size: 0.8rem;
-  text-transform: uppercase;
-  letter-spacing: 0.03em;
+  font-size: var(--type-label-contacts);
+  font-weight: 600;
+  text-transform: none;
+  letter-spacing: normal;
 }
 
 .schedule-details-grid dd {
   margin: 0;
+  font-size: var(--type-body-contacts);
+  line-height: 1.4;
 }
 
 .schedule-details-edit-form {
   display: grid;
-  gap: 0.5rem;
+  gap: var(--spacing-stack-contacts);
 }
 
 .schedule-details-edit-form label {
   display: grid;
-  gap: 0.2rem;
+  gap: 0.28rem;
+  font-size: var(--type-label-contacts);
+  font-weight: 600;
 }
 
 .schedule-recurring-dates-section {
@@ -1413,17 +1491,35 @@ body {
 .schedule-details-edit-form textarea,
 .schedule-details-edit-form select {
   width: 100%;
-  min-height: 40px;
+  min-height: 48px;
   border-radius: 0.55rem;
   border: 1px solid var(--border);
   background: #0e1520;
   color: var(--text-main);
-  padding: 0.45rem 0.6rem;
+  padding: 0.65rem 0.75rem;
+  font-size: var(--type-body-contacts);
 }
 
 .schedule-details-form-actions {
   display: flex;
   gap: 0.5rem;
+}
+
+.schedule-details-bottom-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.65rem;
+}
+
+.schedule-revert-action-btn {
+  background: #6a4d2b;
+  border-color: #8b6638;
+  color: #fff2df;
+}
+
+.schedule-revert-action-btn:hover {
+  background: #7a5a33;
+  border-color: #a17640;
 }
 
 .schedule-document-grid {
@@ -1467,7 +1563,7 @@ body {
 .schedule-history-table {
   width: 100%;
   border-collapse: collapse;
-  font-size: 0.86rem;
+  font-size: var(--type-meta-contacts);
 }
 
 .schedule-history-table th,
@@ -1480,13 +1576,10 @@ body {
 
 .schedule-history-table th {
   color: #b6c2d5;
-  text-transform: uppercase;
-  letter-spacing: 0.03em;
-  font-size: 0.75rem;
-}
-
-.schedule-details-danger-zone {
-  border-color: #6a4a4f;
+  text-transform: none;
+  letter-spacing: normal;
+  font-size: var(--type-label-contacts);
+  font-weight: 600;
 }
 
 .schedule-complete-form {
@@ -1991,8 +2084,10 @@ body {
 }
 
 .contacts-list-actions {
-  display: grid;
+  display: flex;
   gap: 0.65rem;
+  flex-wrap: wrap;
+  align-items: center;
 }
 
 .contact-form-switch {
@@ -2022,66 +2117,66 @@ body {
   display: inline-flex;
 }
 
-.contact-type-pill {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-height: 26px;
-  padding: 0.22rem 0.65rem;
-  border-radius: 999px;
-  font-size: 0.75rem;
+.contact-card-layout {
+  display: grid;
+  gap: 0.55rem;
+}
+
+.contact-card-column {
+  display: grid;
+  gap: 0.2rem;
+  min-width: 0;
+}
+
+.contact-role-pill {
+  background: #283a50;
+  border-color: #3b5678;
+  color: #e8f1ff;
+}
+
+.contact-role-text {
   font-weight: 700;
-  letter-spacing: 0.02em;
-  border: 1px solid transparent;
-  white-space: nowrap;
 }
 
-.contact-type-pill-contractor {
-  background: #24466f;
-  border-color: #356097;
-  color: #e5f1ff;
+.contact-role-text.contact-role-pill-default,
+.contact-role-text.contact-role-pill-blue,
+.contact-role-text.contact-role-pill-green,
+.contact-role-text.contact-role-pill-orange,
+.contact-role-text.contact-role-pill-purple,
+.contact-role-text.contact-role-pill-red,
+.contact-role-text.contact-role-pill-teal {
+  background: transparent;
+  border: 0;
+  padding: 0;
+  border-radius: 0;
 }
 
-.contact-type-pill-professional {
-  background: #1f4f3c;
-  border-color: #2f7358;
-  color: #e4f8ef;
+.contact-role-pill-default {
+  color: #b8cff0;
 }
 
-.contact-type-pill-owner {
-  background: #4b3d67;
-  border-color: #69558f;
-  color: #f0eaff;
+.contact-role-pill-blue {
+  color: #8cc0ff;
 }
 
-.contact-type-pill-tenant {
-  background: #664826;
-  border-color: #8c6437;
-  color: #fff2df;
+.contact-role-pill-green {
+  color: #8ed9bb;
 }
 
-.contact-type-pill-emergency {
-  background: #6f3036;
-  border-color: #9b4952;
-  color: #ffe8eb;
+.contact-role-pill-orange {
+  color: #f2bf7f;
 }
 
-.contact-type-pill-supplier {
-  background: #3d4655;
-  border-color: #566274;
-  color: #edf1f7;
+.contact-role-pill-purple {
+  color: #be9fe9;
 }
 
-.contact-type-pill-council {
-  background: #1f4f56;
-  border-color: #31717a;
-  color: #e5fbff;
+.contact-role-pill-red {
+  color: #e49ca7;
 }
 
-.contact-type-pill-utility {
-  background: #4f5a29;
-  border-color: #6f8039;
-  color: #f4f9df;
+.contact-role-pill-teal {
+  color: #8bc7d3;
 }
 
 .contact-phone-link,
@@ -2093,6 +2188,18 @@ body {
   margin-top: 1rem;
   display: grid;
   gap: 0.7rem;
+}
+
+#contact-add-schedule-link-btn {
+  border-color: #4d6078;
+  background: #1a2738;
+  color: #dfe9f8;
+}
+
+#contact-add-schedule-link-btn:hover {
+  border-color: #5f7693;
+  background: #223247;
+  color: #f3f8ff;
 }
 
 .contact-group-block {
@@ -2275,7 +2382,13 @@ body {
   }
 
   .contacts-list-actions {
+    display: flex;
+    align-items: center;
+  }
+
+  .contact-card-layout {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.7rem 1rem;
   }
 
   .schedule-filter-row {

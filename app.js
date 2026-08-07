@@ -39,7 +39,6 @@
   const completeTaskForm = document.getElementById("complete-task-form");
   const cancelEditBtn = document.getElementById("cancel-edit-btn");
   const cancelTenancyBtn = document.getElementById("cancel-tenancy-btn");
-  const cancelContactBtn = document.getElementById("cancel-contact-btn");
   const addTenancyBtn = document.getElementById("add-tenancy-btn");
   const addContactBtn = document.getElementById("add-contact-btn");
   const addCompanyBtn = document.getElementById("add-company-btn");
@@ -96,8 +95,7 @@
   const contactLinkedScheduleSection = document.getElementById("contact-linked-schedule-section");
   const contactLinkedScheduleList = document.getElementById("contact-linked-schedule-list");
   const contactAddScheduleLinkBtn = document.getElementById("contact-add-schedule-link-btn");
-  const contactNewCompanyWrap = document.getElementById("contact-new-company-wrap");
-  const contactCustomRelationshipWrap = document.getElementById("contact-custom-relationship-wrap");
+  const contactRemoveScheduleLinkBtn = document.getElementById("contact-remove-schedule-link-btn");
   const companiesBuildingName = document.getElementById("companies-building-name");
   const companiesEmptyState = document.getElementById("companies-empty-state");
   const companiesListCard = document.getElementById("companies-list-card");
@@ -197,8 +195,10 @@
   let selectorOpen = false;
   let breadcrumbItems = [];
   let placeholderBackHandler = null;
+  let pendingPrimaryContactDialogState = null;
 
   const ACTIVE_BUILDING_KEY = "buildingManagerActiveBuildingId";
+  const CURRENT_PROPERTY_KEY = "buildingManagerCurrentPropertyId";
 
   const RELATIONSHIP_OPTIONS = [
     "Owner",
@@ -274,6 +274,7 @@
 
   const TEMPLATE_FREQUENCY_OPTIONS = [
     "One-off",
+    "Weekly",
     "Monthly",
     "Quarterly",
     "6 Monthly",
@@ -708,6 +709,7 @@
     return {
       id: String(template.id || window.BuildingStorage.createId()),
       masterTemplateId: String(template.masterTemplateId || "").trim(),
+      propertyId: String(template.propertyId || "").trim(),
       name: String(template.name || "").trim(),
       category: category,
       defaultFrequency: frequency,
@@ -775,6 +777,7 @@
     const base = {
       id: window.BuildingStorage.createId(),
       masterTemplateId: masterTemplate ? masterTemplate.id : "",
+      propertyId: "",
       name: masterTemplate ? masterTemplate.name : "",
       category: masterTemplate ? masterTemplate.category : "General",
       defaultFrequency: masterTemplate ? masterTemplate.defaultFrequency : "Annual",
@@ -876,57 +879,6 @@
       return "Other";
     }
     return LEGACY_RELATIONSHIP_NORMALIZATION[trimmed] || trimmed;
-  }
-
-  function getContactTypeFromRelationship(relationship) {
-    const normalized = normalizeText(normalizeRelationshipLabel(relationship));
-
-    if (!normalized) {
-      return "Supplier";
-    }
-    if (normalized.includes("owner")) {
-      return "Owner";
-    }
-    if (normalized.includes("tenant")) {
-      return "Tenant";
-    }
-    if (normalized.includes("council")) {
-      return "Council";
-    }
-    if (normalized.includes("utility") || normalized.includes("water") || normalized.includes("power") || normalized.includes("gas")) {
-      return "Utility";
-    }
-    if (normalized.includes("fire") || normalized.includes("emergency") || normalized.includes("security") || normalized.includes("locksmith")) {
-      return "Emergency";
-    }
-    if (normalized.includes("manager") || normalized.includes("broker") || normalized.includes("solicitor") || normalized.includes("accountant")) {
-      return "Professional";
-    }
-    if (
-      normalized.includes("contractor")
-      || normalized.includes("electrician")
-      || normalized.includes("plumber")
-      || normalized.includes("roof")
-      || normalized.includes("gutter")
-      || normalized.includes("lift")
-      || normalized.includes("cleaner")
-      || normalized.includes("gardener")
-      || normalized.includes("hvac")
-    ) {
-      return "Contractor";
-    }
-
-    return "Supplier";
-  }
-
-  function getContactTypeBadgeClass(typeName) {
-    const key = normalizeText(typeName).replace(/[^a-z0-9]+/g, "-");
-    return `contact-type-pill contact-type-pill-${key}`;
-  }
-
-  function renderContactTypeBadge(relationship) {
-    const typeName = getContactTypeFromRelationship(relationship);
-    return `<span class="${getContactTypeBadgeClass(typeName)}">${escapeHtml(typeName)}</span>`;
   }
 
   function getScheduleItemsLinkedToContact(building, contactId) {
@@ -1048,16 +1000,38 @@
     };
   }
 
-  function saveActiveBuildingId(buildingId) {
-    if (!buildingId) {
-      localStorage.removeItem(ACTIVE_BUILDING_KEY);
+  function saveCurrentPropertyId(propertyId) {
+    const normalized = String(propertyId || "").trim();
+    localStorage.setItem(CURRENT_PROPERTY_KEY, normalized);
+
+    // Keep legacy key in sync for backward compatibility.
+    if (normalized) {
+      localStorage.setItem(ACTIVE_BUILDING_KEY, normalized);
       return;
     }
-    localStorage.setItem(ACTIVE_BUILDING_KEY, buildingId);
+
+    localStorage.removeItem(ACTIVE_BUILDING_KEY);
   }
 
-  function getSavedActiveBuildingId() {
-    return String(localStorage.getItem(ACTIVE_BUILDING_KEY) || "");
+  function getSavedCurrentPropertyId() {
+    const currentPropertyRaw = localStorage.getItem(CURRENT_PROPERTY_KEY);
+    if (currentPropertyRaw !== null) {
+      return String(currentPropertyRaw || "").trim();
+    }
+
+    return String(localStorage.getItem(ACTIVE_BUILDING_KEY) || "").trim();
+  }
+
+  function setCurrentPropertyId(propertyId) {
+    activeBuildingId = String(propertyId || "").trim();
+    saveCurrentPropertyId(activeBuildingId);
+  }
+
+  function syncScheduleFilterToCurrentProperty() {
+    scheduleFilters = {
+      ...scheduleFilters,
+      property: activeBuildingId || "all",
+    };
   }
 
   function getBuildingStatusLevel(building) {
@@ -1100,7 +1074,7 @@
 
   function updateSelectedBuildingHeader(building) {
     if (!building) {
-      selectedBuildingName.textContent = "Select a building";
+      selectedBuildingName.textContent = "All Properties";
       selectedBuildingStatus.className = "building-status-indicator status-grey";
       return;
     }
@@ -1117,8 +1091,7 @@
 
   function ensureActiveBuildingSelection(buildings) {
     if (!Array.isArray(buildings) || buildings.length === 0) {
-      activeBuildingId = "";
-      saveActiveBuildingId("");
+      setCurrentPropertyId("");
       return;
     }
 
@@ -1126,15 +1099,34 @@
       return;
     }
 
-    const savedId = getSavedActiveBuildingId();
+    const savedId = getSavedCurrentPropertyId();
+    const hasSavedSelection = localStorage.getItem(CURRENT_PROPERTY_KEY) !== null
+      || localStorage.getItem(ACTIVE_BUILDING_KEY) !== null;
+    if (!savedId) {
+      if (hasSavedSelection) {
+        setCurrentPropertyId("");
+        return;
+      }
+
+      setCurrentPropertyId(buildings[0].id);
+      return;
+    }
+
     const saved = buildings.find(function (building) {
       return building.id === savedId;
     });
-    activeBuildingId = saved ? saved.id : buildings[0].id;
-    saveActiveBuildingId(activeBuildingId);
+    setCurrentPropertyId(saved ? saved.id : buildings[0].id);
   }
 
   function renderSelectorList(buildings) {
+    const allPropertiesSelectedClass = !activeBuildingId ? " is-selected" : "";
+    const allPropertiesRow = `
+      <button class="selector-option${allPropertiesSelectedClass}" type="button" data-building-id="">
+        <span>All Properties</span>
+        <span class="selector-dot">${getStatusDot("grey")}</span>
+      </button>
+    `;
+
     const rows = buildings
       .map(function (building) {
         const level = getBuildingStatusLevel(building);
@@ -1155,12 +1147,12 @@
       </button>
     `;
 
-    buildingSelectorList.innerHTML = rows + addRow;
+    buildingSelectorList.innerHTML = allPropertiesRow + rows + addRow;
   }
 
   function renderWorkspaceSummary(building) {
     if (!building) {
-      workspaceDashboardSummary.innerHTML = '<div><dt>Building</dt><dd>Not selected</dd></div>';
+      workspaceDashboardSummary.innerHTML = '<div><dt>Building</dt><dd>All Properties</dd></div>';
       return;
     }
 
@@ -1429,32 +1421,57 @@
     selectElement.innerHTML = options.join("");
   }
 
-  function setRelationshipSelection(selectElement, customWrap, customInput, value) {
-    const normalized = normalizeRelationshipLabel(value);
-    renderContactRelationshipOptions(selectElement, normalized);
-
-    if (isKnownRelationship(normalized) && normalized !== "Other") {
-      selectElement.value = normalized;
-      customWrap.style.display = "none";
-      customInput.required = false;
-      customInput.value = "";
-      return;
-    }
-
-    selectElement.value = "Other";
-    customWrap.style.display = "block";
-    customInput.required = true;
-    customInput.value = normalized !== "Other" ? normalized : "";
+  function renderContactRoleBadge(role) {
+    const roleText = String(role || "").trim() || "Not set";
+    return `<span class="contact-role-text ${getContactRoleToneClass(roleText)}">${escapeHtml(roleText)}</span>`;
   }
 
-  function resolveRelationshipValue(selectValue, customValue) {
-    const selected = normalizeRelationshipLabel(selectValue);
-    if (selected !== "Other") {
-      return selected;
+  function getContactRoleToneClass(role) {
+    const normalized = normalizeText(role);
+    if (!normalized) {
+      return "contact-role-pill-default";
     }
 
-    const custom = String(customValue || "").trim();
-    return custom ? custom : "Other";
+    if (normalized.includes("owner") || normalized.includes("manager")) {
+      return "contact-role-pill-purple";
+    }
+
+    if (normalized.includes("tenant") || normalized.includes("accounts")) {
+      return "contact-role-pill-orange";
+    }
+
+    if (normalized.includes("fire") || normalized.includes("emergency") || normalized.includes("security") || normalized.includes("locksmith")) {
+      return "contact-role-pill-red";
+    }
+
+    if (normalized.includes("broker") || normalized.includes("solicitor") || normalized.includes("accountant")) {
+      return "contact-role-pill-green";
+    }
+
+    if (
+      normalized.includes("contractor")
+      || normalized.includes("electrician")
+      || normalized.includes("plumber")
+      || normalized.includes("roof")
+      || normalized.includes("gutter")
+      || normalized.includes("lift")
+      || normalized.includes("cleaner")
+      || normalized.includes("gardener")
+      || normalized.includes("hvac")
+    ) {
+      return "contact-role-pill-blue";
+    }
+
+    return "contact-role-pill-teal";
+  }
+
+  function getContactClassification(contact) {
+    if (!contact) {
+      return "Other";
+    }
+
+    const value = String(contact.contactType || contact.classification || "").trim();
+    return value || "Other";
   }
 
   function renderSetupExistingContactOptions(selectedId) {
@@ -1507,7 +1524,7 @@
         return `
           <article class="building-card">
             <h3>${getSetupLinkedContactLabel(entry)}</h3>
-            <p><strong>Contact Type:</strong> ${renderContactTypeBadge(entry.relationship)}</p>
+            <p><strong>Role / Service:</strong> ${renderContactRoleBadge(entry.relationship)}</p>
             <p><strong>Type:</strong> ${entry.type === "existing" ? "Existing Contact" : "New Contact"}</p>
             <div class="card-meta">
               <button class="btn btn-danger setup-remove-linked-contact" type="button" data-linked-index="${index}">Remove</button>
@@ -1753,6 +1770,7 @@
         if (!currentRelationship || currentRelationship === "General") {
           window.BuildingStorage.upsertContact({
             ...existing,
+            contactType: getContactClassification(existing),
             responsibility: entry.relationship,
             lastUpdated: now,
           });
@@ -1772,6 +1790,7 @@
         id: window.BuildingStorage.createId(),
         companyId: companyId,
         name: entry.name,
+        contactType: "Other",
         responsibility: entry.relationship,
         mobile: entry.mobile,
         officePhone: "",
@@ -2023,6 +2042,23 @@
     return window.BuildingStorage.getBuildingById(buildingId);
   }
 
+  function getBuildingNameById(buildingId) {
+    const building = findBuildingById(buildingId);
+    return building && building.buildingName ? building.buildingName : "";
+  }
+
+  function renderPropertySelectOptions(selectedId) {
+    const buildings = window.BuildingStorage.getBuildings();
+    const options = ['<option value="">Select Property</option>'];
+
+    buildings.forEach(function (building) {
+      const selected = String(building.id || "") === String(selectedId || "") ? " selected" : "";
+      options.push(`<option value="${building.id}"${selected}>${escapeHtml(building.buildingName)}</option>`);
+    });
+
+    return options.join("");
+  }
+
   function formatDateTime(value) {
     if (!value) {
       return "Not recorded";
@@ -2049,6 +2085,15 @@
     return parsed.toLocaleDateString();
   }
 
+  function formatLastCompletedDate(value) {
+    const trimmed = String(value || "").trim();
+    if (!trimmed) {
+      return "Not completed yet";
+    }
+
+    return formatDate(trimmed);
+  }
+
   function escapeHtml(value) {
     return String(value || "")
       .replace(/&/g, "&amp;")
@@ -2056,6 +2101,140 @@
       .replace(/>/g, "&gt;")
       .replace(/\"/g, "&quot;")
       .replace(/'/g, "&#39;");
+  }
+
+  const MODAL_STACK_BASE_Z_INDEX = 2200;
+  const MODAL_STACK_STEP = 100;
+  const modalLayerStack = [];
+
+  function getFocusableElements(container) {
+    if (!(container instanceof HTMLElement)) {
+      return [];
+    }
+
+    const selectors = [
+      'button:not([disabled])',
+      'a[href]',
+      'input:not([disabled]):not([type="hidden"])',
+      'select:not([disabled])',
+      'textarea:not([disabled])',
+      '[tabindex]:not([tabindex="-1"])',
+    ].join(",");
+
+    return Array.from(container.querySelectorAll(selectors)).filter(function (element) {
+      if (!(element instanceof HTMLElement)) {
+        return false;
+      }
+
+      if (element.getAttribute("aria-hidden") === "true") {
+        return false;
+      }
+
+      const style = window.getComputedStyle(element);
+      return style.display !== "none" && style.visibility !== "hidden";
+    });
+  }
+
+  function focusFirstElementInContainer(container) {
+    const focusable = getFocusableElements(container);
+    if (focusable.length > 0) {
+      focusable[0].focus();
+      return;
+    }
+
+    if (container instanceof HTMLElement) {
+      container.focus();
+    }
+  }
+
+  function isTopModalLayer(layer) {
+    return modalLayerStack.length > 0 && modalLayerStack[modalLayerStack.length - 1] === layer;
+  }
+
+  function pushModalLayer(backdrop, dialog) {
+    const layer = {
+      backdrop: backdrop,
+      dialog: dialog,
+      previousActiveElement: document.activeElement instanceof HTMLElement ? document.activeElement : null,
+    };
+
+    const layerIndex = modalLayerStack.length;
+    const backdropZIndex = MODAL_STACK_BASE_Z_INDEX + (layerIndex * MODAL_STACK_STEP);
+    backdrop.style.zIndex = String(backdropZIndex);
+
+    if (dialog instanceof HTMLElement) {
+      dialog.style.zIndex = String(backdropZIndex + 1);
+      if (!dialog.hasAttribute("tabindex")) {
+        dialog.setAttribute("tabindex", "-1");
+      }
+    }
+
+    modalLayerStack.push(layer);
+    return layer;
+  }
+
+  function popModalLayer(layer, restoreFocus) {
+    const index = modalLayerStack.lastIndexOf(layer);
+    if (index === -1) {
+      return;
+    }
+
+    modalLayerStack.splice(index, 1);
+
+    if (restoreFocus && layer.previousActiveElement instanceof HTMLElement && document.contains(layer.previousActiveElement)) {
+      layer.previousActiveElement.focus();
+      return;
+    }
+
+    const topLayer = modalLayerStack[modalLayerStack.length - 1];
+    if (topLayer && topLayer.dialog instanceof HTMLElement) {
+      topLayer.dialog.focus();
+    }
+  }
+
+  function enableModalFocusTrap(dialog, isLayerActive) {
+    if (!(dialog instanceof HTMLElement)) {
+      return function () {};
+    }
+
+    function handleKeydown(event) {
+      if (event.key !== "Tab") {
+        return;
+      }
+
+      if (typeof isLayerActive === "function" && !isLayerActive()) {
+        return;
+      }
+
+      const focusable = getFocusableElements(dialog);
+      if (focusable.length === 0) {
+        event.preventDefault();
+        dialog.focus();
+        return;
+      }
+
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      const active = document.activeElement;
+
+      if (event.shiftKey) {
+        if (active === first || !dialog.contains(active)) {
+          event.preventDefault();
+          last.focus();
+        }
+        return;
+      }
+
+      if (active === last || !dialog.contains(active)) {
+        event.preventDefault();
+        first.focus();
+      }
+    }
+
+    document.addEventListener("keydown", handleKeydown);
+    return function releaseModalFocusTrap() {
+      document.removeEventListener("keydown", handleKeydown);
+    };
   }
 
   function toDateStart(value) {
@@ -2183,6 +2362,8 @@
 
   function getFrequencyDays(frequency) {
     const map = {
+      "One-off": 30,
+      Weekly: 7,
       Monthly: 30,
       Quarterly: 90,
       "6 Monthly": 182,
@@ -2217,6 +2398,9 @@
       return null;
     }
 
+    if (frequency === "Weekly") {
+      return new Date(normalized.getTime() + 7 * 24 * 60 * 60 * 1000);
+    }
     if (frequency === "Monthly") {
       return addMonthsClamped(normalized, 1);
     }
@@ -2308,13 +2492,15 @@
     return created;
   }
 
-  function createScheduleItemFromPropertyTemplate(template, now) {
+  function createScheduleItemFromPropertyTemplate(template, propertyId, now) {
     const createdAt = now || new Date().toISOString();
     const taskName = String(template.name || "Scheduled Item").trim() || "Scheduled Item";
+    const normalizedPropertyId = String(propertyId || template.propertyId || "").trim();
     const scheduleItem = {
       id: window.BuildingStorage.createId(),
       templateId: template.id,
       propertyTemplateId: template.id,
+      propertyId: normalizedPropertyId,
       taskName: taskName,
       category: template.category || "General",
       dueDate: String(template.nextDueDate || "").trim(),
@@ -2322,6 +2508,7 @@
       preferredCompany: "",
       preferredCompanyId: template.preferredCompanyId || "",
       preferredContactId: template.preferredContactId || "",
+      lastCompletedDate: String(template.lastCompletedDate || "").trim(),
       lastCompletionHistoryId: "",
       status: "Future",
       createdDate: createdAt,
@@ -2389,6 +2576,7 @@
     const existingMap = new Map((existingScheduleItems || []).map(function (item) {
       return [String(item.propertyTemplateId || item.templateId || ""), item];
     }));
+    const propertyId = String(building && building.id ? building.id : "").trim();
 
     return activeTemplates.map(function (template) {
       const existing = existingMap.get(template.id);
@@ -2401,6 +2589,7 @@
           ...existing,
           templateId: template.id,
           propertyTemplateId: template.id,
+          propertyId: String(existing.propertyId || "").trim(),
           taskName: template.name,
           category: template.category || "General",
           dueDate: String(template.nextDueDate || "").trim(),
@@ -2410,7 +2599,7 @@
           preferredContactId: template.preferredContactId || "",
           lastUpdated: now,
         }
-        : createScheduleItemFromPropertyTemplate(template, now);
+        : createScheduleItemFromPropertyTemplate(template, template.propertyId || propertyId, now);
 
       next.status = getScheduleStatusText(next);
       return next;
@@ -2558,6 +2747,7 @@
         ...item,
         templateId: item.templateId || item.propertyTemplateId || "",
         propertyTemplateId: item.propertyTemplateId || item.templateId || "",
+        propertyId: String(item.propertyId || building.id || "").trim(),
         taskName: item.taskName,
         category: item.category || "General",
         dueDate: item.dueDate,
@@ -2808,6 +2998,10 @@
       const diffDays = getScheduleDiffDays(item);
       const lastCompletionRecord = getPendingRevertRecord(building, item);
       const latestCompletionRecord = getLatestCompletionRecord(building, item.id);
+      const itemPropertyId = String(item.propertyId || "").trim();
+      const itemPropertyName = itemPropertyId
+        ? getBuildingNameById(itemPropertyId) || "Property not assigned"
+        : "Property not assigned";
       const visualPriority = getScheduleVisualPriority(item, diffDays);
       return {
         item: item,
@@ -2816,8 +3010,9 @@
         statusText: getScheduleStatusText(item),
         diffDays: diffDays,
         category: getScheduleItemCategory(building, item),
-        propertyId: building.id,
-        propertyName: building.buildingName,
+        propertyId: itemPropertyId,
+        propertyName: itemPropertyName,
+        lastCompletedDate: String(item.lastCompletedDate || "").trim(),
         lastCompletionRecord: lastCompletionRecord,
         latestCompletionRecord: latestCompletionRecord,
         completedToday: wasCompletedToday(latestCompletionRecord),
@@ -2974,6 +3169,7 @@
         templateId: activeTemplate.id,
         propertyTemplateId: activeTemplate.id,
         dueDate: newDueDate,
+        lastCompletedDate: completedAt.slice(0, 10),
         frequency: activeTemplate.defaultFrequency,
         taskName: activeTemplate.name,
         category: activeTemplate.category,
@@ -3037,6 +3233,7 @@
         return {
           ...item,
           dueDate: historyRecord.previousDueDate,
+          lastCompletedDate: "",
           status: restoredStatus,
           lastCompletionHistoryId: "",
           lastUpdated: revertedAt,
@@ -3068,20 +3265,22 @@
     const linkedContactMarkup = linkedContactText
       ? `<p class="schedule-row-meta">Linked Contact: ${escapeHtml(linkedContactText)}</p>`
       : "";
+    const propertyMarkup = `<p class="schedule-row-meta">${escapeHtml(row.propertyName || "Property not assigned")}</p>`;
+    const lastCompletedMarkup = `<p class="schedule-row-meta">Last Completed</p><p class="schedule-row-meta">${escapeHtml(formatLastCompletedDate(row.lastCompletedDate))}</p>`;
+    const nextDueMarkup = `<p class="schedule-row-meta">Next Due</p><p class="schedule-row-meta">${formatDate(row.item.dueDate)}</p>`;
 
     return `
-      <article class="schedule-ops-row schedule-ops-row-${row.state} schedule-ops-priority-${row.visualPriority}" data-schedule-id="${row.item.id}" data-schedule-building-id="${row.propertyId}">
+      <article class="schedule-ops-row schedule-ops-row-${row.state} schedule-ops-priority-${row.visualPriority}" data-schedule-id="${row.item.id}" data-schedule-building-id="${row.propertyId}" role="button" tabindex="0" aria-label="Open schedule details for ${escapeHtml(row.item.taskName)}">
         <span class="schedule-ops-marker" aria-hidden="true"></span>
         <div class="schedule-ops-main">
           <h3 class="schedule-row-title">${escapeHtml(row.item.taskName)}</h3>
           <p class="schedule-row-meta">${escapeHtml(row.item.frequency)}</p>
+          ${propertyMarkup}
+          ${lastCompletedMarkup}
+          ${nextDueMarkup}
           ${linkedContactMarkup}
-          <p class="schedule-row-due ${dueClass}">Due: ${formatDate(row.item.dueDate)}</p>
+          <p class="schedule-row-due ${dueClass}">Next Due Date: ${formatDate(row.item.dueDate)}</p>
           <p class="schedule-row-status ${statusClass}">Status: ${escapeHtml(row.statusText)}</p>
-        </div>
-        <div class="schedule-ops-actions">
-          <button class="btn btn-primary btn-small schedule-complete-btn" type="button" data-schedule-complete-id="${row.item.id}">✓ Complete</button>
-          <button class="btn btn-secondary btn-small schedule-details-btn" type="button" data-schedule-details-id="${row.item.id}">Details</button>
         </div>
       </article>
     `;
@@ -3093,22 +3292,21 @@
     const linkedContactMarkup = linkedContactText
       ? `<p class="schedule-row-meta">Linked Contact: ${escapeHtml(linkedContactText)}</p>`
       : "";
-    const revertButtonMarkup = row.lastCompletionRecord
-      ? `<button class="btn btn-secondary btn-small schedule-revert-btn" type="button" data-schedule-revert-id="${row.item.id}">Revert</button>`
-      : "";
+    const propertyMarkup = `<p class="schedule-row-meta">${escapeHtml(row.propertyName || "Property not assigned")}</p>`;
+    const lastCompletedMarkup = `<p class="schedule-row-meta">Last Completed</p><p class="schedule-row-meta">${escapeHtml(formatLastCompletedDate(row.lastCompletedDate || row.latestCompletionRecord && row.latestCompletionRecord.completedDate))}</p>`;
+    const nextDueMarkup = `<p class="schedule-row-meta">Next Due</p><p class="schedule-row-meta">${formatDate(row.item.dueDate)}</p>`;
     return `
-      <article class="schedule-ops-row schedule-ops-row-completed schedule-ops-priority-completed" data-schedule-id="${row.item.id}" data-schedule-building-id="${row.propertyId}">
+      <article class="schedule-ops-row schedule-ops-row-completed schedule-ops-priority-completed" data-schedule-id="${row.item.id}" data-schedule-building-id="${row.propertyId}" role="button" tabindex="0" aria-label="Open schedule details for ${escapeHtml(row.item.taskName)}">
         <span class="schedule-ops-marker" aria-hidden="true"></span>
         <div class="schedule-ops-main">
           <h3 class="schedule-row-title">${escapeHtml(row.item.taskName)}</h3>
           <p class="schedule-row-meta">${escapeHtml(row.item.frequency)}</p>
+          ${propertyMarkup}
+          ${lastCompletedMarkup}
+          ${nextDueMarkup}
           ${linkedContactMarkup}
-          <p class="schedule-row-due schedule-row-due-scheduled">Completed: ${completedDate}</p>
+          <p class="schedule-row-due schedule-row-due-scheduled">Next Due Date: ${formatDate(row.item.dueDate)}</p>
           <p class="schedule-row-status schedule-row-status-scheduled">Status: Completed</p>
-        </div>
-        <div class="schedule-ops-actions">
-          ${revertButtonMarkup}
-          <button class="btn btn-secondary btn-small schedule-details-btn" type="button" data-schedule-details-id="${row.item.id}">Details</button>
         </div>
       </article>
     `;
@@ -3225,7 +3423,7 @@
 
   function renderSchedulePage() {
     const buildings = getNormalizedScheduleBuildings();
-    scheduleBuildingName.textContent = "All Properties";
+    scheduleBuildingName.textContent = activeBuildingId ? getActiveBuildingName() : "All Properties";
 
     const rows = buildings.flatMap(function (building) {
       return decorateScheduleRows(building, building.scheduleItems || []);
@@ -3250,10 +3448,12 @@
     }
 
     if (buildingId && findBuildingById(buildingId)) {
-      activeBuildingId = buildingId;
+      setCurrentPropertyId(buildingId);
     } else {
       ensureActiveBuildingSelection(buildings);
     }
+
+    syncScheduleFilterToCurrentProperty();
 
     const activeBuilding = findBuildingById(activeBuildingId);
     if (activeBuilding) {
@@ -3385,6 +3585,35 @@
     return `${items.length} Contacts`;
   }
 
+  function getContactIdentityKey(contact) {
+    if (!contact) {
+      return "";
+    }
+
+    const id = String(contact.id || "").trim();
+    if (id) {
+      return `id:${id}`;
+    }
+
+    const name = normalizeText(contact.name || "");
+    const email = normalizeText(contact.email || "");
+    const mobile = normalizeText(contact.mobile || "");
+    const companyId = normalizeText(contact.companyId || "");
+    return `fallback:${name}|${email}|${mobile}|${companyId}`;
+  }
+
+  function dedupeContacts(contacts) {
+    const seen = new Set();
+    return (contacts || []).filter(function (contact) {
+      const key = getContactIdentityKey(contact);
+      if (!key || seen.has(key)) {
+        return false;
+      }
+      seen.add(key);
+      return true;
+    });
+  }
+
   function getContactsForBuilding(building) {
     if (!building) {
       return [];
@@ -3397,19 +3626,19 @@
       // Backward compatibility: if legacy embedded contacts exist but refs do not,
       // show those contacts until migration links are created.
       if (refs.length === 0 && Array.isArray(building.tenancy.contacts) && building.tenancy.contacts.length > 0) {
-        return building.tenancy.contacts;
+        return dedupeContacts(building.tenancy.contacts);
       }
     } else {
       refs = Array.isArray(building.buildingContactAssignments) ? building.buildingContactAssignments : [];
     }
 
-    return refs
+    return dedupeContacts(refs
       .map(function (contactId) {
         return findContactById(contactId);
       })
       .filter(function (contact) {
         return Boolean(contact);
-      });
+      }));
   }
 
   function getContactsForActiveBuilding() {
@@ -3454,6 +3683,7 @@
         if (!currentRelationship || currentRelationship === "General") {
           window.BuildingStorage.upsertContact({
             ...contact,
+            contactType: getContactClassification(contact),
             responsibility: roleRelationship,
             lastUpdated: new Date().toISOString(),
           });
@@ -3886,7 +4116,7 @@
       return;
     }
 
-    activeBuildingId = building.id;
+    setCurrentPropertyId(building.id);
     activeLeaseManagedCategoryKey = "";
     leaseSearchQuery = "";
     if (leaseSearch) {
@@ -4701,14 +4931,24 @@
   function renderContactList(contacts) {
     const building = findBuildingById(activeBuildingId);
     const query = normalizeText(contactsSearchQuery);
-    const enriched = contacts
+    const enriched = dedupeContacts(contacts)
       .map(function (contact) {
         const companyName = getCompanyNameById(contact.companyId, "Not set");
         const relationship = getBuildingRelationshipForContact(building, contact);
+        const linkedItems = getScheduleItemsLinkedToContact(building, contact.id);
+        const linkedItemsSummary = linkedItems.length === 0
+          ? "None"
+          : linkedItems.slice(0, 3).map(function (item) {
+            return item.taskName;
+          }).join(", ");
+        const linkedItemsMoreCount = linkedItems.length > 3 ? linkedItems.length - 3 : 0;
         return {
           contact: contact,
           companyName: companyName,
           relationship: relationship,
+          linkedItemsSummary: linkedItemsSummary,
+          linkedItemsCount: linkedItems.length,
+          linkedItemsMoreCount: linkedItemsMoreCount,
         };
       })
       .filter(function (entry) {
@@ -4718,7 +4958,8 @@
 
         return normalizeText(entry.contact.name).includes(query)
           || normalizeText(entry.companyName).includes(query)
-          || normalizeText(entry.relationship).includes(query);
+          || normalizeText(entry.relationship).includes(query)
+          || normalizeText(entry.linkedItemsSummary).includes(query);
       });
 
     if (enriched.length === 0) {
@@ -4764,13 +5005,19 @@
           <div class="contact-card-header">
             <div class="contact-card-title-group">
               <h3><button class="inline-link contact-open-link" type="button">${contact.name}</button></h3>
-              <div class="contact-card-type">${renderContactTypeBadge(entry.relationship)}</div>
             </div>
-            <button class="btn btn-secondary btn-small contact-edit-btn" type="button">Edit</button>
           </div>
-          <p><strong>Company:</strong> <button class="inline-link company-open-link" type="button" data-company-id="${contact.companyId}">${entry.companyName}</button></p>
-          <p><strong>Phone:</strong> ${mobileLink}</p>
-          <p><strong>Email:</strong> ${emailLink}</p>
+          <div class="contact-card-layout">
+            <div class="contact-card-column contact-card-column-left">
+              <p><strong>Company:</strong> <button class="inline-link company-open-link" type="button" data-company-id="${contact.companyId}">${entry.companyName}</button></p>
+              <p><strong>Role:</strong> ${renderContactRoleBadge(entry.relationship)}</p>
+              <p><strong>Linked Items:</strong> ${escapeHtml(entry.linkedItemsSummary)}${entry.linkedItemsMoreCount > 0 ? ` (+${entry.linkedItemsMoreCount} more)` : ""}</p>
+            </div>
+            <div class="contact-card-column contact-card-column-right">
+              <p><strong>Phone:</strong> ${mobileLink}</p>
+              <p><strong>Email:</strong> ${emailLink}</p>
+            </div>
+          </div>
         </article>
       `;
     }
@@ -4842,13 +5089,20 @@
 
   function renderContactSectionState(mode) {
     if (mode === "form") {
+      if (contactsCreateBtn instanceof HTMLButtonElement) {
+        contactsCreateBtn.style.display = "none";
+      }
       contactsEmptyState.style.display = "none";
       contactsListCard.style.display = "none";
       contactFormCard.style.display = "block";
       return;
     }
 
-    const contacts = getContactsForActiveBuilding();
+    if (contactsCreateBtn instanceof HTMLButtonElement) {
+      contactsCreateBtn.style.display = "inline-flex";
+    }
+
+    const contacts = getContactsForDisplayInActiveBuilding();
     contactFormCard.style.display = "none";
 
     if (contacts.length === 0) {
@@ -4860,6 +5114,125 @@
     contactsEmptyState.style.display = "none";
     contactsListCard.style.display = "block";
     renderContactList(contacts);
+  }
+
+  function getContactsForDisplayInActiveBuilding() {
+    const linkedContacts = dedupeContacts(getContactsForActiveBuilding());
+    if (linkedContacts.length > 0) {
+      return linkedContacts;
+    }
+
+    const building = findBuildingById(activeBuildingId);
+    if (!building) {
+      return [];
+    }
+
+    const companyIds = getCompanyIdsForBuilding(building);
+    const allContacts = dedupeContacts(getContacts());
+
+    if (companyIds.length === 0) {
+      return allContacts;
+    }
+
+    const filtered = allContacts.filter(function (contact) {
+      return contact && companyIds.includes(contact.companyId);
+    });
+
+    return filtered.length > 0 ? filtered : allContacts;
+  }
+
+  function openContactDetailsDialog(contact) {
+    const building = findBuildingById(activeBuildingId);
+    if (!contact || !building) {
+      return;
+    }
+
+    const existingBackdrop = window.document.querySelector(".contact-details-backdrop");
+    if (existingBackdrop) {
+      existingBackdrop.remove();
+    }
+
+    const relationship = getBuildingRelationshipForContact(building, contact);
+    const companyName = getCompanyNameById(contact.companyId, "Not set");
+    const linkedItems = getScheduleItemsLinkedToContact(building, contact.id);
+    const linkedItemsMarkup = linkedItems.length === 0
+      ? '<p class="module-placeholder">No linked schedule items.</p>'
+      : `
+        <section class="building-list" aria-live="polite">
+          ${linkedItems.map(function (item) {
+            return `
+              <article class="building-card">
+                <h3>${escapeHtml(item.taskName)}</h3>
+                <p><strong>Due Date:</strong> ${formatDate(item.dueDate)}</p>
+                <p><strong>Status:</strong> ${escapeHtml(getScheduleStatusText(item))}</p>
+              </article>
+            `;
+          }).join("")}
+        </section>
+      `;
+
+    const backdrop = window.document.createElement("div");
+    backdrop.className = "schedule-details-backdrop contact-details-backdrop";
+    backdrop.innerHTML = `
+      <div class="schedule-details-modal" role="dialog" aria-modal="true" aria-labelledby="contact-details-title">
+        <header class="schedule-details-header">
+          <h3 id="contact-details-title">${escapeHtml(contact.name || "Contact")}</h3>
+          <button class="btn btn-secondary btn-small" type="button" data-contact-details-action="close">Back</button>
+        </header>
+
+        <section class="schedule-details-section">
+          <h4>Contact Details</h4>
+          <dl class="schedule-details-grid">
+            <div><dt>Company</dt><dd>${escapeHtml(companyName)}</dd></div>
+            <div><dt>Role</dt><dd>${escapeHtml(relationship)}</dd></div>
+            <div><dt>Mobile</dt><dd>${escapeHtml(contact.mobile || "Not provided")}</dd></div>
+            <div><dt>Office Phone</dt><dd>${escapeHtml(contact.officePhone || "Not provided")}</dd></div>
+            <div><dt>Email</dt><dd>${escapeHtml(contact.email || "Not provided")}</dd></div>
+            <div><dt>Notes</dt><dd>${escapeHtml(contact.notes || "Not provided")}</dd></div>
+            <div><dt>Linked Schedule Items</dt><dd>${linkedItems.length}</dd></div>
+          </dl>
+        </section>
+
+        <section class="schedule-details-section">
+          <h4>Linked Schedule Items</h4>
+          ${linkedItemsMarkup}
+        </section>
+
+        <section class="schedule-details-bottom-actions" aria-label="Contact actions">
+          <button class="btn btn-secondary" type="button" data-contact-details-action="edit">Edit Contact</button>
+          <button class="btn btn-primary" type="button" data-contact-details-action="close">Back</button>
+        </section>
+      </div>
+    `;
+
+    window.document.body.appendChild(backdrop);
+
+    function closeDialog() {
+      backdrop.remove();
+    }
+
+    backdrop.addEventListener("click", function (event) {
+      if (event.target === backdrop) {
+        closeDialog();
+        return;
+      }
+
+      const target = event.target;
+      if (!(target instanceof HTMLElement)) {
+        return;
+      }
+
+      const action = target.getAttribute("data-contact-details-action");
+      if (action === "close") {
+        closeDialog();
+        return;
+      }
+
+      if (action === "edit") {
+        closeDialog();
+        openContactForm("edit", contact);
+      }
+    });
   }
 
   function getCompanyIdsForBuilding(building) {
@@ -5406,7 +5779,7 @@
     activeContactId = "";
     contactsSearchQuery = "";
     populateContactCompanySelect("");
-    setRelationshipSelection(contactForm.elements.responsibility, contactCustomRelationshipWrap, contactForm.elements.customRelationship, "Other");
+    contactForm.elements.responsibility.value = "";
     if (contactsSearch) {
       contactsSearch.value = "";
     }
@@ -5418,9 +5791,7 @@
     contactForm.reset();
     contactForm.elements.contactId.value = "";
     contactForm.elements.companyId.value = "";
-    contactForm.elements.newCompanyName.value = "";
-    contactNewCompanyWrap.style.display = "none";
-    setRelationshipSelection(contactForm.elements.responsibility, contactCustomRelationshipWrap, contactForm.elements.customRelationship, "Other");
+    contactForm.elements.responsibility.value = "";
   }
 
   function getUniqueCompaniesByName() {
@@ -5442,7 +5813,6 @@
       const selected = company.id === selectedId ? " selected" : "";
       options.push(`<option value="${company.id}"${selected}>${company.name}</option>`);
     });
-    options.push('<option value="__new__">+ Add new company</option>');
     contactForm.elements.companyId.innerHTML = options.join("");
 
     const hasSelected = companies.some(function (company) {
@@ -5464,22 +5834,9 @@
   }
 
   function handleContactCompanyChange() {
-    const value = String(contactForm.elements.companyId.value || "");
-    const isNewCompany = value === "__new__";
-    contactNewCompanyWrap.style.display = isNewCompany ? "block" : "none";
-    contactForm.elements.newCompanyName.required = isNewCompany;
-    if (!isNewCompany) {
-      contactForm.elements.newCompanyName.value = "";
-    }
-  }
-
-  function handleContactRelationshipChange() {
-    const selected = normalizeRelationshipLabel(contactForm.elements.responsibility.value);
-    const isOther = selected === "Other";
-    contactCustomRelationshipWrap.style.display = isOther ? "block" : "none";
-    contactForm.elements.customRelationship.required = isOther;
-    if (!isOther) {
-      contactForm.elements.customRelationship.value = "";
+    const value = String(contactForm.elements.companyId.value || "").trim();
+    if (!value) {
+      return;
     }
   }
 
@@ -5497,7 +5854,7 @@
     resetContactForm();
     populateContactCompanySelect(contact && contact.companyId ? contact.companyId : "");
 
-    contactFormTitle.textContent = mode === "edit" ? "Edit Contact" : "Create New Contact";
+    contactFormTitle.textContent = mode === "edit" ? "Edit Contact" : "New Contact";
     contactForm.style.display = "grid";
     deleteContactBtn.style.display = mode === "edit" ? "inline-flex" : "none";
     if (mode === "edit" && contact) {
@@ -5505,19 +5862,19 @@
       const relationship = getBuildingRelationshipForContact(building, contact);
       contactForm.elements.contactId.value = contact.id;
       contactForm.elements.name.value = contact.name || "";
-      setRelationshipSelection(contactForm.elements.responsibility, contactCustomRelationshipWrap, contactForm.elements.customRelationship, relationship);
+      contactForm.elements.responsibility.value = String(relationship || "").trim();
       contactForm.elements.mobile.value = contact.mobile || "";
       contactForm.elements.officePhone.value = contact.officePhone || "";
       contactForm.elements.email.value = contact.email || "";
       contactForm.elements.notes.value = contact.notes || "";
     } else {
-      setRelationshipSelection(contactForm.elements.responsibility, contactCustomRelationshipWrap, contactForm.elements.customRelationship, "Other");
+      contactForm.elements.responsibility.value = "";
     }
 
     if (mode === "edit" && contact && contact.id) {
       renderContactLinkedScheduleItems(contact);
-    } else if (contactLinkedScheduleSection) {
-      contactLinkedScheduleSection.style.display = "none";
+    } else {
+      renderContactLinkedScheduleItems(null);
     }
 
     renderContactSectionState("form");
@@ -5526,17 +5883,19 @@
       { label: "Buildings", onClick: goToDashboard },
       { label: getActiveBuildingName(), onClick: function () { openOverviewById(activeBuildingId); } },
       { label: "Contacts", onClick: openContactsView },
-      { label: mode === "edit" ? "Edit Contact" : "Create New Contact", onClick: function () { openContactForm(mode, contact); } },
+      { label: mode === "edit" ? "Edit Contact" : "New Contact", onClick: function () { openContactForm(mode, contact); } },
     ]);
   }
 
   function buildContactPayloadFromFormData(formData, existingContact) {
     const now = new Date().toISOString();
-    const relationship = resolveRelationshipValue(formData.get("responsibility"), formData.get("customRelationship"));
+    const relationship = normalizeRelationshipLabel(formData.get("responsibility")) || "Other";
+    const classification = String(getContactClassification(existingContact)).trim() || "Other";
     return {
       id: existingContact && existingContact.id ? existingContact.id : window.BuildingStorage.createId(),
       companyId: String(formData.get("companyId") || "").trim(),
       name: String(formData.get("name") || "").trim(),
+      contactType: classification,
       responsibility: relationship,
       mobile: String(formData.get("mobile") || "").trim(),
       officePhone: String(formData.get("officePhone") || "").trim(),
@@ -5595,7 +5954,7 @@
       return;
     }
 
-    activeBuildingId = building.id;
+    setCurrentPropertyId(building.id);
     activeTenancyTab = "current";
     renderCurrentTenancyPage(building);
     showTenancyView();
@@ -5765,8 +6124,7 @@
       return;
     }
 
-    activeBuildingId = buildingId;
-    saveActiveBuildingId(buildingId);
+    setCurrentPropertyId(buildingId);
     showDashboard();
     renderBuildings();
   }
@@ -5869,17 +6227,55 @@
       return;
     }
 
+    if (!contact || !contact.id) {
+      contactLinkedScheduleSection.style.display = "block";
+      contactLinkedScheduleList.innerHTML = '<p class="module-placeholder">Save this contact before linking schedule items.</p>';
+      if (contactAddScheduleLinkBtn instanceof HTMLButtonElement) {
+        contactAddScheduleLinkBtn.style.display = "none";
+        contactAddScheduleLinkBtn.disabled = true;
+      }
+      if (contactRemoveScheduleLinkBtn instanceof HTMLButtonElement) {
+        contactRemoveScheduleLinkBtn.style.display = "none";
+        contactRemoveScheduleLinkBtn.disabled = true;
+      }
+      return;
+    }
+
     const building = findBuildingById(activeBuildingId);
-    if (!building || !contact || !contact.id) {
-      contactLinkedScheduleSection.style.display = "none";
+    if (!building) {
+      contactLinkedScheduleSection.style.display = "block";
+      contactLinkedScheduleList.innerHTML = '<p class="module-placeholder">No linked schedule items.</p>';
+      if (contactAddScheduleLinkBtn instanceof HTMLButtonElement) {
+        contactAddScheduleLinkBtn.style.display = "inline-flex";
+        contactAddScheduleLinkBtn.disabled = false;
+      }
+      if (contactRemoveScheduleLinkBtn instanceof HTMLButtonElement) {
+        contactRemoveScheduleLinkBtn.style.display = "inline-flex";
+        contactRemoveScheduleLinkBtn.disabled = true;
+      }
       return;
     }
 
     contactLinkedScheduleSection.style.display = "block";
+    if (contactAddScheduleLinkBtn instanceof HTMLButtonElement) {
+      contactAddScheduleLinkBtn.style.display = "inline-flex";
+      contactAddScheduleLinkBtn.disabled = false;
+    }
+    if (contactRemoveScheduleLinkBtn instanceof HTMLButtonElement) {
+      contactRemoveScheduleLinkBtn.style.display = "inline-flex";
+      contactRemoveScheduleLinkBtn.disabled = false;
+    }
     const linkedItems = getScheduleItemsLinkedToContact(building, contact.id);
     if (linkedItems.length === 0) {
       contactLinkedScheduleList.innerHTML = '<p class="module-placeholder">No linked schedule items.</p>';
+      if (contactRemoveScheduleLinkBtn instanceof HTMLButtonElement) {
+        contactRemoveScheduleLinkBtn.disabled = true;
+      }
       return;
+    }
+
+    if (contactRemoveScheduleLinkBtn instanceof HTMLButtonElement) {
+      contactRemoveScheduleLinkBtn.disabled = false;
     }
 
     contactLinkedScheduleList.innerHTML = linkedItems.map(function (item) {
@@ -5979,6 +6375,90 @@
     });
   }
 
+  function showContactScheduleUnlinkDialog(building, contact) {
+    return new Promise(function (resolve) {
+      const linkedItems = getScheduleItemsLinkedToContact(building, contact.id);
+
+      if (linkedItems.length === 0) {
+        resolve("");
+        return;
+      }
+
+      const backdrop = window.document.createElement("div");
+      backdrop.className = "template-delete-modal-backdrop";
+      backdrop.innerHTML = `
+        <div class="template-delete-modal" role="dialog" aria-modal="true" aria-labelledby="contact-unlink-schedule-title">
+          <h3 id="contact-unlink-schedule-title">Remove Schedule Link</h3>
+          <p>Select a linked schedule item to unlink from ${escapeHtml(contact.name)}.</p>
+          <label>
+            <span class="visually-hidden">Linked schedule item</span>
+            <select id="contact-unlink-schedule-select" class="schedule-filter-select">
+              <option value="">Select linked schedule item</option>
+              ${linkedItems.map(function (item) {
+                return `<option value="${item.id}">${escapeHtml(item.taskName)} - ${escapeHtml(formatDate(item.dueDate))}</option>`;
+              }).join("")}
+            </select>
+          </label>
+          <div class="template-delete-modal-actions">
+            <button class="btn btn-secondary" type="button" data-contact-unlink-action="cancel">Cancel</button>
+            <button class="btn template-delete-btn" type="button" data-contact-unlink-action="remove">Remove Link</button>
+          </div>
+        </div>
+      `;
+
+      window.document.body.appendChild(backdrop);
+
+      function close(value) {
+        backdrop.remove();
+        resolve(value);
+      }
+
+      backdrop.addEventListener("click", function (event) {
+        if (event.target === backdrop) {
+          close("");
+        }
+      });
+
+      backdrop.addEventListener("click", function (event) {
+        const target = event.target;
+        if (!(target instanceof HTMLElement)) {
+          return;
+        }
+
+        const action = target.getAttribute("data-contact-unlink-action");
+        if (action === "cancel") {
+          close("");
+          return;
+        }
+
+        if (action === "remove") {
+          const select = backdrop.querySelector("#contact-unlink-schedule-select");
+          const selectedId = select instanceof HTMLSelectElement ? String(select.value || "").trim() : "";
+          close(selectedId);
+        }
+      });
+    });
+  }
+
+  function unlinkScheduleItemFromContact(building, scheduleItemId, contactId) {
+    const normalized = ensureWorkflowCollections(building);
+    const scheduleItem = (normalized.scheduleItems || []).find(function (item) {
+      return item.id === scheduleItemId;
+    });
+    if (!scheduleItem) {
+      return null;
+    }
+
+    if (String(scheduleItem.preferredContactId || "") !== String(contactId || "")) {
+      return null;
+    }
+
+    const templateId = scheduleItem.propertyTemplateId || scheduleItem.templateId;
+    return updateScheduleItemWithTemplate(normalized, templateId, {
+      preferredContactId: "",
+    });
+  }
+
   async function handleAddScheduleLinkForContact() {
     if (!activeContactId) {
       return;
@@ -6005,6 +6485,32 @@
     renderContactLinkedScheduleItems(contact);
   }
 
+  async function handleRemoveScheduleLinkForContact() {
+    if (!activeContactId) {
+      return;
+    }
+
+    const contact = findContactById(activeContactId);
+    const building = findBuildingById(activeBuildingId);
+    if (!contact || !building) {
+      return;
+    }
+
+    const scheduleItemId = await showContactScheduleUnlinkDialog(building, contact);
+    if (!scheduleItemId) {
+      return;
+    }
+
+    const updated = unlinkScheduleItemFromContact(building, scheduleItemId, contact.id);
+    if (!updated) {
+      return;
+    }
+
+    window.BuildingStorage.updateBuilding(updated);
+    renderBuildings();
+    renderContactLinkedScheduleItems(contact);
+  }
+
   function handleSaveContact(event) {
     event.preventDefault();
 
@@ -6017,21 +6523,6 @@
     }
 
     const payload = buildContactPayload(existingContact);
-    if (payload.companyId === "__new__") {
-      const newCompanyName = String(contactForm.elements.newCompanyName.value || "").trim();
-      if (!newCompanyName) {
-        alert("Please enter a company name.");
-        return;
-      }
-
-      const company = ensureCompanyByName(newCompanyName, "Service");
-      if (!company) {
-        alert("Unable to create company.");
-        return;
-      }
-      payload.companyId = company.id;
-    }
-
     if (!payload.companyId) {
       alert("Please select a company.");
       return;
@@ -6044,6 +6535,22 @@
         const normalizedBuilding = ensureWorkflowCollections(building);
         window.BuildingStorage.upsertContact(payload);
         const withRelationship = applyContactRelationshipToBuilding(normalizedBuilding, payload.id, payload.responsibility || "Other");
+
+        if (context.returnToPrimaryContactPicker) {
+          const normalized = ensureWorkflowCollections(withRelationship);
+          window.BuildingStorage.updateBuilding(normalized);
+          renderBuildings();
+          pendingPrimaryContactDialogState = {
+            buildingId: context.buildingId,
+            scheduleItemId: context.scheduleItemId,
+            preselectedContactId: payload.id,
+          };
+          setContactFormAssignmentContext(null);
+          openScheduleView(context.buildingId);
+          openScheduleDetailsDialog(context.buildingId, context.scheduleItemId);
+          return;
+        }
+
         const linked = linkScheduleItemToContact(withRelationship, context.scheduleItemId, payload.id);
         if (linked) {
           const normalized = ensureWorkflowCollections(linked);
@@ -6066,18 +6573,6 @@
     upsertContactForActiveTenancy(payload);
     renderBuildings();
     setContactFormAssignmentContext(null);
-    openContactsView();
-  }
-
-  function handleCancelContact() {
-    if (contactAssignmentContext) {
-      const context = contactAssignmentContext;
-      setContactFormAssignmentContext(null);
-      openScheduleView(context.buildingId);
-      openScheduleDetailsDialog(context.buildingId, context.scheduleItemId);
-      return;
-    }
-
     openContactsView();
   }
 
@@ -6151,7 +6646,7 @@
       return;
     }
 
-    const contacts = getContactsForActiveBuilding();
+    const contacts = getContactsForDisplayInActiveBuilding();
     const selected = contacts.find(function (contact) {
       return contact.id === contactId;
     });
@@ -6172,11 +6667,11 @@
     }
 
     if (target.closest(".contact-open-link") || target.closest(".contact-edit-btn")) {
-      openContactForm("edit", selected);
+      openContactDetailsDialog(selected);
       return;
     }
 
-    openContactForm("edit", selected);
+    openContactDetailsDialog(selected);
   }
 
   function handleTenancyDetailsClick(event) {
@@ -6206,6 +6701,19 @@
   }
 
   function handleContactsBack() {
+    if (contactAssignmentContext) {
+      const context = contactAssignmentContext;
+      setContactFormAssignmentContext(null);
+      openScheduleView(context.buildingId);
+      openScheduleDetailsDialog(context.buildingId, context.scheduleItemId);
+      return;
+    }
+
+    if (contactFormCard.style.display === "block") {
+      openContactsView();
+      return;
+    }
+
     openOverviewById(activeBuildingId);
   }
 
@@ -6826,9 +7334,14 @@
     });
   }
 
-  function showMasterTemplatePickerDialog() {
+  function showMasterTemplatePickerDialog(building) {
     return new Promise(function (resolve) {
-      const selectedIds = new Set();
+      const assignedMasterTemplateIds = new Set(getPropertyTemplates(building || {}).map(function (template) {
+        return String(template.masterTemplateId || "").trim();
+      }).filter(function (id) {
+        return Boolean(id);
+      }));
+      const selectedIds = new Set(Array.from(assignedMasterTemplateIds));
       let searchQuery = "";
       let createdTemplateId = "";
 
@@ -6857,7 +7370,7 @@
         <div class="template-picker-list" data-template-picker-list></div>
         <div class="template-delete-modal-actions">
           <button class="btn btn-secondary" type="button" data-template-picker-action="cancel">Cancel</button>
-          <button class="btn btn-primary" type="button" data-template-picker-action="add">Add Selected</button>
+          <button class="btn btn-primary" type="button" data-template-picker-action="add">Update Property Templates</button>
         </div>
       `;
 
@@ -6868,16 +7381,14 @@
       const searchInput = dialog.querySelector("#template-picker-search");
 
       function getFilteredTemplates() {
-        const activeTemplates = getScheduledItemTemplates().filter(function (template) {
-          return template.active === "Yes";
-        });
+        const templates = getScheduledItemTemplates();
 
         if (!searchQuery) {
-          return activeTemplates;
+          return templates;
         }
 
         const query = normalizeText(searchQuery);
-        return activeTemplates.filter(function (template) {
+        return templates.filter(function (template) {
           return normalizeText(template.name).includes(query)
             || normalizeText(template.category).includes(query)
             || normalizeText(template.description).includes(query);
@@ -7052,9 +7563,125 @@
     });
   }
 
+  function confirmPropertyTemplateUnassignDialog(count) {
+    return new Promise(function (resolve) {
+      const backdrop = window.document.createElement("div");
+      backdrop.className = "template-delete-modal-backdrop";
+
+      const dialog = window.document.createElement("div");
+      dialog.className = "template-delete-modal";
+      dialog.setAttribute("role", "dialog");
+      dialog.setAttribute("aria-modal", "true");
+      dialog.setAttribute("aria-labelledby", "template-unassign-modal-title");
+
+      const message = count === 1
+        ? "This will remove the assigned schedule item from this property."
+        : `This will remove ${count} assigned schedule items from this property.`;
+
+      dialog.innerHTML = `
+        <h3 id="template-unassign-modal-title">Remove Template Assignment</h3>
+        <p>${message}</p>
+        <p>Master templates and assignments on other properties will not be changed.</p>
+        <div class="template-delete-modal-actions">
+          <button class="btn btn-secondary" type="button" data-template-unassign-action="cancel">Cancel</button>
+          <button class="btn template-delete-btn" type="button" data-template-unassign-action="remove">Remove</button>
+        </div>
+      `;
+
+      backdrop.appendChild(dialog);
+      window.document.body.appendChild(backdrop);
+
+      function closeWith(confirmed) {
+        window.document.removeEventListener("keydown", handleEscape);
+        backdrop.remove();
+        resolve(Boolean(confirmed));
+      }
+
+      function handleEscape(event) {
+        if (event.key === "Escape") {
+          closeWith(false);
+        }
+      }
+
+      window.document.addEventListener("keydown", handleEscape);
+
+      backdrop.addEventListener("click", function (event) {
+        if (event.target === backdrop) {
+          closeWith(false);
+        }
+      });
+
+      dialog.addEventListener("click", function (event) {
+        const target = event.target;
+        if (!(target instanceof HTMLElement)) {
+          return;
+        }
+
+        const action = target.getAttribute("data-template-unassign-action");
+        if (action === "cancel") {
+          closeWith(false);
+          return;
+        }
+
+        if (action === "remove") {
+          closeWith(true);
+        }
+      });
+    });
+  }
+
+  function removeMasterTemplatesFromBuilding(masterTemplateIds, buildingId) {
+    const targetBuildingId = String(buildingId || activeBuildingId || "").trim();
+    const building = findBuildingById(targetBuildingId);
+    if (!building) {
+      return null;
+    }
+
+    const normalized = ensureWorkflowCollections(building);
+    const removeMasterIds = new Set((masterTemplateIds || []).map(function (id) {
+      return String(id || "").trim();
+    }).filter(function (id) {
+      return Boolean(id);
+    }));
+
+    if (removeMasterIds.size === 0) {
+      return normalized;
+    }
+
+    const templatesToRemove = getPropertyTemplates(normalized).filter(function (template) {
+      return removeMasterIds.has(String(template.masterTemplateId || "").trim());
+    });
+    if (templatesToRemove.length === 0) {
+      return normalized;
+    }
+
+    const templateIdsToRemove = new Set(templatesToRemove.map(function (template) {
+      return template.id;
+    }));
+    const scheduleItemIdsToRemove = new Set((normalized.scheduleItems || []).filter(function (item) {
+      return templateIdsToRemove.has(String(item.propertyTemplateId || item.templateId || "").trim());
+    }).map(function (item) {
+      return item.id;
+    }));
+
+    return {
+      ...normalized,
+      propertyTemplates: getPropertyTemplates(normalized).filter(function (template) {
+        return !templateIdsToRemove.has(template.id);
+      }),
+      scheduleItems: (normalized.scheduleItems || []).filter(function (item) {
+        return !scheduleItemIdsToRemove.has(item.id);
+      }),
+      historyRecords: (normalized.historyRecords || []).filter(function (record) {
+        return !scheduleItemIdsToRemove.has(record.scheduleItemId);
+      }),
+      lastUpdated: new Date().toISOString(),
+    };
+  }
+
   function showPropertyTemplateEditorDialog(building, propertyTemplateIds) {
     return new Promise(function (resolve) {
-      const sourceTemplates = getPropertyTemplates(building).filter(function (template) {
+      const sourceTemplates = getScheduledItemTemplates().filter(function (template) {
         return (propertyTemplateIds || []).includes(template.id);
       });
 
@@ -7073,31 +7700,30 @@
       dialog.setAttribute("aria-labelledby", "property-template-editor-title");
 
       dialog.innerHTML = `
-        <h3 id="property-template-editor-title">Complete Property Templates</h3>
-        <p>Fill in property-specific fields before activating templates.</p>
+        <h3 id="property-template-editor-title">Add Templates To Schedule</h3>
+        <p>Choose how each selected template should be scheduled for this property.</p>
         <form class="template-property-editor-form">
           <div class="template-property-editor-list">
             ${sourceTemplates.map(function (template) {
+              const initialDueDate = String(template.initialDueDate || template.nextDueDate || "").trim();
+              const customDueDate = template.defaultFrequency === "Custom"
+                ? String(template.nextDueDate || initialDueDate).trim()
+                : "";
               return `
                 <article class="template-property-editor-item" data-property-template-id="${template.id}">
                   <h4>${escapeHtml(template.name)}</h4>
-                  <label>Category<input type="text" data-field="category" value="${escapeHtml(template.category)}" /></label>
                   <label>Frequency<select data-field="defaultFrequency">${TEMPLATE_FREQUENCY_OPTIONS.map(function (option) {
                     return `<option value="${option}"${option === template.defaultFrequency ? " selected" : ""}>${option}</option>`;
                   }).join("")}</select></label>
-                  <label>Due Date<input type="date" data-field="nextDueDate" value="${escapeHtml(template.nextDueDate)}" /></label>
-                  <label>Reminder<input type="text" data-field="defaultReminderPeriod" value="${escapeHtml(template.defaultReminderPeriod)}" placeholder="e.g. 30 days before" /></label>
-                  <label>Contractor<select data-field="preferredCompanyId">${getSetupCompanyOptions(template.preferredCompanyId)}</select></label>
-                  <label>Notes<textarea rows="2" data-field="defaultNotes">${escapeHtml(template.defaultNotes)}</textarea></label>
-                  <label>Suggested Documents<input type="text" data-field="suggestedDocuments" value="${escapeHtml(getSuggestedDocumentsText(template.suggestedDocuments))}" placeholder="Comma separated" /></label>
-                  <label>Status<select data-field="active"><option value="No"${template.active === "No" ? " selected" : ""}>Inactive</option><option value="Yes"${template.active === "Yes" ? " selected" : ""}>Active</option></select></label>
+                  <label data-start-date-wrap>Start Date<input type="date" data-field="initialDueDate" value="${escapeHtml(initialDueDate)}" /></label>
+                  <label data-custom-date-wrap style="display: ${template.defaultFrequency === "Custom" ? "grid" : "none"};">Custom Schedule Date<input type="date" data-field="customDueDate" value="${escapeHtml(customDueDate)}" /></label>
                 </article>
               `;
             }).join("")}
           </div>
           <div class="template-delete-modal-actions">
             <button class="btn btn-secondary" type="button" data-property-template-editor-action="cancel">Cancel</button>
-            <button class="btn btn-primary" type="submit">Save Property Templates</button>
+            <button class="btn btn-primary" type="submit">Add to Schedule</button>
           </div>
         </form>
       `;
@@ -7139,6 +7765,54 @@
 
       const form = dialog.querySelector(".template-property-editor-form");
       if (form instanceof HTMLFormElement) {
+        function updateSchedulingControls(card) {
+          if (!(card instanceof HTMLElement)) {
+            return;
+          }
+
+          const frequencyInput = card.querySelector('[data-field="defaultFrequency"]');
+          const startDateWrap = card.querySelector("[data-start-date-wrap]");
+          const customDateWrap = card.querySelector("[data-custom-date-wrap]");
+          const customDateInput = card.querySelector('[data-field="customDueDate"]');
+
+          if (!(frequencyInput instanceof HTMLSelectElement)) {
+            return;
+          }
+
+          const isCustom = frequencyInput.value === "Custom";
+          if (startDateWrap instanceof HTMLElement) {
+            startDateWrap.style.display = isCustom ? "none" : "grid";
+          }
+          if (customDateWrap instanceof HTMLElement) {
+            customDateWrap.style.display = isCustom ? "grid" : "none";
+          }
+          if (customDateInput instanceof HTMLInputElement) {
+            customDateInput.required = isCustom;
+          }
+          const startDateInput = card.querySelector('[data-field="initialDueDate"]');
+          if (startDateInput instanceof HTMLInputElement) {
+            startDateInput.required = !isCustom;
+          }
+        }
+
+        Array.from(form.querySelectorAll("[data-property-template-id]")).forEach(function (card) {
+          updateSchedulingControls(card);
+        });
+
+        form.addEventListener("change", function (event) {
+          const target = event.target;
+          if (!(target instanceof HTMLElement)) {
+            return;
+          }
+
+          if (!target.matches('[data-field="defaultFrequency"]')) {
+            return;
+          }
+
+          const card = target.closest("[data-property-template-id]");
+          updateSchedulingControls(card);
+        });
+
         form.addEventListener("submit", function (event) {
           event.preventDefault();
 
@@ -7156,16 +7830,22 @@
               return "";
             }
 
+            const selectedFrequency = getValue("defaultFrequency") || template.defaultFrequency;
+            const startDate = getValue("initialDueDate") || template.initialDueDate || template.nextDueDate;
+            const customScheduleDate = getValue("customDueDate");
+            const fallbackDate = new Date().toISOString().slice(0, 10);
+            const resolvedDueDate = (selectedFrequency === "Custom"
+              ? (customScheduleDate || startDate)
+              : startDate) || fallbackDate;
+
             return normalizePropertyTemplateRecord({
               ...template,
-              category: getValue("category") || template.category,
-              defaultFrequency: getValue("defaultFrequency") || template.defaultFrequency,
-              nextDueDate: getValue("nextDueDate"),
-              defaultReminderPeriod: getValue("defaultReminderPeriod"),
-              preferredCompanyId: getValue("preferredCompanyId"),
-              defaultNotes: getValue("defaultNotes"),
-              suggestedDocuments: getValue("suggestedDocuments"),
-              active: getValue("active") === "Yes" ? "Yes" : "No",
+              defaultFrequency: selectedFrequency,
+              initialDueDate: resolvedDueDate,
+              nextDueDate: resolvedDueDate,
+              propertyId: String(building.id || "").trim(),
+              customRecurringDates: selectedFrequency === "Custom" ? [] : normalizeRecurringDateEntries(template.customRecurringDates),
+              active: "Yes",
               lastUpdated: new Date().toISOString(),
             });
           });
@@ -7176,8 +7856,9 @@
     });
   }
 
-  function addMasterTemplatesToActiveBuilding(masterTemplateIds) {
-    const building = findBuildingById(activeBuildingId);
+  function addMasterTemplatesToActiveBuilding(masterTemplateIds, buildingId, templateSettings) {
+    const targetBuildingId = String(buildingId || activeBuildingId || "").trim();
+    const building = findBuildingById(targetBuildingId);
     if (!building) {
       return null;
     }
@@ -7187,19 +7868,43 @@
     const alreadyLinked = new Set(existing.map(function (template) {
       return template.masterTemplateId;
     }));
+    const settingsByTemplateId = new Map((templateSettings || []).map(function (entry) {
+      return [String(entry.templateId || entry.id || ""), entry];
+    }));
 
+    const fallbackDueDate = new Date().toISOString().slice(0, 10);
     const newPropertyTemplates = (masterTemplateIds || []).map(function (masterTemplateId) {
       const master = findMasterTemplateById(masterTemplateId);
       if (!master || alreadyLinked.has(master.id)) {
         return null;
       }
       alreadyLinked.add(master.id);
-      return createPropertyTemplateFromMaster(master);
+      const settings = settingsByTemplateId.get(master.id) || {};
+      const resolvedFrequency = String(settings.defaultFrequency || master.defaultFrequency || "Annual").trim() || "Annual";
+      const resolvedInitialDueDate = String(settings.initialDueDate || settings.nextDueDate || master.nextDueDate || "").trim() || fallbackDueDate;
+      const resolvedNextDueDate = String(settings.nextDueDate || resolvedInitialDueDate).trim() || resolvedInitialDueDate || fallbackDueDate;
+      return createPropertyTemplateFromMaster(master, {
+        propertyId: targetBuildingId,
+        active: "Yes",
+        defaultFrequency: resolvedFrequency,
+        initialDueDate: resolvedInitialDueDate,
+        nextDueDate: resolvedNextDueDate,
+        customRecurringDates: resolvedFrequency === "Custom" ? [] : normalizeRecurringDateEntries(settings.customRecurringDates || master.customRecurringDates),
+        defaultReminderPeriod: String(settings.defaultReminderPeriod || master.defaultReminderPeriod || "").trim(),
+        preferredCompanyId: String(settings.preferredCompanyId || master.preferredCompanyId || "").trim(),
+        preferredContactId: String(settings.preferredContactId || master.preferredContactId || "").trim(),
+        defaultNotes: String(settings.defaultNotes || master.defaultNotes || "").trim(),
+        suggestedDocuments: normalizeSuggestedDocuments(settings.suggestedDocuments || master.suggestedDocuments),
+      });
     }).filter(function (template) {
       return Boolean(template);
     });
 
-    if (newPropertyTemplates.length === 0) {
+    const newScheduleItems = newPropertyTemplates.map(function (propertyTemplate) {
+      return createScheduleItemFromPropertyTemplate(propertyTemplate, targetBuildingId);
+    });
+
+    if (newPropertyTemplates.length === 0 || newScheduleItems.length === 0) {
       return {
         building: normalized,
         addedTemplateIds: [],
@@ -7209,11 +7914,11 @@
     const updated = {
       ...normalized,
       propertyTemplates: existing.concat(newPropertyTemplates),
+      scheduleItems: (normalized.scheduleItems || []).concat(newScheduleItems),
       lastUpdated: new Date().toISOString(),
     };
 
     const rehydrated = ensureWorkflowCollections(updated);
-    window.BuildingStorage.updateBuilding(rehydrated);
     return {
       building: rehydrated,
       addedTemplateIds: newPropertyTemplates.map(function (template) {
@@ -7222,42 +7927,98 @@
     };
   }
 
+  function persistBuildingWithWorkflowSync(building) {
+    const normalized = ensureWorkflowCollections(building);
+    window.BuildingStorage.updateBuilding(normalized);
+    return normalized;
+  }
+
   async function handleManageTemplatesForProperty() {
     if (!activeBuildingId) {
-      openTemplateLibrary();
+      alert("Select a property before managing templates for a property schedule.");
       return;
     }
 
-    const selected = await showMasterTemplatePickerDialog();
+    const propertyId = activeBuildingId;
+
+    const activeBuilding = findBuildingById(propertyId);
+    if (!activeBuilding) {
+      return;
+    }
+
+    const selected = await showMasterTemplatePickerDialog(activeBuilding);
     if (!selected || selected.length === 0) {
+      const currentlyAssigned = new Set(getPropertyTemplates(activeBuilding).map(function (template) {
+        return String(template.masterTemplateId || "").trim();
+      }).filter(function (id) {
+        return Boolean(id);
+      }));
+
+      if (currentlyAssigned.size === 0) {
+        return;
+      }
+    }
+
+    const currentBuilding = findBuildingById(propertyId);
+    if (!currentBuilding) {
       return;
     }
 
-    const addResult = addMasterTemplatesToActiveBuilding(selected);
+    const currentlyAssigned = new Set(getPropertyTemplates(currentBuilding).map(function (template) {
+      return String(template.masterTemplateId || "").trim();
+    }).filter(function (id) {
+      return Boolean(id);
+    }));
+    const selectedIds = new Set((selected || []).map(function (id) {
+      return String(id || "").trim();
+    }).filter(function (id) {
+      return Boolean(id);
+    }));
+
+    const toAdd = Array.from(selectedIds).filter(function (id) {
+      return !currentlyAssigned.has(id);
+    });
+    const toRemove = Array.from(currentlyAssigned).filter(function (id) {
+      return !selectedIds.has(id);
+    });
+
+    let workingBuilding = ensureWorkflowCollections(currentBuilding);
+
+    if (toRemove.length > 0) {
+      const shouldRemove = await confirmPropertyTemplateUnassignDialog(toRemove.length);
+      if (shouldRemove) {
+        const removed = removeMasterTemplatesFromBuilding(toRemove, propertyId);
+        if (removed) {
+          workingBuilding = ensureWorkflowCollections(removed);
+        }
+      }
+    }
+
+    if (toAdd.length === 0) {
+      persistBuildingWithWorkflowSync(workingBuilding);
+      renderBuildings();
+      openScheduleView(propertyId);
+      return;
+    }
+
+    const scheduleSettings = await showPropertyTemplateEditorDialog(workingBuilding, toAdd);
+    if (!scheduleSettings || scheduleSettings.length === 0) {
+      return;
+    }
+
+    persistBuildingWithWorkflowSync(workingBuilding);
+
+    const addResult = addMasterTemplatesToActiveBuilding(toAdd, propertyId, scheduleSettings);
     if (!addResult || addResult.addedTemplateIds.length === 0) {
       renderBuildings();
-      renderSchedulePage();
+      openScheduleView(propertyId);
       return;
     }
 
-    const editedTemplates = await showPropertyTemplateEditorDialog(addResult.building, addResult.addedTemplateIds);
-    if (editedTemplates && editedTemplates.length > 0) {
-      const updateMap = new Map(editedTemplates.map(function (template) {
-        return [template.id, template];
-      }));
-      const updated = {
-        ...addResult.building,
-        propertyTemplates: getPropertyTemplates(addResult.building).map(function (template) {
-          return updateMap.get(template.id) || template;
-        }),
-        lastUpdated: new Date().toISOString(),
-      };
-      const normalized = ensureWorkflowCollections(updated);
-      window.BuildingStorage.updateBuilding(normalized);
-    }
+    persistBuildingWithWorkflowSync(addResult.building);
 
     renderBuildings();
-    renderSchedulePage();
+    openScheduleView(propertyId);
   }
 
   function handleScheduleBack() {
@@ -7490,7 +8251,7 @@
         <h4>Primary Contact</h4>
         <dl class="schedule-details-grid">
           <div><dt>Contact Name</dt><dd>${escapeHtml(selectedContact.name)}</dd></div>
-          <div><dt>Contact Type</dt><dd>${renderContactTypeBadge(relationship)}</dd></div>
+          <div><dt>Role / Service</dt><dd>${renderContactRoleBadge(relationship)}</dd></div>
           <div><dt>Phone Number</dt><dd>${phoneMarkup}</dd></div>
           <div><dt>Email Address</dt><dd>${emailMarkup}</dd></div>
         </dl>
@@ -7501,12 +8262,24 @@
     `;
   }
 
-  function showSchedulePrimaryContactDialog(building, scheduleItem) {
+  function showSchedulePrimaryContactDialog(building, scheduleItem, options) {
     return new Promise(function (resolve) {
       const contacts = getContactsForBuilding(building).slice().sort(function (left, right) {
         return String(left.name || "").localeCompare(String(right.name || ""), undefined, { sensitivity: "base" });
       });
-      let selectedContactId = "";
+      const assignmentOptions = options && typeof options === "object" ? options : {};
+      const currentTemplate = findPropertyTemplateById(building, scheduleItem.propertyTemplateId || scheduleItem.templateId);
+      const currentPrimaryContactId = String(
+        assignmentOptions.currentPrimaryContactId
+        || (currentTemplate && currentTemplate.preferredContactId)
+        || scheduleItem.preferredContactId
+        || ""
+      ).trim();
+      const currentPrimaryContact = currentPrimaryContactId ? findContactById(currentPrimaryContactId) : null;
+      const currentPrimaryContactName = currentPrimaryContact && currentPrimaryContact.name
+        ? currentPrimaryContact.name
+        : "None assigned";
+      let selectedContactId = String(assignmentOptions.preselectedContactId || currentPrimaryContactId || "").trim();
       let searchQuery = "";
 
       const backdrop = window.document.createElement("div");
@@ -7514,11 +8287,16 @@
       backdrop.innerHTML = `
         <div class="template-delete-modal contact-assignment-modal" role="dialog" aria-modal="true" aria-labelledby="primary-contact-dialog-title">
           <h3 id="primary-contact-dialog-title">Assign Primary Contact</h3>
-          <p>${escapeHtml(scheduleItem.taskName)}</p>
+          <p class="primary-contact-context-line">${escapeHtml(scheduleItem.taskName)}</p>
+          <p class="primary-contact-context-line">${escapeHtml(building.buildingName || "")}</p>
+          <section class="primary-contact-current" aria-label="Current primary contact">
+            <h4>Current Primary Contact</h4>
+            <p>${escapeHtml(currentPrimaryContactName)}</p>
+          </section>
           <h4>Search Contacts</h4>
           <label class="primary-contact-search-wrap">
             <span class="visually-hidden">Search contacts</span>
-            <input id="primary-contact-search" type="search" placeholder="Search contacts..." />
+            <input id="primary-contact-search" class="search-input primary-contact-search-input" type="search" placeholder="Search by name, company or email..." />
           </label>
           <h4>Existing Contacts</h4>
           <section id="primary-contact-card-list" class="building-list primary-contact-card-list" aria-live="polite"></section>
@@ -7531,6 +8309,15 @@
       `;
 
       window.document.body.appendChild(backdrop);
+
+      const dialogElement = backdrop.querySelector(".template-delete-modal");
+      const layer = pushModalLayer(backdrop, dialogElement instanceof HTMLElement ? dialogElement : null);
+      const releaseFocusTrap = enableModalFocusTrap(
+        dialogElement instanceof HTMLElement ? dialogElement : null,
+        function () {
+          return isTopModalLayer(layer);
+        }
+      );
 
       const searchInput = backdrop.querySelector("#primary-contact-search");
       const cardList = backdrop.querySelector("#primary-contact-card-list");
@@ -7572,8 +8359,9 @@
 
             return `
               <button class="building-card clickable-card primary-contact-card${selectedClass}" type="button" data-primary-contact-card-id="${contact.id}" aria-pressed="${isSelected ? "true" : "false"}">
+                <span class="primary-contact-selected-indicator" aria-hidden="true">✓</span>
                 <h3>${escapeHtml(contact.name)}</h3>
-                <p>${renderContactTypeBadge(relationship)}</p>
+                <p>${renderContactRoleBadge(relationship)}</p>
                 <p>${escapeHtml(companyName)}</p>
                 <p>📞 ${escapeHtml(phoneValue)}</p>
                 <p>✉ ${escapeHtml(emailValue)}</p>
@@ -7587,10 +8375,41 @@
         }
       }
 
+      let isClosed = false;
+
+      function cleanupLayer() {
+        if (isClosed) {
+          return;
+        }
+
+        isClosed = true;
+        document.removeEventListener("keydown", handleEscape);
+        releaseFocusTrap();
+        popModalLayer(layer, true);
+        delete backdrop.__releaseModalLayer;
+      }
+
       function close(value) {
+        cleanupLayer();
         backdrop.remove();
         resolve(value);
       }
+
+      function handleEscape(event) {
+        if (event.key !== "Escape") {
+          return;
+        }
+
+        if (!isTopModalLayer(layer)) {
+          return;
+        }
+
+        event.preventDefault();
+        close(null);
+      }
+
+      backdrop.__releaseModalLayer = cleanupLayer;
+      document.addEventListener("keydown", handleEscape);
 
       backdrop.addEventListener("click", function (event) {
         if (event.target === backdrop) {
@@ -7616,6 +8435,7 @@
             assignmentContext: {
               buildingId: activeBuildingId || building.id,
               scheduleItemId: scheduleItem.id,
+              returnToPrimaryContactPicker: true,
             },
           });
           return;
@@ -7650,6 +8470,7 @@
       }
 
       renderContactCards();
+      focusFirstElementInContainer(dialogElement instanceof HTMLElement ? dialogElement : backdrop);
     });
   }
 
@@ -7705,8 +8526,10 @@
         }
 
         const hasPrimaryContactUpdate = Object.prototype.hasOwnProperty.call(updates, "preferredContactId");
+        const hasPropertyUpdate = Object.prototype.hasOwnProperty.call(updates, "propertyId");
         return {
           ...item,
+          propertyId: hasPropertyUpdate ? String(updates.propertyId || "").trim() : String(item.propertyId || "").trim(),
           taskName: updates.name || item.taskName,
           category: updates.category || item.category,
           frequency: updates.defaultFrequency || item.frequency,
@@ -7744,12 +8567,13 @@
     const frequency = String(formData.get("frequency") || "Annual").trim();
     const category = String(formData.get("category") || "General").trim();
     const initialDueDate = String(formData.get("initialDueDate") || "").trim();
+    const propertyId = String(formData.get("propertyId") || "").trim();
     const primaryContactId = String(formData.get("primaryContactId") || "").trim();
     const notes = String(formData.get("notes") || "").trim();
     const recurringDates = frequency === "Custom" ? readRecurringDatesFromEditForm(form) : [];
 
-    if (!title || !initialDueDate) {
-      alert("Title and Initial Due Date are required.");
+    if (!title || !initialDueDate || !propertyId) {
+      alert("Title, Property and Initial Due Date are required.");
       return;
     }
 
@@ -7770,6 +8594,7 @@
       defaultFrequency: frequency,
       initialDueDate: initialDueDate,
       nextDueDate: nextDueDate,
+      propertyId: propertyId,
       customRecurringDates: recurringDates,
       preferredContactId: primaryContactId,
       defaultNotes: notes,
@@ -7861,6 +8686,7 @@
   function renderScheduleDetailsDialogHtml(building, scheduleItem, detailsData) {
     const template = detailsData.template;
     const latestRecord = detailsData.latestRecord;
+    const canRevert = Boolean(getPendingRevertRecord(building, scheduleItem));
     const statusText = latestRecord && wasCompletedToday(latestRecord)
       ? "Completed"
       : getScheduleStatusText(scheduleItem);
@@ -7869,26 +8695,35 @@
       <div class="schedule-details-modal" role="dialog" aria-modal="true" aria-labelledby="schedule-details-title">
         <header class="schedule-details-header">
           <h3 id="schedule-details-title">${escapeHtml(scheduleItem.taskName)}</h3>
-          <button class="btn btn-secondary btn-small" type="button" data-schedule-details-action="close">Close</button>
+          <button class="btn btn-secondary btn-small" type="button" data-schedule-details-action="close">Back</button>
         </header>
 
         <section class="schedule-details-section">
           <div class="schedule-details-section-header">
             <h4>Schedule Details</h4>
-            <button class="btn btn-secondary btn-small" type="button" data-schedule-details-action="toggle-edit">Edit</button>
           </div>
           <dl class="schedule-details-grid" data-schedule-details-display>
             <div><dt>Title</dt><dd>${escapeHtml(template.name)}</dd></div>
             <div><dt>Category</dt><dd>${escapeHtml(template.category)}</dd></div>
             <div><dt>Frequency</dt><dd>${escapeHtml(template.defaultFrequency)}</dd></div>
+            <div><dt>Property</dt><dd>${escapeHtml(getBuildingNameById(scheduleItem.propertyId) || "Property not assigned")}</dd></div>
             <div><dt>Initial Due Date</dt><dd>${formatDate(template.initialDueDate)}</dd></div>
-            <div><dt>Current Due Date</dt><dd>${formatDate(template.nextDueDate)}</dd></div>
-            <div><dt>Last Completed</dt><dd>${latestRecord ? formatDate(latestRecord.completedDate) : "Not completed yet"}</dd></div>
+            <div><dt>Last Completed</dt><dd>${formatLastCompletedDate(scheduleItem.lastCompletedDate || "")}</dd></div>
+            <div><dt>Next Due Date</dt><dd>${formatDate(scheduleItem.dueDate)}</dd></div>
             <div><dt>Status</dt><dd>${escapeHtml(statusText)}</dd></div>
           </dl>
 
           <form class="schedule-details-edit-form" data-schedule-details-edit-form style="display: none;">
+            <dl class="schedule-details-grid schedule-details-readonly-grid">
+              <div><dt>Last Completed</dt><dd>${escapeHtml(formatLastCompletedDate(scheduleItem.lastCompletedDate || ""))}</dd></div>
+              <div><dt>Next Due Date</dt><dd>${formatDate(scheduleItem.dueDate)}</dd></div>
+            </dl>
             <label>Title<input name="title" type="text" value="${escapeHtml(template.name)}" required /></label>
+            <label>Property *
+              <select name="propertyId" required>
+                ${renderPropertySelectOptions(scheduleItem.propertyId || building.id)}
+              </select>
+            </label>
             <label>Frequency
               <select name="frequency">
                 ${TEMPLATE_FREQUENCY_OPTIONS.map(function (option) {
@@ -7937,9 +8772,11 @@
           ${renderScheduleHistoryTable(detailsData.records)}
         </section>
 
-        <section class="schedule-details-section schedule-details-danger-zone">
-          <h4>Delete</h4>
-          <button class="btn template-delete-btn btn-small" type="button" data-schedule-details-action="delete">Delete Scheduled Item</button>
+        <section class="schedule-details-bottom-actions" aria-label="Schedule actions">
+          <button class="btn btn-secondary" type="button" data-schedule-details-action="toggle-edit">Edit</button>
+          ${canRevert
+            ? '<button class="btn schedule-revert-action-btn" type="button" data-schedule-details-action="revert">Revert</button>'
+            : '<button class="btn btn-primary" type="button" data-schedule-details-action="complete">Complete</button>'}
         </section>
       </div>
     `;
@@ -8080,11 +8917,31 @@
     renderSchedulePage();
   }
 
-  async function openScheduleDetailsDialog(buildingId, itemId) {
-    if (buildingId) {
-      activeBuildingId = buildingId;
+  async function promptPrimaryContactAssignment(building, scheduleItem, detailsData, options) {
+    const assignmentOptions = options && typeof options === "object" ? options : {};
+    const assignment = await showSchedulePrimaryContactDialog(building, scheduleItem, {
+      preselectedContactId: assignmentOptions.preselectedContactId || "",
+      currentPrimaryContactId: String(detailsData.template.preferredContactId || scheduleItem.preferredContactId || "").trim(),
+    });
+    if (!assignment) {
+      return null;
     }
 
+    if (assignment.mode !== "existing" || !assignment.contactId) {
+      return null;
+    }
+
+    const normalizedBuilding = ensureWorkflowCollections(building);
+    const updatedBuilding = updateScheduleItemWithTemplate(normalizedBuilding, detailsData.template.id, {
+      preferredContactId: assignment.contactId,
+    });
+    const normalized = ensureWorkflowCollections(updatedBuilding);
+    window.BuildingStorage.updateBuilding(normalized);
+    renderBuildings();
+    return normalized;
+  }
+
+  async function openScheduleDetailsDialog(buildingId, itemId) {
     const building = findBuildingById(buildingId);
     if (!building) {
       return;
@@ -8102,6 +8959,9 @@
 
     const existingBackdrop = window.document.querySelector(".schedule-details-backdrop");
     if (existingBackdrop) {
+      if (typeof existingBackdrop.__releaseModalLayer === "function") {
+        existingBackdrop.__releaseModalLayer();
+      }
       existingBackdrop.remove();
     }
 
@@ -8111,6 +8971,13 @@
     window.document.body.appendChild(backdrop);
 
     const modal = backdrop.querySelector(".schedule-details-modal");
+    const layer = pushModalLayer(backdrop, modal instanceof HTMLElement ? modal : null);
+    const releaseFocusTrap = enableModalFocusTrap(
+      modal instanceof HTMLElement ? modal : null,
+      function () {
+        return isTopModalLayer(layer);
+      }
+    );
     const editForm = backdrop.querySelector("[data-schedule-details-edit-form]");
     const displayGrid = backdrop.querySelector("[data-schedule-details-display]");
 
@@ -8239,9 +9106,25 @@
       }
     }
 
+    let isClosed = false;
+
+    function cleanupLayer() {
+      if (isClosed) {
+        return;
+      }
+
+      isClosed = true;
+      releaseFocusTrap();
+      popModalLayer(layer, true);
+      delete backdrop.__releaseModalLayer;
+    }
+
     function close() {
+      cleanupLayer();
       backdrop.remove();
     }
+
+    backdrop.__releaseModalLayer = cleanupLayer;
 
     backdrop.addEventListener("click", async function (event) {
       if (event.target === backdrop) {
@@ -8268,6 +9151,36 @@
         return;
       }
 
+      if (action === "complete") {
+        close();
+        await showScheduleCompleteDialog(building.id, scheduleItem.id);
+        return;
+      }
+
+      if (action === "revert") {
+        const normalized = ensureWorkflowCollections(building);
+        const latestItem = findScheduleItemById(normalized, scheduleItem.id);
+        const historyRecord = latestItem ? getPendingRevertRecord(normalized, latestItem) : null;
+        if (!latestItem || !historyRecord) {
+          return;
+        }
+
+        const shouldRevert = await confirmScheduleRevertDialog();
+        if (!shouldRevert) {
+          return;
+        }
+
+        const updated = revertTemplateCompletion(normalized, latestItem, historyRecord);
+        if (!updated) {
+          return;
+        }
+
+        close();
+        renderBuildings();
+        renderSchedulePage();
+        return;
+      }
+
       if (action === "cancel-edit") {
         if (editForm instanceof HTMLElement && displayGrid instanceof HTMLElement) {
           editForm.style.display = "none";
@@ -8277,24 +9190,12 @@
       }
 
       if (action === "assign-contact") {
-        const assignment = await showSchedulePrimaryContactDialog(building, scheduleItem);
-        if (!assignment) {
+        const updated = await promptPrimaryContactAssignment(building, scheduleItem, detailsData);
+        if (!updated) {
           return;
         }
-
-        if (assignment.mode !== "existing" || !assignment.contactId) {
-          return;
-        }
-
-        const normalizedBuilding = ensureWorkflowCollections(building);
-        const updatedBuilding = updateScheduleItemWithTemplate(normalizedBuilding, detailsData.template.id, {
-          preferredContactId: assignment.contactId,
-        });
-        const normalized = ensureWorkflowCollections(updatedBuilding);
-        window.BuildingStorage.updateBuilding(normalized);
-        renderBuildings();
         close();
-        await openScheduleDetailsDialog(normalized.id, scheduleItem.id);
+        await openScheduleDetailsDialog(updated.id, scheduleItem.id);
         return;
       }
 
@@ -8310,19 +9211,8 @@
         }
 
         close();
-        openContactForm("edit", selectedContact);
+        openContactDetailsDialog(selectedContact);
         return;
-      }
-
-      if (action === "delete") {
-        const shouldDelete = window.confirm("Delete this scheduled item and its completion history?");
-        if (!shouldDelete) {
-          return;
-        }
-        deleteScheduleItem(building, scheduleItem);
-        close();
-        renderBuildings();
-        renderSchedulePage();
       }
 
       const docTile = target.closest("[data-schedule-doc-type]");
@@ -8343,7 +9233,23 @@
     }
 
     if (modal instanceof HTMLElement) {
-      modal.focus();
+      focusFirstElementInContainer(modal);
+    }
+
+    if (
+      pendingPrimaryContactDialogState
+      && String(pendingPrimaryContactDialogState.buildingId || "") === String(building.id || "")
+      && String(pendingPrimaryContactDialogState.scheduleItemId || "") === String(scheduleItem.id || "")
+    ) {
+      const pendingSelectionId = String(pendingPrimaryContactDialogState.preselectedContactId || "").trim();
+      pendingPrimaryContactDialogState = null;
+      const updatedFromPending = await promptPrimaryContactAssignment(building, scheduleItem, detailsData, {
+        preselectedContactId: pendingSelectionId,
+      });
+      if (updatedFromPending) {
+        close();
+        await openScheduleDetailsDialog(updatedFromPending.id, scheduleItem.id);
+      }
     }
   }
 
@@ -8354,6 +9260,12 @@
       status: String(scheduleFilterStatus.value || "all"),
       duePeriod: String(scheduleFilterDuePeriod.value || "all"),
     };
+
+    if (scheduleFilters.property === "all") {
+      setCurrentPropertyId("");
+    } else if (findBuildingById(scheduleFilters.property)) {
+      setCurrentPropertyId(scheduleFilters.property);
+    }
 
     renderSchedulePage();
   }
@@ -8396,65 +9308,19 @@
       return;
     }
 
-    const completeButton = target.closest("[data-schedule-complete-id]");
-    const detailsButton = target.closest("[data-schedule-details-id]");
-    const revertButton = target.closest("[data-schedule-revert-id]");
-    if (!completeButton && !revertButton && !detailsButton) {
+    const row = target.closest(".schedule-ops-row");
+    if (!row) {
       return;
     }
 
-    const row = target.closest(".schedule-ops-row");
     const rowBuildingId = row ? (row.getAttribute("data-schedule-building-id") || "") : "";
 
-    if (detailsButton) {
-      const detailsId = detailsButton.getAttribute("data-schedule-details-id") || "";
-      if (!detailsId) {
-        return;
-      }
-      openScheduleDetailsDialog(rowBuildingId || activeBuildingId, detailsId);
-      return;
-    }
-
-    if (revertButton) {
-      const itemId = revertButton.getAttribute("data-schedule-revert-id") || "";
-      if (!itemId) {
-        return;
-      }
-
-      const building = findBuildingById(rowBuildingId || activeBuildingId);
-      if (!building) {
-        return;
-      }
-
-      const normalized = ensureWorkflowCollections(building);
-      const scheduleItem = findScheduleItemById(normalized, itemId);
-      const historyRecord = scheduleItem ? getPendingRevertRecord(normalized, scheduleItem) : null;
-      if (!scheduleItem || !historyRecord) {
-        return;
-      }
-
-      confirmScheduleRevertDialog().then(function (shouldRevert) {
-        if (!shouldRevert) {
-          return;
-        }
-
-        const updated = revertTemplateCompletion(normalized, scheduleItem, historyRecord);
-        if (!updated) {
-          return;
-        }
-
-        renderBuildings();
-        renderSchedulePage();
-      });
-      return;
-    }
-
-    const itemId = completeButton.getAttribute("data-schedule-complete-id") || "";
+    const itemId = String(row.getAttribute("data-schedule-id") || "").trim();
     if (!itemId) {
       return;
     }
 
-    completeScheduleItemInline(itemId, rowBuildingId);
+    openScheduleDetailsDialog(rowBuildingId || activeBuildingId, itemId);
   }
 
   function handleScheduleListKeydown(event) {
@@ -8464,62 +9330,20 @@
     }
 
     const row = target.closest(".schedule-ops-row");
+    if (!row) {
+      return;
+    }
+
     const rowBuildingId = row ? (row.getAttribute("data-schedule-building-id") || "") : "";
 
-    if ((event.key === "Enter" || event.key === " ") && target.matches("[data-schedule-details-id]")) {
+    if (event.key === "Enter" || event.key === " ") {
       event.preventDefault();
-      const itemId = target.getAttribute("data-schedule-details-id") || "";
+      const itemId = String(row.getAttribute("data-schedule-id") || "").trim();
       if (!itemId) {
         return;
       }
 
       openScheduleDetailsDialog(rowBuildingId || activeBuildingId, itemId);
-      return;
-    }
-
-    if ((event.key === "Enter" || event.key === " ") && target.matches("[data-schedule-complete-id]")) {
-      event.preventDefault();
-      const itemId = target.getAttribute("data-schedule-complete-id") || "";
-      if (!itemId) {
-        return;
-      }
-
-      completeScheduleItemInline(itemId, rowBuildingId);
-      return;
-    }
-
-    if ((event.key === "Enter" || event.key === " ") && target.matches("[data-schedule-revert-id]")) {
-      event.preventDefault();
-      const itemId = target.getAttribute("data-schedule-revert-id") || "";
-      if (!itemId) {
-        return;
-      }
-
-      const building = findBuildingById(rowBuildingId || activeBuildingId);
-      if (!building) {
-        return;
-      }
-
-      const normalized = ensureWorkflowCollections(building);
-      const scheduleItem = findScheduleItemById(normalized, itemId);
-      const historyRecord = scheduleItem ? getPendingRevertRecord(normalized, scheduleItem) : null;
-      if (!scheduleItem || !historyRecord) {
-        return;
-      }
-
-      confirmScheduleRevertDialog().then(function (shouldRevert) {
-        if (!shouldRevert) {
-          return;
-        }
-
-        const updated = revertTemplateCompletion(normalized, scheduleItem, historyRecord);
-        if (!updated) {
-          return;
-        }
-
-        renderBuildings();
-        renderSchedulePage();
-      });
     }
   }
 
@@ -8657,13 +9481,12 @@
       return;
     }
 
-    const buildingId = option.getAttribute("data-building-id") || "";
-    if (!buildingId) {
+    const buildingId = option.getAttribute("data-building-id");
+    if (buildingId === null) {
       return;
     }
 
-    activeBuildingId = buildingId;
-    saveActiveBuildingId(buildingId);
+    setCurrentPropertyId(buildingId);
     setSelectorOpen(false);
     renderBuildings();
   }
@@ -8679,11 +9502,12 @@
       return;
     }
 
-    if (!activeBuildingId) {
+    const moduleName = button.getAttribute("data-workspace-module") || "";
+    if (!activeBuildingId && moduleName !== "Schedule") {
+      alert("Select a property to open this module, or use Schedule to view All Properties.");
       return;
     }
 
-    const moduleName = button.getAttribute("data-workspace-module") || "";
     if (moduleName === "Tenancy") {
       openCurrentTenancyView(activeBuildingId);
       return;
@@ -8783,9 +9607,11 @@
   addContactBtn.addEventListener("click", handleAddContact);
   addCompanyBtn.addEventListener("click", handleAddCompany);
   addCompanyInlineBtn.addEventListener("click", handleAddCompany);
-  cancelContactBtn.addEventListener("click", handleCancelContact);
   deleteContactBtn.addEventListener("click", handleDeleteContact);
   contactAddScheduleLinkBtn.addEventListener("click", handleAddScheduleLinkForContact);
+  if (contactRemoveScheduleLinkBtn instanceof HTMLButtonElement) {
+    contactRemoveScheduleLinkBtn.addEventListener("click", handleRemoveScheduleLinkForContact);
+  }
   cancelCompanyBtn.addEventListener("click", handleCancelCompany);
   addTemplateBtn.addEventListener("click", handleAddTemplate);
   addTemplateInlineBtn.addEventListener("click", handleAddTemplate);
@@ -8800,7 +9626,6 @@
   leaseCategorySearch.addEventListener("input", handleLeaseCategorySearch);
   contactForm.addEventListener("submit", handleSaveContact);
   contactForm.elements.companyId.addEventListener("change", handleContactCompanyChange);
-  contactForm.elements.responsibility.addEventListener("change", handleContactRelationshipChange);
   contactsSearch.addEventListener("input", handleContactSearch);
   companyForm.addEventListener("submit", handleSaveCompany);
   templateForm.addEventListener("submit", handleSaveTemplate);
