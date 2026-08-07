@@ -3,7 +3,14 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#2563eb" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta name="apple-mobile-web-app-title" content="Building Manager" />
     <title>Compliance HQ</title>
+    <link rel="manifest" href="manifest.json" />
+    <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png" />
+    <link rel="apple-touch-icon" sizes="192x192" href="icons/icon-192.png" />
     <link rel="stylesheet" href="style.css" />
   </head>
   <body>
@@ -801,5 +808,48 @@
 
     <script src="storage.js"></script>
     <script src="app.js"></script>
+    <script>
+      if ("serviceWorker" in navigator) {
+        window.addEventListener("load", async function () {
+          let refreshing = false;
+
+          navigator.serviceWorker.addEventListener("controllerchange", function () {
+            if (refreshing) {
+              return;
+            }
+            refreshing = true;
+            window.location.reload();
+          });
+
+          try {
+            const registration = await navigator.serviceWorker.register("./service-worker.js");
+
+            if (registration.waiting) {
+              registration.waiting.postMessage({ type: "SKIP_WAITING" });
+            }
+
+            registration.addEventListener("updatefound", function () {
+              const installingWorker = registration.installing;
+
+              if (!installingWorker) {
+                return;
+              }
+
+              installingWorker.addEventListener("statechange", function () {
+                if (installingWorker.state === "installed" && navigator.serviceWorker.controller) {
+                  installingWorker.postMessage({ type: "SKIP_WAITING" });
+                }
+              });
+            });
+
+            setInterval(function () {
+              registration.update();
+            }, 60 * 60 * 1000);
+          } catch (error) {
+            console.error("Service worker registration failed:", error);
+          }
+        });
+      }
+    </script>
   </body>
 </html>
