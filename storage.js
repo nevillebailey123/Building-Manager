@@ -2,6 +2,28 @@
   const STORAGE_KEY = "buildingManagerBuildings";
   const MASTER_KEY = "buildingManagerMasterData";
 
+  function normalizeBuildings(value) {
+    if (Array.isArray(value)) {
+      return value;
+    }
+
+    if (value && typeof value === "object") {
+      if (Array.isArray(value.buildings)) {
+        return value.buildings;
+      }
+
+      if (Array.isArray(value.items)) {
+        return value.items;
+      }
+
+      if (Array.isArray(value.data)) {
+        return value.data;
+      }
+    }
+
+    return [];
+  }
+
   function getBuildings() {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) {
@@ -10,14 +32,21 @@
 
     try {
       const parsed = JSON.parse(raw);
-      return Array.isArray(parsed) ? parsed : [];
+      const normalized = normalizeBuildings(parsed);
+
+      if (!Array.isArray(parsed) && parsed && typeof parsed === "object") {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(normalized));
+      }
+
+      return normalized;
     } catch (error) {
       return [];
     }
   }
 
   function saveBuildings(buildings) {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(buildings));
+    const normalized = normalizeBuildings(buildings);
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(normalized));
   }
 
   function defaultMasterData() {
