@@ -81,6 +81,88 @@
     localStorage.setItem(MASTER_KEY, JSON.stringify(masterData));
   }
 
+  function createBackupPayload() {
+    return {
+      backupVersion: 1,
+      createdAt: new Date().toISOString(),
+      buildingManagerBuildings: getBuildings(),
+      buildingManagerMasterData: getMasterData(),
+    };
+  }
+
+  function validateBackupData(payload) {
+    if (!payload || typeof payload !== "object") {
+      return {
+        success: false,
+        error: "The selected file is not a valid backup object.",
+      };
+    }
+
+    if (payload.backupVersion !== 1) {
+      return {
+        success: false,
+        error: "This backup file is not supported. Expected backupVersion 1.",
+      };
+    }
+
+    if (!Array.isArray(payload.buildingManagerBuildings)) {
+      return {
+        success: false,
+        error: "The backup file is missing the building data array.",
+      };
+    }
+
+    if (!payload.buildingManagerMasterData || typeof payload.buildingManagerMasterData !== "object") {
+      return {
+        success: false,
+        error: "The backup file is missing the master data object.",
+      };
+    }
+
+    const masterData = payload.buildingManagerMasterData;
+    const requiredKeys = ["companies", "contacts", "scheduledItemTemplates", "documents"];
+    const invalidKey = requiredKeys.find(function (key) {
+      return !Array.isArray(masterData[key]);
+    });
+
+    if (invalidKey) {
+      return {
+        success: false,
+        error: "The backup file contains invalid master data fields.",
+      };
+    }
+
+    return {
+      success: true,
+      data: {
+        backupVersion: 1,
+        createdAt: typeof payload.createdAt === "string" ? payload.createdAt : new Date().toISOString(),
+        buildingManagerBuildings: payload.buildingManagerBuildings,
+        buildingManagerMasterData: {
+          companies: masterData.companies,
+          contacts: masterData.contacts,
+          scheduledItemTemplates: masterData.scheduledItemTemplates,
+          documents: masterData.documents,
+        },
+      },
+    };
+  }
+
+  function restoreBackupData(payload) {
+    const validation = validateBackupData(payload);
+    if (!validation.success) {
+      return validation;
+    }
+
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(validation.data.buildingManagerBuildings));
+    localStorage.setItem(MASTER_KEY, JSON.stringify(validation.data.buildingManagerMasterData));
+
+    return {
+      success: true,
+      data: validation.data,
+    };
+  }
+
   function createId() {
     if (window.crypto && typeof window.crypto.randomUUID === "function") {
       return window.crypto.randomUUID();
@@ -300,6 +382,9 @@
     getBuildingById,
     getMasterData,
     saveMasterData,
+    createBackupPayload,
+    validateBackupData,
+    restoreBackupData,
     upsertCompany,
     upsertContact,
     migrateLegacyContactsToMaster,

@@ -168,6 +168,9 @@
   const addTemplateBtn = document.getElementById("add-template-btn");
   const addTemplateInlineBtn = document.getElementById("add-template-inline-btn");
   const cancelTemplateBtn = document.getElementById("cancel-template-btn");
+  const backupExportBtn = document.getElementById("backup-export-btn");
+  const backupRestoreBtn = document.getElementById("backup-restore-btn");
+  const backupRestoreInput = document.getElementById("backup-restore-input");
 
   let activeBuildingId = "";
   let activeModule = "Overview";
@@ -9402,6 +9405,90 @@
     renderBuildings();
   }
 
+  function handleExportBackup() {
+    const payload = window.BuildingStorage.createBackupPayload();
+    const serialised = JSON.stringify(payload, null, 2);
+    const blob = new Blob([serialised], { type: "application/json" });
+    const fileName = "Building-Manager-Backup-" + new Date().toISOString().slice(0, 10) + ".json";
+    const url = window.URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = fileName;
+    link.style.display = "none";
+    document.body.appendChild(link);
+
+    try {
+      link.click();
+    } catch (error) {
+      window.open(url, "_blank");
+    }
+
+    window.setTimeout(function () {
+      if (link.parentNode) {
+        link.parentNode.removeChild(link);
+      }
+
+      if (window.URL.revokeObjectURL) {
+        window.URL.revokeObjectURL(url);
+      }
+    }, 150);
+  }
+
+  function handleRestoreBackupButtonClick() {
+    if (backupRestoreInput instanceof HTMLInputElement) {
+      backupRestoreInput.click();
+    }
+  }
+
+  function handleRestoreBackupSelection(event) {
+    const input = event.target;
+    const file = input && input.files ? input.files[0] : null;
+
+    if (!file) {
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = function (readerEvent) {
+      try {
+        const payload = JSON.parse(readerEvent.target.result);
+        const validation = window.BuildingStorage.validateBackupData(payload);
+
+        if (!validation.success) {
+          alert(validation.error || "The selected backup file is invalid.");
+          input.value = "";
+          return;
+        }
+
+        const shouldRestore = window.confirm("This will overwrite the current Building Manager data. Continue?");
+        if (!shouldRestore) {
+          input.value = "";
+          return;
+        }
+
+        const restoreOutcome = window.BuildingStorage.restoreBackupData(validation.data);
+        if (!restoreOutcome.success) {
+          alert(restoreOutcome.error || "The backup could not be restored.");
+          input.value = "";
+          return;
+        }
+
+        alert("Backup restored successfully.");
+        window.location.reload();
+      } catch (error) {
+        alert("The selected file could not be read as JSON.");
+        input.value = "";
+      }
+    };
+
+    reader.onerror = function () {
+      alert("The selected file could not be read.");
+      input.value = "";
+    };
+
+    reader.readAsText(file);
+  }
+
   function handleOpenEdit() {
     const building = findBuildingById(activeBuildingId);
     if (!building) {
@@ -9587,6 +9674,9 @@
   editBuildingBtn.addEventListener("click", handleOpenEdit);
   cancelEditBtn.addEventListener("click", handleCancelEdit);
   deleteBuildingBtn.addEventListener("click", handleDeleteBuilding);
+  backupExportBtn.addEventListener("click", handleExportBackup);
+  backupRestoreBtn.addEventListener("click", handleRestoreBackupButtonClick);
+  backupRestoreInput.addEventListener("change", handleRestoreBackupSelection);
   addTenancyBtn.addEventListener("click", function () {
     openTenancyForm("add");
   });

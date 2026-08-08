@@ -380,6 +380,15 @@ body {
   color: var(--text-muted);
 }
 
+.backup-section {
+  display: grid;
+  gap: 0.7rem;
+}
+
+.backup-section h3 {
+  margin: 0;
+}
+
 .building-list {
   display: grid;
   gap: 0.9rem;

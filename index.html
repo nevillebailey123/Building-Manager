@@ -34,6 +34,16 @@
           <section id="building-selector-list" class="building-selector-list" aria-live="polite"></section>
         </section>
 
+        <section class="module-content-card backup-section" aria-label="Data backup">
+          <h3>Data Backup</h3>
+          <p class="module-placeholder">Export your Building Manager data locally, or restore it from a previously saved backup file.</p>
+          <div class="actions-row actions-row-tight">
+            <button id="backup-export-btn" class="btn btn-primary" type="button">Export Backup</button>
+            <button id="backup-restore-btn" class="btn btn-secondary" type="button">Restore Backup</button>
+          </div>
+          <input id="backup-restore-input" class="visually-hidden" type="file" accept="application/json,.json" />
+        </section>
+
         <p id="empty-state" class="empty-state">No buildings have been added yet.</p>
 
         <section id="workspace-dashboard-card" class="module-content-card" aria-live="polite">

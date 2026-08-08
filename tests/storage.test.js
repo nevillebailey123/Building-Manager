@@ -45,4 +45,25 @@ function createStorageHarness(initialValue) {
 const harness = createStorageHarness({ buildings: [{ id: "building-1", buildingName: "Legacy Building" }] });
 const buildings = harness.context.window.BuildingStorage.getBuildings();
 assert.strictEqual(JSON.stringify(buildings), JSON.stringify([{ id: "building-1", buildingName: "Legacy Building" }]));
+
+const backup = harness.context.window.BuildingStorage.createBackupPayload();
+assert.strictEqual(backup.backupVersion, 1);
+assert.ok(typeof backup.createdAt === "string" && backup.createdAt.length > 0);
+assert.strictEqual(backup.buildingManagerBuildings[0].id, "building-1");
+assert.strictEqual(JSON.stringify(backup.buildingManagerMasterData), JSON.stringify({
+  companies: [],
+  contacts: [],
+  scheduledItemTemplates: [],
+  documents: [],
+}));
+
+const restoreOutcome = harness.context.window.BuildingStorage.restoreBackupData(backup);
+assert.strictEqual(restoreOutcome.success, true);
+assert.strictEqual(harness.localStorage.getItem("buildingManagerBuildings"), JSON.stringify(backup.buildingManagerBuildings));
+
+const invalidPayload = { ...backup, backupVersion: 2 };
+const invalidOutcome = harness.context.window.BuildingStorage.restoreBackupData(invalidPayload);
+assert.strictEqual(invalidOutcome.success, false);
+assert.strictEqual(harness.localStorage.getItem("buildingManagerBuildings"), JSON.stringify(backup.buildingManagerBuildings));
+
 console.log("storage regression test passed");
