@@ -4975,37 +4975,23 @@
           || normalizeText(entry.companyName).includes(query)
           || normalizeText(entry.relationship).includes(query)
           || normalizeText(entry.linkedItemsSummary).includes(query);
+      })
+      .sort(function (left, right) {
+        const leftName = normalizeText(left.contact.name);
+        const rightName = normalizeText(right.contact.name);
+        if (leftName < rightName) {
+          return -1;
+        }
+        if (leftName > rightName) {
+          return 1;
+        }
+        return 0;
       });
 
     if (enriched.length === 0) {
       contactsList.innerHTML = '<p class="module-placeholder">No contacts match your search.</p>';
       return;
     }
-
-    const grouped = {};
-    CONTACT_RELATIONSHIP_GROUPS.forEach(function (group) {
-      grouped[group.title] = {};
-      group.relationships.forEach(function (relationship) {
-        grouped[group.title][relationship] = [];
-      });
-    });
-
-    const uncategorized = [];
-    enriched.forEach(function (entry) {
-      let matchedGroup = null;
-      CONTACT_RELATIONSHIP_GROUPS.forEach(function (group) {
-        if (group.relationships.includes(entry.relationship)) {
-          matchedGroup = group;
-        }
-      });
-
-      if (!matchedGroup) {
-        uncategorized.push(entry);
-        return;
-      }
-
-      grouped[matchedGroup.title][entry.relationship].push(entry);
-    });
 
     function buildContactCard(entry) {
       const contact = entry.contact;
@@ -5037,46 +5023,7 @@
       `;
     }
 
-    const groupSections = CONTACT_RELATIONSHIP_GROUPS.map(function (group) {
-      const relationshipSections = group.relationships.map(function (relationship) {
-        const entries = grouped[group.title][relationship];
-        if (!entries || entries.length === 0) {
-          return "";
-        }
-
-        return `
-          <section class="contact-relationship-block">
-            <h4>${relationship}</h4>
-            <div class="building-list">${entries.map(buildContactCard).join("")}</div>
-          </section>
-        `;
-      }).join("");
-
-      if (!relationshipSections) {
-        return "";
-      }
-
-      return `
-        <section class="contact-group-block">
-          <h3>${group.title}</h3>
-          ${relationshipSections}
-        </section>
-      `;
-    }).join("");
-
-    const uncategorizedSection = uncategorized.length
-      ? `
-        <section class="contact-group-block">
-          <h3>PROFESSIONAL</h3>
-          <section class="contact-relationship-block">
-            <h4>Other Relationships</h4>
-            <div class="building-list">${uncategorized.map(buildContactCard).join("")}</div>
-          </section>
-        </section>
-      `
-      : "";
-
-    contactsList.innerHTML = groupSections + uncategorizedSection;
+    contactsList.innerHTML = enriched.map(buildContactCard).join("");
   }
 
   function showModulePlaceholder(moduleName, message) {
