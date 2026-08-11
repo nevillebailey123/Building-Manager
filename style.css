@@ -1524,6 +1524,22 @@ body {
 .schedule-details-form-actions {
   display: flex;
   gap: 0.5rem;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.schedule-details-save-confirmation {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.3rem 0.55rem;
+  border-radius: 999px;
+  background: rgba(114, 197, 149, 0.16);
+  border: 1px solid rgba(114, 197, 149, 0.32);
+  color: #72c595;
+  font-size: 0.9rem;
+  font-weight: 700;
+  line-height: 1;
 }
 
 .schedule-details-bottom-actions {

@@ -2592,13 +2592,13 @@
           templateId: template.id,
           propertyTemplateId: template.id,
           propertyId: String(existing.propertyId || "").trim(),
-          taskName: template.name,
-          category: template.category || "General",
-          dueDate: String(template.nextDueDate || "").trim(),
-          frequency: template.defaultFrequency || "Annual",
-          preferredCompanyId: template.preferredCompanyId || "",
-          preferredCompany: preferredCompanyName,
-          preferredContactId: template.preferredContactId || "",
+          taskName: String(existing.taskName || template.name || "").trim() || template.name || "Scheduled Item",
+          category: String(existing.category || template.category || "General").trim() || "General",
+          dueDate: String(existing.dueDate || template.nextDueDate || "").trim(),
+          frequency: String(existing.frequency || template.defaultFrequency || "Annual").trim() || "Annual",
+          preferredCompanyId: String(existing.preferredCompanyId || template.preferredCompanyId || "").trim(),
+          preferredCompany: String(existing.preferredCompany || preferredCompanyName || "").trim(),
+          preferredContactId: String(existing.preferredContactId || "").trim(),
           lastUpdated: now,
         }
         : createScheduleItemFromPropertyTemplate(template, template.propertyId || propertyId, now);
@@ -6378,16 +6378,29 @@
   function linkScheduleItemToContact(building, scheduleItemId, contactId) {
     const normalized = ensureWorkflowCollections(building);
     const scheduleItem = (normalized.scheduleItems || []).find(function (item) {
-      return item.id === scheduleItemId;
+      return String(item.id || "") === String(scheduleItemId || "");
     });
     if (!scheduleItem) {
       return null;
     }
 
-    const templateId = scheduleItem.propertyTemplateId || scheduleItem.templateId;
-    return updateScheduleItemWithTemplate(normalized, templateId, {
-      preferredContactId: contactId,
+    const nextScheduleItems = (normalized.scheduleItems || []).map(function (item) {
+      if (String(item.id || "") !== String(scheduleItemId || "")) {
+        return item;
+      }
+
+      return {
+        ...item,
+        preferredContactId: String(contactId || "").trim(),
+        lastUpdated: new Date().toISOString(),
+      };
     });
+
+    return {
+      ...normalized,
+      scheduleItems: nextScheduleItems,
+      lastUpdated: new Date().toISOString(),
+    };
   }
 
   function showContactScheduleUnlinkDialog(building, contact) {
@@ -6458,7 +6471,7 @@
   function unlinkScheduleItemFromContact(building, scheduleItemId, contactId) {
     const normalized = ensureWorkflowCollections(building);
     const scheduleItem = (normalized.scheduleItems || []).find(function (item) {
-      return item.id === scheduleItemId;
+      return String(item.id || "") === String(scheduleItemId || "");
     });
     if (!scheduleItem) {
       return null;
@@ -6468,10 +6481,23 @@
       return null;
     }
 
-    const templateId = scheduleItem.propertyTemplateId || scheduleItem.templateId;
-    return updateScheduleItemWithTemplate(normalized, templateId, {
-      preferredContactId: "",
+    const nextScheduleItems = (normalized.scheduleItems || []).map(function (item) {
+      if (String(item.id || "") !== String(scheduleItemId || "")) {
+        return item;
+      }
+
+      return {
+        ...item,
+        preferredContactId: "",
+        lastUpdated: new Date().toISOString(),
+      };
     });
+
+    return {
+      ...normalized,
+      scheduleItems: nextScheduleItems,
+      lastUpdated: new Date().toISOString(),
+    };
   }
 
   async function handleAddScheduleLinkForContact() {
@@ -8110,6 +8136,26 @@
       .join("");
   }
 
+  function readSchedulePrimaryContactId(form, formData, scheduleItem, template) {
+    const fallbackValue = String(scheduleItem && scheduleItem.preferredContactId ? scheduleItem.preferredContactId : template && template.preferredContactId ? template.preferredContactId : "").trim();
+
+    if (form && form.elements && form.elements.primaryContactId) {
+      const directValue = String(form.elements.primaryContactId.value || "").trim();
+      if (directValue) {
+        return directValue;
+      }
+    }
+
+    if (formData && typeof formData.get === "function") {
+      const formValue = String(formData.get("primaryContactId") || "").trim();
+      if (formValue) {
+        return formValue;
+      }
+    }
+
+    return fallbackValue;
+  }
+
   function renderRecurringDateOptions(selectedValue, maxValue, includeBlank) {
     const values = [];
     if (includeBlank) {
@@ -8269,42 +8315,122 @@
     });
   }
 
-  function updateScheduleItemWithTemplate(building, templateId, updates) {
+  function applyScheduleDetailsUpdates(building, templateId, updates, options) {
     const now = new Date().toISOString();
+    const resolvedUpdates = updates || {};
+    const targetScheduleItemId = options && options.scheduleItemId ? String(options.scheduleItemId || "") : "";
+    const nextScheduleItems = (building.scheduleItems || []).map(function (item) {
+      const matchesCurrentItem = Boolean(targetScheduleItemId) && String(item.id || "") === targetScheduleItemId;
+      if (!matchesCurrentItem) {
+        return item;
+      }
+
+      const next = {
+        ...item,
+        propertyId: Object.prototype.hasOwnProperty.call(resolvedUpdates, "propertyId")
+          ? String(resolvedUpdates.propertyId || "").trim()
+          : String(item.propertyId || "").trim(),
+        taskName: Object.prototype.hasOwnProperty.call(resolvedUpdates, "name")
+          ? String(resolvedUpdates.name || "").trim()
+          : String(item.taskName || "").trim(),
+        category: Object.prototype.hasOwnProperty.call(resolvedUpdates, "category")
+          ? String(resolvedUpdates.category || "").trim()
+          : String(item.category || "").trim(),
+        frequency: Object.prototype.hasOwnProperty.call(resolvedUpdates, "defaultFrequency")
+          ? String(resolvedUpdates.defaultFrequency || "").trim()
+          : String(item.frequency || "").trim(),
+        initialDueDate: Object.prototype.hasOwnProperty.call(resolvedUpdates, "initialDueDate")
+          ? String(resolvedUpdates.initialDueDate || "").trim()
+          : String(item.initialDueDate || item.dueDate || "").trim(),
+        dueDate: Object.prototype.hasOwnProperty.call(resolvedUpdates, "nextDueDate")
+          ? String(resolvedUpdates.nextDueDate || "").trim()
+          : String(item.dueDate || "").trim(),
+        preferredContactId: Object.prototype.hasOwnProperty.call(resolvedUpdates, "preferredContactId")
+          ? String(resolvedUpdates.preferredContactId || "").trim()
+          : String(item.preferredContactId || "").trim(),
+        notes: Object.prototype.hasOwnProperty.call(resolvedUpdates, "defaultNotes")
+          ? String(resolvedUpdates.defaultNotes || "").trim()
+          : String(item.notes || "").trim(),
+        lastUpdated: now,
+      };
+
+      if (!next.dueDate) {
+        next.dueDate = next.initialDueDate || item.dueDate || "";
+      }
+
+      next.status = getScheduleStatusText({ ...next, status: "", dueDate: next.dueDate || item.dueDate });
+      return next;
+    });
+
     return {
       ...building,
-      propertyTemplates: getPropertyTemplates(building).map(function (template) {
-        if (template.id !== templateId) {
-          return template;
-        }
-        return normalizePropertyTemplateRecord({
-          ...template,
-          ...updates,
-          lastUpdated: now,
-        });
-      }),
-      scheduleItems: (building.scheduleItems || []).map(function (item) {
-        if ((item.propertyTemplateId || item.templateId) !== templateId) {
-          return item;
-        }
-
-        const hasPrimaryContactUpdate = Object.prototype.hasOwnProperty.call(updates, "preferredContactId");
-        const hasPropertyUpdate = Object.prototype.hasOwnProperty.call(updates, "propertyId");
-        return {
-          ...item,
-          propertyId: hasPropertyUpdate ? String(updates.propertyId || "").trim() : String(item.propertyId || "").trim(),
-          taskName: updates.name || item.taskName,
-          category: updates.category || item.category,
-          frequency: updates.defaultFrequency || item.frequency,
-          dueDate: updates.nextDueDate || item.dueDate,
-          preferredContactId: hasPrimaryContactUpdate ? String(updates.preferredContactId || "") : String(item.preferredContactId || ""),
-          status: getScheduleStatusText({ ...item, status: "", dueDate: updates.nextDueDate || item.dueDate }),
-          lastUpdated: now,
-        };
-      }),
+      scheduleItems: nextScheduleItems,
       lastUpdated: now,
     };
   }
+
+  window.BuildingManagerSchedule = {
+    applyScheduleDetailsUpdates: applyScheduleDetailsUpdates,
+    handleScheduleDetailsSave: handleScheduleDetailsSave,
+    linkScheduleItemToContact: function (building, scheduleItemId, contactId) {
+      const normalized = ensureWorkflowCollections(building);
+      const scheduleItem = (normalized.scheduleItems || []).find(function (item) {
+        return String(item.id || "") === String(scheduleItemId || "");
+      });
+      if (!scheduleItem) {
+        return null;
+      }
+
+      const nextScheduleItems = (normalized.scheduleItems || []).map(function (item) {
+        if (String(item.id || "") !== String(scheduleItemId || "")) {
+          return item;
+        }
+
+        return {
+          ...item,
+          preferredContactId: String(contactId || "").trim(),
+          lastUpdated: new Date().toISOString(),
+        };
+      });
+
+      return {
+        ...normalized,
+        scheduleItems: nextScheduleItems,
+        lastUpdated: new Date().toISOString(),
+      };
+    },
+    unlinkScheduleItemFromContact: function (building, scheduleItemId, contactId) {
+      const normalized = ensureWorkflowCollections(building);
+      const scheduleItem = (normalized.scheduleItems || []).find(function (item) {
+        return String(item.id || "") === String(scheduleItemId || "");
+      });
+      if (!scheduleItem) {
+        return null;
+      }
+
+      if (String(scheduleItem.preferredContactId || "") !== String(contactId || "")) {
+        return null;
+      }
+
+      const nextScheduleItems = (normalized.scheduleItems || []).map(function (item) {
+        if (String(item.id || "") !== String(scheduleItemId || "")) {
+          return item;
+        }
+
+        return {
+          ...item,
+          preferredContactId: "",
+          lastUpdated: new Date().toISOString(),
+        };
+      });
+
+      return {
+        ...normalized,
+        scheduleItems: nextScheduleItems,
+        lastUpdated: new Date().toISOString(),
+      };
+    },
+  };
 
   function calculateNextDueDateFromSettings(initialDueDate, frequency, latestRecord, recurringDates) {
     const baseDate = String(initialDueDate || "").trim();
@@ -8324,6 +8450,35 @@
     return getNextDueDatePlaceholder(latestRecord.completedDate, frequency, recurringDates, false);
   }
 
+  function showScheduleDetailsSaveConfirmation(editForm) {
+    if (!(editForm instanceof HTMLFormElement)) {
+      return;
+    }
+
+    const actions = editForm.querySelector(".schedule-details-form-actions");
+    if (!(actions instanceof HTMLElement)) {
+      return;
+    }
+
+    const existingConfirmation = actions.querySelector(".schedule-details-save-confirmation");
+    if (existingConfirmation instanceof HTMLElement) {
+      existingConfirmation.remove();
+    }
+
+    const confirmation = window.document.createElement("span");
+    confirmation.className = "schedule-details-save-confirmation";
+    confirmation.setAttribute("role", "status");
+    confirmation.setAttribute("aria-live", "polite");
+    confirmation.textContent = "✓ Saved";
+    actions.appendChild(confirmation);
+
+    window.setTimeout(function () {
+      if (confirmation.parentNode) {
+        confirmation.remove();
+      }
+    }, 2400);
+  }
+
   async function handleScheduleDetailsSave(building, scheduleItem, form) {
     const formData = new FormData(form);
     const title = String(formData.get("title") || "").trim();
@@ -8331,7 +8486,14 @@
     const category = String(formData.get("category") || "General").trim();
     const initialDueDate = String(formData.get("initialDueDate") || "").trim();
     const propertyId = String(formData.get("propertyId") || "").trim();
-    const primaryContactId = String(formData.get("primaryContactId") || "").trim();
+    const latestBuilding = findBuildingById(building && building.id ? building.id : activeBuildingId) || building;
+    const currentScheduleItem = latestBuilding && Array.isArray(latestBuilding.scheduleItems)
+      ? (latestBuilding.scheduleItems.find(function (item) {
+        return item.id === (scheduleItem && scheduleItem.id ? scheduleItem.id : "");
+      }) || null)
+      : null;
+    const detailsData = currentScheduleItem ? getScheduleDetailsData(latestBuilding, currentScheduleItem) : null;
+    const primaryContactId = readSchedulePrimaryContactId(form, formData, currentScheduleItem, detailsData && detailsData.template ? detailsData.template : null);
     const notes = String(formData.get("notes") || "").trim();
     const recurringDates = frequency === "Custom" ? readRecurringDatesFromEditForm(form) : [];
 
@@ -8345,13 +8507,13 @@
       return;
     }
 
-    const detailsData = getScheduleDetailsData(building, scheduleItem);
-    if (!detailsData) {
+    if (!detailsData || !latestBuilding || !currentScheduleItem) {
       return;
     }
 
+    const templateId = currentScheduleItem.propertyTemplateId || currentScheduleItem.templateId || detailsData.template.id;
     const nextDueDate = calculateNextDueDateFromSettings(initialDueDate, frequency, detailsData.latestRecord, recurringDates);
-    const updatedBuilding = updateScheduleItemWithTemplate(building, detailsData.template.id, {
+    const updatedBuilding = applyScheduleDetailsUpdates(latestBuilding, templateId, {
       name: title,
       category: category,
       defaultFrequency: frequency,
@@ -8361,13 +8523,25 @@
       customRecurringDates: recurringDates,
       preferredContactId: primaryContactId,
       defaultNotes: notes,
+    }, {
+      scheduleItemId: currentScheduleItem.id,
     });
 
-    const normalized = ensureWorkflowCollections(updatedBuilding);
-    window.BuildingStorage.updateBuilding(normalized);
+    const persistedBuilding = {
+      ...updatedBuilding,
+      propertyTemplates: Array.isArray(updatedBuilding.propertyTemplates) ? updatedBuilding.propertyTemplates : [],
+      scheduleItems: Array.isArray(updatedBuilding.scheduleItems) ? updatedBuilding.scheduleItems : [],
+      historyRecords: Array.isArray(updatedBuilding.historyRecords) ? updatedBuilding.historyRecords : [],
+      lastUpdated: new Date().toISOString(),
+    };
+
+    window.BuildingStorage.updateBuilding(persistedBuilding);
+    const savedBuilding = window.BuildingStorage.getBuildingById(persistedBuilding.id) || persistedBuilding;
+    activeBuildingId = savedBuilding.id || activeBuildingId;
+    activeScheduleItemId = currentScheduleItem.id;
     renderBuildings();
     renderSchedulePage();
-    await openScheduleDetailsDialog(normalized.id, scheduleItem.id);
+    await openScheduleDetailsDialog(savedBuilding.id, currentScheduleItem.id, true);
   }
 
   async function handleScheduleDocumentUpload(building, scheduleItem, type) {
@@ -8415,9 +8589,16 @@
     };
 
     const updatedTemplate = upsertScheduleTemplateAttachment(detailsData.template, type, attachment);
-    const updatedBuilding = updateScheduleItemWithTemplate(building, updatedTemplate.id, {
-      attachments: updatedTemplate.attachments,
+    const updatedPropertyTemplates = (building.propertyTemplates || []).map(function (template) {
+      return String(template.id || "") === String(updatedTemplate.id || "")
+        ? updatedTemplate
+        : template;
     });
+    const updatedBuilding = {
+      ...building,
+      propertyTemplates: updatedPropertyTemplates,
+      lastUpdated: new Date().toISOString(),
+    };
     const normalized = ensureWorkflowCollections(updatedBuilding);
     window.BuildingStorage.updateBuilding(normalized);
     renderBuildings();
@@ -8453,6 +8634,12 @@
     const statusText = latestRecord && wasCompletedToday(latestRecord)
       ? "Completed"
       : getScheduleStatusText(scheduleItem);
+    const titleValue = String(scheduleItem.taskName || template.name || "").trim();
+    const categoryValue = String(scheduleItem.category || template.category || "General").trim();
+    const frequencyValue = String(scheduleItem.frequency || template.defaultFrequency || "Annual").trim();
+    const propertyValue = String(scheduleItem.propertyId || building.id || "").trim();
+    const initialDueDateValue = String(scheduleItem.initialDueDate || scheduleItem.dueDate || template.initialDueDate || "").trim();
+    const notesValue = String(scheduleItem.notes || template.defaultNotes || "").trim();
 
     return `
       <div class="schedule-details-modal" role="dialog" aria-modal="true" aria-labelledby="schedule-details-title">
@@ -8466,11 +8653,11 @@
             <h4>Schedule Details</h4>
           </div>
           <dl class="schedule-details-grid" data-schedule-details-display>
-            <div><dt>Title</dt><dd>${escapeHtml(template.name)}</dd></div>
-            <div><dt>Category</dt><dd>${escapeHtml(template.category)}</dd></div>
-            <div><dt>Frequency</dt><dd>${escapeHtml(template.defaultFrequency)}</dd></div>
-            <div><dt>Property</dt><dd>${escapeHtml(getBuildingNameById(scheduleItem.propertyId) || "Property not assigned")}</dd></div>
-            <div><dt>Initial Due Date</dt><dd>${formatDate(template.initialDueDate)}</dd></div>
+            <div><dt>Title</dt><dd>${escapeHtml(titleValue)}</dd></div>
+            <div><dt>Category</dt><dd>${escapeHtml(categoryValue)}</dd></div>
+            <div><dt>Frequency</dt><dd>${escapeHtml(frequencyValue)}</dd></div>
+            <div><dt>Property</dt><dd>${escapeHtml(getBuildingNameById(propertyValue) || "Property not assigned")}</dd></div>
+            <div><dt>Initial Due Date</dt><dd>${formatDate(initialDueDateValue)}</dd></div>
             <div><dt>Last Completed</dt><dd>${formatLastCompletedDate(scheduleItem.lastCompletedDate || "")}</dd></div>
             <div><dt>Next Due Date</dt><dd>${formatDate(scheduleItem.dueDate)}</dd></div>
             <div><dt>Status</dt><dd>${escapeHtml(statusText)}</dd></div>
@@ -8481,16 +8668,16 @@
               <div><dt>Last Completed</dt><dd>${escapeHtml(formatLastCompletedDate(scheduleItem.lastCompletedDate || ""))}</dd></div>
               <div><dt>Next Due Date</dt><dd>${formatDate(scheduleItem.dueDate)}</dd></div>
             </dl>
-            <label>Title<input name="title" type="text" value="${escapeHtml(template.name)}" required /></label>
+            <label>Title<input name="title" type="text" value="${escapeHtml(titleValue)}" required /></label>
             <label>Property *
               <select name="propertyId" required>
-                ${renderPropertySelectOptions(scheduleItem.propertyId || building.id)}
+                ${renderPropertySelectOptions(propertyValue || building.id)}
               </select>
             </label>
             <label>Frequency
               <select name="frequency">
                 ${TEMPLATE_FREQUENCY_OPTIONS.map(function (option) {
-                  const selected = option === template.defaultFrequency ? " selected" : "";
+                  const selected = option === frequencyValue ? " selected" : "";
                   return `<option value="${option}"${selected}>${option}</option>`;
                 }).join("")}
               </select>
@@ -8498,24 +8685,23 @@
             <label>Category
               <select name="category">
                 ${TEMPLATE_CATEGORY_OPTIONS.map(function (option) {
-                  const selected = option === template.category ? " selected" : "";
+                  const selected = option === categoryValue ? " selected" : "";
                   return `<option value="${option}"${selected}>${option}</option>`;
                 }).join("")}
               </select>
             </label>
-            <label>Initial Due Date<input name="initialDueDate" type="date" value="${escapeHtml(template.initialDueDate)}" required /></label>
+            <label>Initial Due Date<input name="initialDueDate" type="date" value="${escapeHtml(initialDueDateValue)}" required /></label>
             <label>Primary Contact
-              <input type="search" class="search-input" data-primary-contact-search placeholder="Search contacts" />
               <select name="primaryContactId" data-primary-contact-select>
-                ${renderSchedulePrimaryContactOptions(building, template.preferredContactId || scheduleItem.preferredContactId || "")}
+                ${renderSchedulePrimaryContactOptions(building, scheduleItem.preferredContactId || template.preferredContactId || "")}
               </select>
             </label>
-            <div data-recurring-dates-section style="display: ${template.defaultFrequency === "Custom" ? "grid" : "none"}; gap: 0.7rem;">
+            <div data-recurring-dates-section style="display: ${frequencyValue === "Custom" ? "grid" : "none"}; gap: 0.7rem;">
               ${renderRecurringDatesSection(getRecurringDatesFromTemplate(template))}
             </div>
-            <label>Notes<textarea name="notes" rows="3">${escapeHtml(template.defaultNotes || "")}</textarea></label>
+            <label>Notes<textarea name="notes" rows="3">${escapeHtml(notesValue)}</textarea></label>
             <div class="schedule-details-form-actions">
-              <button class="btn btn-primary btn-small" type="submit">Save</button>
+              <button class="btn btn-primary btn-small" type="button" data-schedule-details-action="save">Save</button>
               <button class="btn btn-secondary btn-small" type="button" data-schedule-details-action="cancel-edit">Cancel</button>
             </div>
           </form>
@@ -8678,7 +8864,7 @@
     renderSchedulePage();
   }
 
-  async function openScheduleDetailsDialog(buildingId, itemId) {
+  async function openScheduleDetailsDialog(buildingId, itemId, showSavedConfirmation) {
     const building = findBuildingById(buildingId);
     if (!building) {
       return;
@@ -8717,24 +8903,33 @@
     );
     const editForm = backdrop.querySelector("[data-schedule-details-edit-form]");
     const template = detailsData.template;
+    let saveButton = null;
 
     if (editForm instanceof HTMLFormElement) {
-      const saveButton = editForm.querySelector('button[type="submit"]');
-      const searchInput = editForm.querySelector("[data-primary-contact-search]");
+      saveButton = editForm.querySelector('button[data-schedule-details-action="save"], button[type="submit"]');
       const select = editForm.querySelector("[data-primary-contact-select]");
       const frequencySelect = editForm.querySelector('select[name="frequency"]');
       const recurringSection = editForm.querySelector("[data-recurring-dates-section]");
       const recurringList = editForm.querySelector("[data-recurring-dates-list]");
       const initialValues = {
-        title: String(template.name || "").trim(),
+        title: String(scheduleItem.taskName || template.name || "").trim(),
         propertyId: String(scheduleItem.propertyId || building.id || "").trim(),
-        frequency: String(template.defaultFrequency || "").trim(),
-        category: String(template.category || "").trim(),
-        initialDueDate: String(template.initialDueDate || "").trim(),
-        primaryContactId: String(template.preferredContactId || scheduleItem.preferredContactId || "").trim(),
-        notes: String(template.defaultNotes || "").trim(),
+        frequency: String(scheduleItem.frequency || template.defaultFrequency || "").trim(),
+        category: String(scheduleItem.category || template.category || "").trim(),
+        initialDueDate: String(scheduleItem.initialDueDate || scheduleItem.dueDate || template.initialDueDate || "").trim(),
+        primaryContactId: String(scheduleItem.preferredContactId || template.preferredContactId || "").trim(),
+        notes: String(scheduleItem.notes || template.defaultNotes || "").trim(),
         recurringDates: getRecurringDatesFromTemplate(template),
       };
+
+      const primaryContactSelect = editForm.querySelector("[data-primary-contact-select]");
+      if (primaryContactSelect instanceof HTMLSelectElement) {
+        primaryContactSelect.value = initialValues.primaryContactId;
+      }
+
+      if (showSavedConfirmation) {
+        showScheduleDetailsSaveConfirmation(editForm);
+      }
 
       function getFormSnapshot() {
         return {
@@ -8799,29 +8994,9 @@
           editForm.elements.notes.value = initialValues.notes;
         }
 
-        if (searchInput instanceof HTMLInputElement) {
-          searchInput.value = "";
-        }
-
         if (select instanceof HTMLSelectElement) {
-          const sourceOptions = Array.from(select.options).map(function (option) {
-            return {
-              value: option.value,
-              label: option.textContent || "",
-            };
-          });
-          const currentValue = String(initialValues.primaryContactId || "");
-          const filtered = sourceOptions.filter(function (entry) {
-            return !currentValue || entry.value === currentValue || !String(entry.value || "").trim();
-          });
-          const current = sourceOptions.find(function (entry) { return entry.value === currentValue; });
-          if (current && !filtered.some(function (entry) { return entry.value === current.value; })) {
-            filtered.unshift(current);
-          }
-          select.innerHTML = filtered.map(function (entry) {
-            const selected = entry.value === currentValue ? " selected" : "";
-            return `<option value="${entry.value}"${selected}>${escapeHtml(entry.label)}</option>`;
-          }).join("");
+          select.innerHTML = renderSchedulePrimaryContactOptions(building, initialValues.primaryContactId);
+          select.value = initialValues.primaryContactId;
         }
 
         if (frequencySelect instanceof HTMLSelectElement && recurringSection instanceof HTMLElement && recurringList instanceof HTMLElement) {
@@ -8834,43 +9009,6 @@
         }
 
         updateSaveState();
-      }
-
-      if (searchInput instanceof HTMLInputElement && select instanceof HTMLSelectElement) {
-        const sourceOptions = Array.from(select.options).map(function (option) {
-          return {
-            value: option.value,
-            label: option.textContent || "",
-          };
-        });
-
-        function renderFilteredContactOptions() {
-          const query = normalizeText(searchInput.value || "");
-          const currentValue = String(select.value || "");
-          const filtered = sourceOptions.filter(function (entry) {
-            if (!query) {
-              return true;
-            }
-            return normalizeText(entry.label).includes(query);
-          });
-
-          if (currentValue && !filtered.some(function (entry) { return entry.value === currentValue; })) {
-            const current = sourceOptions.find(function (entry) { return entry.value === currentValue; });
-            if (current) {
-              filtered.unshift(current);
-            }
-          }
-
-          select.innerHTML = filtered.map(function (entry) {
-            const selected = entry.value === currentValue ? " selected" : "";
-            return `<option value="${entry.value}"${selected}>${escapeHtml(entry.label)}</option>`;
-          }).join("");
-        }
-
-        searchInput.addEventListener("input", function () {
-          renderFilteredContactOptions();
-          updateSaveState();
-        });
       }
 
       if (frequencySelect instanceof HTMLSelectElement && recurringSection instanceof HTMLElement && recurringList instanceof HTMLElement) {
@@ -9004,6 +9142,16 @@
         return;
       }
 
+      if (action === "save") {
+        event.preventDefault();
+        event.stopPropagation();
+        if (saveButton instanceof HTMLButtonElement && saveButton.disabled) {
+          return;
+        }
+        await handleScheduleDetailsSave(building, scheduleItem, editForm);
+        return;
+      }
+
       if (action === "complete") {
         close();
         await showScheduleCompleteDialog(building.id, scheduleItem.id);
@@ -9051,10 +9199,11 @@
       }
     });
 
-    if (editForm instanceof HTMLFormElement) {
-      editForm.addEventListener("submit", function (event) {
+    if (editForm instanceof HTMLFormElement && saveButton instanceof HTMLButtonElement) {
+      saveButton.addEventListener("click", function (event) {
         event.preventDefault();
-        if (saveButton instanceof HTMLButtonElement && saveButton.disabled) {
+        event.stopPropagation();
+        if (saveButton.disabled) {
           return;
         }
         handleScheduleDetailsSave(building, scheduleItem, editForm);
