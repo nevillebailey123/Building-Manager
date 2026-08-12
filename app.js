@@ -188,6 +188,7 @@
   let activeTemplateId = "";
   let activeScheduleItemId = "";
   let activeTenancyTab = "current";
+  let activeTenancyDetailsId = "";
   let activeScheduleTab = "upcoming";
   let scheduleFilters = {
     property: "all",
@@ -872,6 +873,18 @@
 
   function ensureMasterMigration() {
     window.BuildingStorage.migrateLegacyContactsToMaster();
+  }
+
+  function normalizeAllBuildingsForWorkflowCollections() {
+    const buildings = window.BuildingStorage.getBuildings();
+    buildings.forEach(function (building) {
+      const normalized = ensureWorkflowCollections(building);
+      if (JSON.stringify(normalized) === JSON.stringify(building)) {
+        return;
+      }
+
+      window.BuildingStorage.updateBuilding(normalized);
+    });
   }
 
   function ensureTenantContactRefs(building) {
@@ -3014,11 +3027,41 @@
 
     next.scheduleItems = templateDerivedItems.concat(tenancySyncedItems);
 
-    // Normalise legacy single-tenancy to tenancies array for multi-tenancy support
+    // Normalise legacy single-tenancy to tenancies array for multi-tenancy support.
     if (!Array.isArray(next.tenancies)) {
       next.tenancies = next.tenancy ? [next.tenancy] : [];
     }
-    next.tenancy = next.tenancies.length > 0 ? next.tenancies[0] : (next.tenancy || null);
+
+    next.tenancies = next.tenancies
+      .filter(function (tenancy) {
+        return Boolean(tenancy && typeof tenancy === "object");
+      })
+      .map(function (tenancy) {
+        const tenancyId = String(tenancy.id || "").trim() || window.BuildingStorage.createId();
+        const lease = tenancy.lease && typeof tenancy.lease === "object"
+          ? tenancy.lease
+          : {
+            notes: "",
+            documents: Array.isArray(tenancy.documents) ? tenancy.documents : [],
+            versionHistory: [],
+          };
+
+        return {
+          ...tenancy,
+          id: tenancyId,
+          status: String(tenancy.status || "Occupied") || "Occupied",
+          contacts: Array.isArray(tenancy.contacts) ? tenancy.contacts : [],
+          contactRefs: Array.isArray(tenancy.contactRefs) ? tenancy.contactRefs : [],
+          documents: Array.isArray(tenancy.documents) ? tenancy.documents : [],
+          lease: {
+            notes: String(lease.notes || ""),
+            documents: Array.isArray(lease.documents) ? lease.documents : [],
+            versionHistory: Array.isArray(lease.versionHistory) ? lease.versionHistory : [],
+          },
+        };
+      });
+
+    next.tenancy = next.tenancies.length > 0 ? next.tenancies[0] : null;
 
     return next;
   }
@@ -3941,6 +3984,17 @@
     tenancyEmptyState.style.display = hasTenancy ? "none" : "block";
     tenancyDetailsCard.style.display = hasTenancy && mode !== "form" ? "block" : "none";
     tenancyFormCard.style.display = mode === "form" ? "block" : "none";
+  }
+
+  function getTenancyById(building, tenancyId) {
+    const targetId = String(tenancyId || "").trim();
+    if (!targetId) {
+      return null;
+    }
+
+    return getAllTenanciesForBuilding(building).find(function (tenancy) {
+      return String(tenancy.id || "") === targetId;
+    }) || null;
   }
 
   function setTenancyTab(tabName) {
@@ -6179,8 +6233,16 @@
     renderTenancyHistory(building);
 
     const allTenancies = getAllTenanciesForBuilding(building);
+    const tenancyDetailsHeading = tenancyDetailsCard.querySelector("h3");
 
     if (allTenancies.length === 0) {
+      activeTenancyDetailsId = "";
+      if (editTenancyBtn instanceof HTMLButtonElement) {
+        editTenancyBtn.style.display = "none";
+      }
+      if (tenancyDetailsHeading) {
+        tenancyDetailsHeading.textContent = "Current";
+      }
       renderTenancySectionState(false, "empty");
       setTenancyTab(activeTenancyTab);
       return;
@@ -6188,28 +6250,55 @@
 
     renderTenancySectionState(true, "details");
 
-    if (allTenancies.length === 1) {
-      renderTenancyDetails(allTenancies[0]);
-    } else {
-      // Multiple tenancies: render each as a card inside the details list.
-      tenancyDetailsList.innerHTML = allTenancies.map(function (t) {
-        const rentReviewText = t.rentReviewDate
-          ? `${formatDate(t.rentReviewDate)}${t.rentReviewFrequency ? " (" + t.rentReviewFrequency + ")" : ""}`
-          : "";
+    const selectedTenancy = getTenancyById(building, activeTenancyDetailsId);
+
+    if (!selectedTenancy) {
+      if (editTenancyBtn instanceof HTMLButtonElement) {
+        editTenancyBtn.style.display = "none";
+      }
+      if (tenancyDetailsHeading) {
+        tenancyDetailsHeading.textContent = "Current Tenancies";
+      }
+
+      tenancyDetailsList.innerHTML = allTenancies.map(function (tenancy) {
+        const tenantName = String(tenancy.tradingName || tenancy.companyName || "Tenant").trim();
+        const companyName = String(tenancy.companyName || "Not provided").trim();
+        const tenancyStatus = String(tenancy.status || "Occupied").trim() || "Occupied";
+
         return `
-          <div class="tenancy-list-card">
-            <h4>${escapeHtml(t.companyName || "Tenant")}</h4>
-            <p><strong>Lease:</strong> ${formatDate(t.leaseStart)} – ${formatDate(t.leaseEnd)}</p>
-            ${rentReviewText ? `<p><strong>Rent Review:</strong> ${escapeHtml(rentReviewText)}</p>` : ""}
-            ${t.renewalDate ? `<p><strong>Renewal:</strong> ${formatDate(t.renewalDate)}</p>` : ""}
+          <article class="tenancy-list-card">
+            <h4>${escapeHtml(tenantName)}</h4>
+            <p><strong>Company:</strong> ${escapeHtml(companyName)}</p>
+            <p><strong>Lease Start:</strong> ${formatDate(tenancy.leaseStart)}</p>
+            <p><strong>Lease End:</strong> ${formatDate(tenancy.leaseEnd)}</p>
+            <p><strong>Status:</strong> ${escapeHtml(tenancyStatus)}</p>
             <div class="tenancy-card-actions">
-              <button class="btn btn-secondary btn-small" type="button" data-tenancy-list-action="edit" data-tenancy-id="${escapeHtml(t.id)}">Edit</button>
-              <button class="btn btn-secondary btn-small" type="button" data-tenancy-list-action="archive" data-tenancy-id="${escapeHtml(t.id)}">Archive</button>
+              <button class="btn btn-secondary btn-small" type="button" data-tenancy-list-action="details" data-tenancy-id="${escapeHtml(tenancy.id)}">Details</button>
+              <button class="btn btn-secondary btn-small" type="button" data-tenancy-list-action="archive" data-tenancy-id="${escapeHtml(tenancy.id)}">Archive</button>
             </div>
-          </div>
+          </article>
         `;
       }).join("");
+
+      setTenancyTab(activeTenancyTab);
+      return;
     }
+
+    activeTenancyDetailsId = selectedTenancy.id;
+    if (editTenancyBtn instanceof HTMLButtonElement) {
+      editTenancyBtn.style.display = "inline-flex";
+    }
+    if (tenancyDetailsHeading) {
+      tenancyDetailsHeading.textContent = "Tenancy Details";
+    }
+
+    renderTenancyDetails(selectedTenancy);
+    tenancyDetailsList.innerHTML += `
+      <div class="tenancy-card-actions">
+        <button class="btn btn-secondary btn-small" type="button" data-tenancy-list-action="back-to-list">Back to Tenancies</button>
+        <button class="btn btn-secondary btn-small" type="button" data-tenancy-list-action="archive" data-tenancy-id="${escapeHtml(selectedTenancy.id)}">Archive</button>
+      </div>
+    `;
 
     setTenancyTab(activeTenancyTab);
   }
@@ -6223,6 +6312,9 @@
 
     setCurrentPropertyId(building.id);
     activeTenancyTab = "current";
+    if (!getTenancyById(building, activeTenancyDetailsId)) {
+      activeTenancyDetailsId = "";
+    }
     renderCurrentTenancyPage(building);
     showTenancyView();
   }
@@ -6272,9 +6364,17 @@
     tenancyForm.reset();
     tenancyFormTitle.textContent = mode === "edit" ? "Edit Tenancy" : "Add Current Tenancy";
 
-    const tenancy = tenancyToEdit || (mode === "edit" ? (getAllTenanciesForBuilding(building)[0] || null) : null);
+    const tenancy = tenancyToEdit
+      || (mode === "edit"
+        ? getTenancyById(building, activeTenancyDetailsId) || (getAllTenanciesForBuilding(building)[0] || null)
+        : null);
+
+    if (tenancyForm.elements.tenancyId) {
+      tenancyForm.elements.tenancyId.value = "";
+    }
 
     if (mode === "edit" && tenancy) {
+      activeTenancyDetailsId = tenancy.id || "";
       if (tenancyForm.elements.tenancyId) {
         tenancyForm.elements.tenancyId.value = tenancy.id || "";
       }
@@ -6338,8 +6438,16 @@
       return;
     }
 
-    // Archive the primary (first) tenancy; for multiple tenancies, the UI provides per-tenancy archive.
-    const tenancyToArchive = allTenancies[0];
+    const selectedTenancyId = tenancyForm && tenancyForm.elements.tenancyId
+      ? String(tenancyForm.elements.tenancyId.value || "").trim()
+      : "";
+    const tenancyToArchive = getTenancyById(building, selectedTenancyId)
+      || getTenancyById(building, activeTenancyDetailsId)
+      || allTenancies[0];
+    if (!tenancyToArchive) {
+      return;
+    }
+
     const shouldArchive = window.confirm("Archive this tenancy? It will be removed from Current and kept in History with all lease information, documents, and audit records.");
     if (!shouldArchive) {
       return;
@@ -6348,7 +6456,9 @@
     const now = new Date().toISOString();
     const archivedEntry = createArchivedTenancyRecord(tenancyToArchive, now);
     const history = Array.isArray(building.tenancyHistory) ? building.tenancyHistory : [];
-    const remainingTenancies = allTenancies.slice(1);
+    const remainingTenancies = allTenancies.filter(function (tenancy) {
+      return String(tenancy.id || "") !== String(tenancyToArchive.id || "");
+    });
     const updated = {
       ...building,
       tenancy: remainingTenancies[0] || null,
@@ -6360,6 +6470,7 @@
 
     window.BuildingStorage.updateBuilding(updated);
     renderBuildings();
+    activeTenancyDetailsId = "";
     setTenancyTab("current");
     renderCurrentTenancyPage(updated);
   }
@@ -6515,6 +6626,7 @@
     };
 
     window.BuildingStorage.updateBuilding(updated);
+    activeTenancyDetailsId = tenancyFormMode === "edit" ? editingId : "";
     renderBuildings();
     renderCurrentTenancyPage(updated);
   }
@@ -7026,21 +7138,32 @@
       return;
     }
 
-    // Handle per-tenancy Edit/Archive buttons in the multi-tenancy list.
+    // Handle per-tenancy list actions.
     const listAction = target.getAttribute("data-tenancy-list-action");
     if (listAction) {
-      const tenancyId = String(target.getAttribute("data-tenancy-id") || "").trim();
       const building = findBuildingById(activeBuildingId);
-      const tenancy = getAllTenanciesForBuilding(building).find(function (t) {
-        return String(t.id || "") === tenancyId;
-      });
+      if (!building) {
+        return;
+      }
+
+      if (listAction === "back-to-list") {
+        activeTenancyDetailsId = "";
+        renderCurrentTenancyPage(building);
+        return;
+      }
+
+      const tenancyId = String(target.getAttribute("data-tenancy-id") || "").trim();
+      const tenancy = getTenancyById(building, tenancyId);
       if (!tenancy) {
         return;
       }
-      if (listAction === "edit") {
-        openTenancyForm("edit", tenancy);
+
+      if (listAction === "details") {
+        activeTenancyDetailsId = tenancyId;
+        renderCurrentTenancyPage(building);
         return;
       }
+
       if (listAction === "archive") {
         const shouldArchive = window.confirm("Archive this tenancy? It will be removed from Current and kept in History.");
         if (!shouldArchive) {
@@ -7062,6 +7185,7 @@
         };
         window.BuildingStorage.updateBuilding(updated);
         renderBuildings();
+        activeTenancyDetailsId = "";
         renderCurrentTenancyPage(updated);
       }
       return;
@@ -7109,11 +7233,31 @@
   }
 
   function handleCancelTenancy() {
+    const formTenancyId = tenancyForm && tenancyForm.elements.tenancyId
+      ? String(tenancyForm.elements.tenancyId.value || "").trim()
+      : "";
+    if (tenancyFormMode === "edit" && formTenancyId) {
+      activeTenancyDetailsId = formTenancyId;
+    }
+    if (tenancyFormMode === "add") {
+      activeTenancyDetailsId = "";
+    }
     openCurrentTenancyView(activeBuildingId);
   }
 
   function handleEditTenancy() {
-    openTenancyForm("edit");
+    const building = findBuildingById(activeBuildingId);
+    if (!building) {
+      return;
+    }
+
+    const tenancy = getTenancyById(building, activeTenancyDetailsId)
+      || (getAllTenanciesForBuilding(building)[0] || null);
+    if (!tenancy) {
+      return;
+    }
+
+    openTenancyForm("edit", tenancy);
   }
 
   function handleTenancyBack() {
@@ -10543,6 +10687,7 @@
   });
 
   ensureMasterMigration();
+  normalizeAllBuildingsForWorkflowCollections();
   ensureTemplateLibrarySeeded();
   migrateBuildingRolesIntoContactsForAllBuildings();
   showDashboard();
