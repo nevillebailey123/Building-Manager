@@ -6319,14 +6319,15 @@
     showTenancyView();
   }
 
-  function buildTenancyPayload(building, existingTenancy) {
+  function buildTenancyPayload(building, existingTenancy, options) {
     const formData = new FormData(tenancyForm);
+    const createMode = Boolean(options && options.createMode);
     const companyName = String(formData.get("companyName") || "").trim();
     const company = ensureCompanyByName(companyName, "Tenant");
     const normalizedBuilding = ensureWorkflowCollections(building);
-    const normalizedTenancy = existingTenancy || normalizedBuilding.tenancy || null;
+    const normalizedTenancy = existingTenancy || (createMode ? null : normalizedBuilding.tenancy) || null;
     // Read tenancy ID from hidden form field so edits to existing tenancies preserve the ID.
-    const formTenancyId = String(formData.get("tenancyId") || "").trim();
+    const formTenancyId = createMode ? "" : String(formData.get("tenancyId") || "").trim();
     return {
       id: formTenancyId || (existingTenancy && existingTenancy.id ? existingTenancy.id : window.BuildingStorage.createId()),
       companyName: companyName,
@@ -6361,6 +6362,9 @@
     }
 
     tenancyFormMode = mode;
+    if (mode === "add") {
+      activeTenancyDetailsId = "";
+    }
     tenancyForm.reset();
     tenancyFormTitle.textContent = mode === "edit" ? "Edit Tenancy" : "Add Current Tenancy";
 
@@ -6599,23 +6603,32 @@
     }
 
     // Find the tenancy being edited so its existing data (docs, contactRefs, etc.) is preserved.
-    const existingTenancies = Array.isArray(current.tenancies)
-      ? current.tenancies.slice()
-      : (current.tenancy ? [current.tenancy] : []);
+    const existingTenancies = getAllTenanciesForBuilding(current).slice();
+    const isCreateMode = tenancyFormMode !== "edit";
     const formTenancyId = tenancyForm.elements.tenancyId
       ? String(tenancyForm.elements.tenancyId.value || "").trim()
       : "";
-    const matchedTenancy = formTenancyId
-      ? existingTenancies.find(function (t) { return String(t.id || "") === formTenancyId; })
-      : (existingTenancies[0] || null);
+    const matchedTenancy = isCreateMode
+      ? null
+      : (formTenancyId
+        ? existingTenancies.find(function (tenancy) {
+          return String(tenancy.id || "") === formTenancyId;
+        }) || null
+        : getTenancyById(current, activeTenancyDetailsId));
 
-    const tenancyPayload = buildTenancyPayload(current, matchedTenancy || null);
-    const editingId = String(tenancyPayload.id || "").trim();
-    const targetIndex = existingTenancies.findIndex(function (t) { return String(t.id || "") === editingId; });
-    if (targetIndex >= 0) {
-      existingTenancies[targetIndex] = tenancyPayload;
-    } else {
+    const tenancyPayload = buildTenancyPayload(current, matchedTenancy || null, { createMode: isCreateMode });
+
+    if (isCreateMode) {
       existingTenancies.push(tenancyPayload);
+    } else {
+      const editingId = String(tenancyPayload.id || "").trim();
+      const targetIndex = existingTenancies.findIndex(function (tenancy) {
+        return String(tenancy.id || "") === editingId;
+      });
+      if (targetIndex < 0) {
+        return;
+      }
+      existingTenancies[targetIndex] = tenancyPayload;
     }
 
     const updated = {
@@ -6626,7 +6639,7 @@
     };
 
     window.BuildingStorage.updateBuilding(updated);
-    activeTenancyDetailsId = tenancyFormMode === "edit" ? editingId : "";
+    activeTenancyDetailsId = isCreateMode ? "" : String(tenancyPayload.id || "").trim();
     renderBuildings();
     renderCurrentTenancyPage(updated);
   }
