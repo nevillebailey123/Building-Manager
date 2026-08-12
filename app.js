@@ -154,6 +154,8 @@
   const setupLinkedContactsList = document.getElementById("setup-linked-contacts-list");
   const setupStep3NextBtn = document.getElementById("setup-step-3-next-btn");
   const setupTemplateList = document.getElementById("setup-template-list");
+  const setupSelectAllBtn = document.getElementById("setup-select-all-btn");
+  const setupClearAllBtn = document.getElementById("setup-clear-all-btn");
   const setupStep4NextBtn = document.getElementById("setup-step-4-next-btn");
   const setupConfigureList = document.getElementById("setup-configure-list");
   const setupStep5FinishBtn = document.getElementById("setup-step-5-finish-btn");
@@ -167,6 +169,7 @@
   const templateForm = document.getElementById("template-form");
   const addTemplateBtn = document.getElementById("add-template-btn");
   const addTemplateInlineBtn = document.getElementById("add-template-inline-btn");
+  const templateFormDeleteBtn = document.getElementById("template-form-delete-btn");
   const cancelTemplateBtn = document.getElementById("cancel-template-btn");
   const backupExportBtn = document.getElementById("backup-export-btn");
   const backupRestoreBtn = document.getElementById("backup-restore-btn");
@@ -269,9 +272,17 @@
     "Insurance",
     "Financial",
     "Safety",
+    "Tenancy",
     "Utilities",
     "Grounds",
     "General",
+  ];
+
+  const TENANCY_RENT_REVIEW_FREQUENCY_OPTIONS = [
+    "Annual",
+    "2 Yearly",
+    "3 Yearly",
+    "One-off",
   ];
 
   const TEMPLATE_FREQUENCY_OPTIONS = [
@@ -1606,9 +1617,12 @@
       return;
     }
 
+    // Restore selections captured in this setup session (e.g. when user navigates Back).
+    const previouslySelected = new Set(setupState.selectedTemplateIds || []);
+
     setupTemplateList.innerHTML = templates
       .map(function (template) {
-        const checked = template.defaultChecked ? " checked" : "";
+        const checked = previouslySelected.has(template.id) ? " checked" : "";
         return `
           <label class="setup-checkbox-row">
             <input type="checkbox" value="${template.id}"${checked} />
@@ -1722,6 +1736,18 @@
     }
   }
 
+  function handleSetupSelectAll() {
+    setupTemplateList.querySelectorAll('input[type="checkbox"]').forEach(function (input) {
+      input.checked = true;
+    });
+  }
+
+  function handleSetupClearAll() {
+    setupTemplateList.querySelectorAll('input[type="checkbox"]').forEach(function (input) {
+      input.checked = false;
+    });
+  }
+
   function captureTemplateSelection() {
     const selected = Array.from(setupTemplateList.querySelectorAll('input[type="checkbox"]'))
       .filter(function (input) {
@@ -1731,7 +1757,7 @@
         return String(input.value || "");
       });
 
-    setupState.selectedTemplateIds = selected;
+    setupState.selectedTemplateIds = selected.slice();
     setupState.configuredScheduleItems = selected.map(function (templateId) {
       const template = getTemplateById(templateId);
       const frequency = template ? template.defaultFrequency : "Quarterly";
@@ -2015,6 +2041,11 @@
 
   function handleSetupStepFourNext() {
     captureTemplateSelection();
+    if (setupState.configuredScheduleItems.length === 0) {
+      // No templates selected — skip configure step and go straight to finish.
+      finalizeSetupAndCreateBuilding();
+      return;
+    }
     renderConfigureSelectedItems();
     showSetupStep(5);
   }
@@ -2420,9 +2451,10 @@
     return new Date(normalized.getTime() + days * 24 * 60 * 60 * 1000);
   }
 
-  function getNextDueDatePlaceholder(baseDate, frequency, recurringDates) {
+  function getNextDueDatePlaceholder(baseDate, frequency, recurringDates, includeCurrentForCustom) {
     if (frequency === "Custom") {
-      const customNext = getNextRecurringDatePlaceholder(baseDate, recurringDates, true);
+      const includeCurrent = includeCurrentForCustom !== false;
+      const customNext = getNextRecurringDatePlaceholder(baseDate, recurringDates, includeCurrent);
       return customNext || "";
     }
 
@@ -2608,6 +2640,214 @@
     });
   }
 
+  function getAllTenanciesForBuilding(building) {
+    if (!building) {
+      return [];
+    }
+    const tenancies = Array.isArray(building.tenancies) ? building.tenancies : [];
+    if (tenancies.length > 0) {
+      return tenancies.filter(function (t) { return t && String(t.id || "").trim(); });
+    }
+    if (building.tenancy) {
+      return [building.tenancy];
+    }
+    return [];
+  }
+
+  function getTenancyLabelForScheduleItem(item) {
+    if (!item || item.sourceType !== "tenancy" || !item.tenancyId) {
+      return "";
+    }
+    const building = findBuildingById(String(item.propertyId || "").trim());
+    if (!building) {
+      return "";
+    }
+    const tenancy = getAllTenanciesForBuilding(building).find(function (t) {
+      return String(t.id || "") === String(item.tenancyId || "");
+    });
+    if (!tenancy) {
+      return "";
+    }
+    return String(tenancy.tradingName || tenancy.companyName || "Tenant").trim();
+  }
+
+  function formatTenancyEventType(eventType) {
+    const labels = {
+      "rent-review": "Rent Review",
+      "lease-expiry": "Lease Expiry",
+      "renewal-option": "Lease Renewal / Option",
+      "notice-date": "Notice Date",
+    };
+    return labels[String(eventType || "")] || String(eventType || "").replace(/-/g, " ");
+  }
+
+  function syncTenancyScheduleItems(building, existingTenancyItems) {
+    const tenancies = getAllTenanciesForBuilding(building);
+    const propertyId = String(building && building.id ? building.id : "").trim();
+    const now = new Date().toISOString();
+
+    const existingById = new Map(
+      (existingTenancyItems || []).map(function (item) {
+        return [String(item.id || ""), item];
+      })
+    );
+
+    const generated = [];
+
+    tenancies.forEach(function (tenancy) {
+      if (!tenancy || !String(tenancy.id || "").trim()) {
+        return;
+      }
+
+      const tenancyId = String(tenancy.id);
+      const companyLabel = String(tenancy.tradingName || tenancy.companyName || "Tenant").trim();
+
+      function makeItem(eventType, taskName, sourceDueDate, frequency) {
+        if (!String(sourceDueDate || "").trim()) {
+          return;
+        }
+        const itemId = "tenancy-event-" + tenancyId + "-" + eventType;
+        const existing = existingById.get(itemId);
+        // For recurring items, preserve an advanced dueDate; for fixed items, always pin to source.
+        const dueDate = (frequency !== "One-off" && existing && String(existing.dueDate || "").trim())
+          ? existing.dueDate
+          : sourceDueDate;
+        const item = {
+          id: itemId,
+          sourceType: "tenancy",
+          tenancyId: tenancyId,
+          tenancyEventType: eventType,
+          propertyId: propertyId,
+          propertyTemplateId: "",
+          templateId: "",
+          taskName: taskName,
+          category: "Tenancy",
+          frequency: frequency,
+          dueDate: dueDate,
+          initialDueDate: sourceDueDate,
+          lastCompletedDate: existing ? String(existing.lastCompletedDate || "") : "",
+          lastCompletionHistoryId: existing ? String(existing.lastCompletionHistoryId || "") : "",
+          preferredCompany: "",
+          preferredCompanyId: "",
+          preferredContactId: "",
+          notes: "",
+          status: "",
+          createdDate: existing ? existing.createdDate : now,
+          lastUpdated: now,
+        };
+        item.status = getScheduleStatusText(item);
+        generated.push(item);
+      }
+
+      // Rent Review — recurring
+      if (String(tenancy.rentReviewDate || "").trim()) {
+        const freq = String(tenancy.rentReviewFrequency || "Annual").trim() || "Annual";
+        makeItem("rent-review", "Rent Review \u2014 " + companyLabel, tenancy.rentReviewDate, freq);
+      }
+
+      // Lease Expiry — fixed, sourced from leaseEnd
+      if (String(tenancy.leaseEnd || "").trim()) {
+        makeItem("lease-expiry", "Lease Expiry \u2014 " + companyLabel, tenancy.leaseEnd, "One-off");
+      }
+
+      // Renewal / Option Date — fixed
+      if (String(tenancy.renewalDate || "").trim()) {
+        makeItem("renewal-option", "Lease Renewal \u2014 " + companyLabel, tenancy.renewalDate, "One-off");
+      }
+
+      // Notice Date — fixed
+      if (String(tenancy.noticeDate || "").trim()) {
+        makeItem("notice-date", "Notice Date \u2014 " + companyLabel, tenancy.noticeDate, "One-off");
+      }
+    });
+
+    return generated;
+  }
+
+  function applyTenancyEventCompletion(building, scheduleItem, options) {
+    if (scheduleItem.sourceType !== "tenancy") {
+      return null;
+    }
+
+    const isRecurring = scheduleItem.frequency !== "One-off";
+    const previousDueDate = String(scheduleItem.dueDate || "").trim();
+    const newDueDate = isRecurring
+      ? getNextDueDatePlaceholder(previousDueDate, scheduleItem.frequency, [], false)
+      : previousDueDate;
+
+    const completedAt = options.completedAt || new Date().toISOString();
+    const completedBy = options.completedBy || "Property Manager";
+    const historyId = window.BuildingStorage.createId();
+
+    const historyRecord = {
+      id: historyId,
+      templateId: "",
+      scheduleItemId: scheduleItem.id,
+      tenancyId: scheduleItem.tenancyId,
+      tenancyEventType: scheduleItem.tenancyEventType,
+      completedAt: completedAt,
+      completedDate: completedAt.slice(0, 10),
+      completedBy: completedBy,
+      taskName: scheduleItem.taskName,
+      companyUsed: options.companyUsed || "",
+      companyUsedId: options.companyUsedId || "",
+      contactUsed: options.contactUsed || "",
+      contactUsedId: options.contactUsedId || "",
+      notes: options.notes || "",
+      hasAttachments: false,
+      completionDocument: null,
+      previousDueDate: previousDueDate,
+      newDueDate: newDueDate,
+      nextDueDate: newDueDate,
+      revertedAt: "",
+      revertedBy: "",
+      createdDate: completedAt,
+    };
+
+    const currentScheduleItems = Array.isArray(building.scheduleItems) ? building.scheduleItems.slice() : [];
+    const itemExists = currentScheduleItems.some(function (item) {
+      return String(item.id || "") === String(scheduleItem.id || "");
+    });
+
+    const updatedScheduleItems = currentScheduleItems.map(function (item) {
+      if (String(item.id || "") !== String(scheduleItem.id || "")) {
+        return item;
+      }
+      const next = {
+        ...item,
+        dueDate: newDueDate,
+        lastCompletedDate: completedAt.slice(0, 10),
+        lastCompletionHistoryId: historyId,
+        lastUpdated: completedAt,
+      };
+      next.status = getScheduleStatusText(next);
+      return next;
+    });
+
+    if (!itemExists) {
+      const next = {
+        ...scheduleItem,
+        dueDate: newDueDate,
+        lastCompletedDate: completedAt.slice(0, 10),
+        lastCompletionHistoryId: historyId,
+        lastUpdated: completedAt,
+      };
+      next.status = getScheduleStatusText(next);
+      updatedScheduleItems.push(next);
+    }
+
+    const updated = {
+      ...building,
+      scheduleItems: updatedScheduleItems,
+      historyRecords: (building.historyRecords || []).concat(historyRecord),
+      lastUpdated: completedAt,
+    };
+
+    const normalized = ensureWorkflowCollections(updated);
+    window.BuildingStorage.updateBuilding(normalized);
+    return normalized;
+  }
+
   function ensureWorkflowCollections(building) {
     const next = {
       ...building,
@@ -2761,7 +3001,24 @@
       };
     });
 
-    next.scheduleItems = syncScheduleItemsFromPropertyTemplates(next, next.scheduleItems);
+    // Preserve tenancy-sourced items across the property-template sync
+    const preSyncTenancyItems = next.scheduleItems.filter(function (item) {
+      return item.sourceType === "tenancy";
+    });
+    const nonTenancyItems = next.scheduleItems.filter(function (item) {
+      return item.sourceType !== "tenancy";
+    });
+
+    const templateDerivedItems = syncScheduleItemsFromPropertyTemplates(next, nonTenancyItems);
+    const tenancySyncedItems = syncTenancyScheduleItems(next, preSyncTenancyItems);
+
+    next.scheduleItems = templateDerivedItems.concat(tenancySyncedItems);
+
+    // Normalise legacy single-tenancy to tenancies array for multi-tenancy support
+    if (!Array.isArray(next.tenancies)) {
+      next.tenancies = next.tenancy ? [next.tenancy] : [];
+    }
+    next.tenancy = next.tenancies.length > 0 ? next.tenancies[0] : (next.tenancy || null);
 
     return next;
   }
@@ -2787,10 +3044,6 @@
   }
 
   function getScheduleStatusText(item) {
-    if (String(item.status || "") === "Completed") {
-      return "Completed";
-    }
-
     const priority = getScheduleVisualPriority(item);
     const map = {
       overdue: "Overdue",
@@ -2818,10 +3071,6 @@
   }
 
   function getScheduleVisualPriority(item, diffDays) {
-    if (String(item.status || "") === "Completed") {
-      return "completed";
-    }
-
     const resolvedDiffDays = typeof diffDays === "number" ? diffDays : getScheduleDiffDays(item);
     if (resolvedDiffDays < 0) {
       return "overdue";
@@ -2986,20 +3235,10 @@
     return records[0] || null;
   }
 
-  function wasCompletedToday(record) {
-    if (!record || !record.completedDate) {
-      return false;
-    }
-
-    const today = new Date().toISOString().slice(0, 10);
-    return String(record.completedDate) === today;
-  }
-
   function decorateScheduleRows(building, items) {
     return items.map(function (item) {
       const diffDays = getScheduleDiffDays(item);
       const lastCompletionRecord = getPendingRevertRecord(building, item);
-      const latestCompletionRecord = getLatestCompletionRecord(building, item.id);
       const itemPropertyId = String(item.propertyId || "").trim();
       const itemPropertyName = itemPropertyId
         ? getBuildingNameById(itemPropertyId) || "Property not assigned"
@@ -3016,8 +3255,6 @@
         propertyName: itemPropertyName,
         lastCompletedDate: String(item.lastCompletedDate || "").trim(),
         lastCompletionRecord: lastCompletionRecord,
-        latestCompletionRecord: latestCompletionRecord,
-        completedToday: wasCompletedToday(latestCompletionRecord),
       };
     });
   }
@@ -3166,7 +3403,7 @@
         return item;
       }
 
-      return {
+      const nextScheduleItem = {
         ...item,
         templateId: activeTemplate.id,
         propertyTemplateId: activeTemplate.id,
@@ -3178,10 +3415,13 @@
         preferredCompany: options.companyUsed || item.preferredCompany || "",
         preferredCompanyId: options.companyUsedId || item.preferredCompanyId || "",
         preferredContactId: options.contactUsedId || item.preferredContactId || "",
-        status: "Completed",
+        status: "",
         lastCompletionHistoryId: historyId,
         lastUpdated: completedAt,
       };
+
+      nextScheduleItem.status = getScheduleStatusText(nextScheduleItem);
+      return nextScheduleItem;
     });
 
     const updated = {
@@ -3261,17 +3501,30 @@
   }
 
   function renderScheduleRow(row) {
-    const dueClass = `schedule-row-due-${row.visualPriority === "completed" ? "scheduled" : row.visualPriority}`;
-    const statusClass = `schedule-row-status-${row.visualPriority === "completed" ? "scheduled" : row.visualPriority}`;
-    const linkedContactText = getScheduleLinkedContactText(row);
-    const linkedContactMarkup = linkedContactText
-      ? `<p class="schedule-row-meta">Linked Contact: ${escapeHtml(linkedContactText)}</p>`
-      : "";
+    const dueClass = `schedule-row-due-${row.visualPriority}`;
+    const statusClass = `schedule-row-status-${row.visualPriority}`;
+    const isTenancyItem = row.item.sourceType === "tenancy";
     const propertyMarkup = `<p class="schedule-row-meta">Property: ${escapeHtml(row.propertyName || "Property not assigned")}</p>`;
     const lastCompletedMarkup = `<p class="schedule-row-meta">Last Completed: ${escapeHtml(formatLastCompletedDate(row.lastCompletedDate))}</p>`;
-    const frequencyMarkup = `<p class="schedule-row-meta">Frequency: ${escapeHtml(row.item.frequency)}</p>`;
     const dueDateMarkup = `<p class="schedule-row-due ${dueClass}">Next Due Date: ${formatDate(row.item.dueDate)}</p>`;
     const statusMarkup = `<p class="schedule-row-status ${statusClass}">Status: ${escapeHtml(row.statusText)}</p>`;
+
+    let contextMarkup = "";
+    if (isTenancyItem) {
+      const tenancyLabel = getTenancyLabelForScheduleItem(row.item);
+      if (tenancyLabel) {
+        contextMarkup = `<p class="schedule-row-meta">Tenancy: ${escapeHtml(tenancyLabel)}</p>`;
+      }
+    } else {
+      const linkedContactText = getScheduleLinkedContactText(row);
+      if (linkedContactText) {
+        contextMarkup = `<p class="schedule-row-meta">Contact: ${escapeHtml(linkedContactText)}</p>`;
+      }
+    }
+
+    const frequencyMarkup = (isTenancyItem && row.item.frequency === "One-off")
+      ? ""
+      : `<p class="schedule-row-meta">Frequency: ${escapeHtml(row.item.frequency)}</p>`;
 
     return `
       <article class="schedule-ops-row schedule-ops-row-${row.state} schedule-ops-priority-${row.visualPriority}" data-schedule-id="${row.item.id}" data-schedule-building-id="${row.propertyId}" role="button" tabindex="0" aria-label="Open schedule details for ${escapeHtml(row.item.taskName)}">
@@ -3287,58 +3540,11 @@
             <div class="schedule-ops-details-column">
               ${dueDateMarkup}
               ${statusMarkup}
-              ${linkedContactMarkup}
+              ${contextMarkup}
             </div>
           </div>
         </div>
       </article>
-    `;
-  }
-
-  function renderCompletedRow(row) {
-    const linkedContactText = getScheduleLinkedContactText(row);
-    const linkedContactMarkup = linkedContactText
-      ? `<p class="schedule-row-meta">Linked Contact: ${escapeHtml(linkedContactText)}</p>`
-      : "";
-    const propertyMarkup = `<p class="schedule-row-meta">Property: ${escapeHtml(row.propertyName || "Property not assigned")}</p>`;
-    const lastCompletedMarkup = `<p class="schedule-row-meta">Last Completed: ${escapeHtml(formatLastCompletedDate(row.lastCompletedDate || row.latestCompletionRecord && row.latestCompletionRecord.completedDate))}</p>`;
-    const frequencyMarkup = `<p class="schedule-row-meta">Frequency: ${escapeHtml(row.item.frequency)}</p>`;
-    const dueDateMarkup = `<p class="schedule-row-due schedule-row-due-scheduled">Next Due Date: ${formatDate(row.item.dueDate)}</p>`;
-    const statusMarkup = `<p class="schedule-row-status schedule-row-status-scheduled">Status: Completed</p>`;
-    return `
-      <article class="schedule-ops-row schedule-ops-row-completed schedule-ops-priority-completed" data-schedule-id="${row.item.id}" data-schedule-building-id="${row.propertyId}" role="button" tabindex="0" aria-label="Open schedule details for ${escapeHtml(row.item.taskName)}">
-        <span class="schedule-ops-marker" aria-hidden="true"></span>
-        <div class="schedule-ops-main">
-          <h3 class="schedule-row-title">${escapeHtml(row.item.taskName)}</h3>
-          <div class="schedule-ops-details-columns">
-            <div class="schedule-ops-details-column">
-              ${frequencyMarkup}
-              ${propertyMarkup}
-              ${lastCompletedMarkup}
-            </div>
-            <div class="schedule-ops-details-column">
-              ${dueDateMarkup}
-              ${statusMarkup}
-              ${linkedContactMarkup}
-            </div>
-          </div>
-        </div>
-      </article>
-    `;
-  }
-
-  function renderCompletedGroup(rows) {
-    if (rows.length === 0) {
-      return "";
-    }
-
-    return `
-      <section class="schedule-ops-group schedule-ops-group-completed">
-        <h3 class="schedule-ops-group-title">Completed</h3>
-        <div class="schedule-ops-group-list">
-          ${rows.map(renderCompletedRow).join("")}
-        </div>
-      </section>
     `;
   }
 
@@ -3382,28 +3588,20 @@
   }
 
   function renderScheduleOperationsList(rows) {
-    const completedRows = rows.filter(function (row) {
-      return row.completedToday;
-    });
-    const activeRows = rows.filter(function (row) {
-      return !row.completedToday;
-    });
-
     if (rows.length === 0) {
       scheduleOpsList.innerHTML = '<p class="module-placeholder schedule-ops-empty">No scheduled items.</p>';
       return;
     }
 
-    const sections = [
-      renderScheduleGroup("Overdue", "overdue", activeRows),
-      renderScheduleGroup("Due Within 30 Days", "due30", activeRows),
-      renderScheduleGroup("Scheduled", "scheduled", activeRows),
-      renderCompletedGroup(completedRows),
-    ].filter(function (section) {
-      return Boolean(section);
-    });
-
-    scheduleOpsList.innerHTML = sections.join("");
+    const sortedRows = sortScheduleRows(rows);
+    scheduleOpsList.innerHTML = `
+      <section class="schedule-ops-group schedule-ops-group-scheduled">
+        <h3 class="schedule-ops-group-title">Scheduled Items</h3>
+        <div class="schedule-ops-group-list">
+          ${sortedRows.map(renderScheduleRow).join("")}
+        </div>
+      </section>
+    `;
   }
 
   function renderCompletedRecords(container, records) {
@@ -3778,14 +3976,21 @@
   }
 
   function renderTenancyDetails(tenancy) {
-    const tradingName = tenancy.tradingName || "Not provided";
     const companyNameDisplay = tenancy.companyName || "Not provided";
+    const tradingName = tenancy.tradingName || "Not provided";
+    const rentReviewText = tenancy.rentReviewDate
+      ? `${formatDate(tenancy.rentReviewDate)}${tenancy.rentReviewFrequency ? " (" + tenancy.rentReviewFrequency + ")" : ""}`
+      : "";
 
     tenancyDetailsList.innerHTML = `
       <div><dt>Current Tenant</dt><dd>${escapeHtml(companyNameDisplay)}</dd></div>
       <div><dt>Trading Name</dt><dd>${escapeHtml(tradingName)}</dd></div>
-      <div><dt>Lease Dates</dt><dd>${formatDate(tenancy.leaseStart)} - ${formatDate(tenancy.leaseEnd)}</dd></div>
+      <div><dt>Lease Start</dt><dd>${formatDate(tenancy.leaseStart)}</dd></div>
+      <div><dt>Lease Expiry</dt><dd>${formatDate(tenancy.leaseEnd)}</dd></div>
       <div><dt>Status</dt><dd>${escapeHtml(tenancy.status || "Occupied")}</dd></div>
+      ${rentReviewText ? `<div><dt>Rent Review</dt><dd>${escapeHtml(rentReviewText)}</dd></div>` : ""}
+      ${tenancy.renewalDate ? `<div><dt>Renewal / Option</dt><dd>${formatDate(tenancy.renewalDate)}</dd></div>` : ""}
+      ${tenancy.noticeDate ? `<div><dt>Notice Date</dt><dd>${formatDate(tenancy.noticeDate)}</dd></div>` : ""}
     `;
   }
 
@@ -5393,7 +5598,6 @@
             <p class="template-card-field template-card-notes"><span class="template-card-label">Default Notes</span><span class="template-card-value">${template.defaultNotes || "Not set"}</span></p>
             <div class="template-card-actions">
               <button class="btn btn-secondary template-edit-btn" type="button">Edit</button>
-              <button class="btn template-delete-btn" type="button" data-template-action="delete">Delete</button>
               <button class="btn ${statusToggleClass}" type="button" data-template-toggle-action="${statusToggleAction}">${statusToggleLabel}</button>
             </div>
           </section>
@@ -5417,7 +5621,73 @@
     `;
   }
 
-  function confirmTemplateDeleteDialog() {
+  function summarizeMasterTemplateUsage(templateId) {
+    const targetId = String(templateId || "").trim();
+    if (!targetId) {
+      return {
+        assignedProperties: 0,
+        scheduleItems: 0,
+        historyRecords: 0,
+        attachments: 0,
+      };
+    }
+
+    const buildings = window.BuildingStorage.getBuildings();
+    return buildings.reduce(function (summary, building) {
+      const normalized = ensureWorkflowCollections(building);
+      const linkedTemplates = getPropertyTemplates(normalized).filter(function (template) {
+        return String(template.masterTemplateId || "").trim() === targetId;
+      });
+
+      if (linkedTemplates.length === 0) {
+        return summary;
+      }
+
+      const templateIds = new Set(linkedTemplates.map(function (template) {
+        return String(template.id || "").trim();
+      }).filter(function (id) {
+        return Boolean(id);
+      }));
+
+      const linkedScheduleItems = (normalized.scheduleItems || []).filter(function (item) {
+        const propertyTemplateId = String(item.propertyTemplateId || item.templateId || "").trim();
+        return templateIds.has(propertyTemplateId);
+      });
+
+      const scheduleItemIds = new Set(linkedScheduleItems.map(function (item) {
+        return String(item.id || "").trim();
+      }).filter(function (id) {
+        return Boolean(id);
+      }));
+
+      const linkedHistoryRecords = (normalized.historyRecords || []).filter(function (record) {
+        return scheduleItemIds.has(String(record.scheduleItemId || "").trim());
+      });
+
+      const attachmentCount = linkedTemplates.reduce(function (count, template) {
+        return count + (Array.isArray(template.attachments) ? template.attachments.length : 0);
+      }, 0);
+
+      return {
+        assignedProperties: summary.assignedProperties + linkedTemplates.length,
+        scheduleItems: summary.scheduleItems + linkedScheduleItems.length,
+        historyRecords: summary.historyRecords + linkedHistoryRecords.length,
+        attachments: summary.attachments + attachmentCount,
+      };
+    }, {
+      assignedProperties: 0,
+      scheduleItems: 0,
+      historyRecords: 0,
+      attachments: 0,
+    });
+  }
+
+  function confirmTemplateDeleteDialog(options) {
+    const usage = options && options.usage ? options.usage : null;
+    const isInUse = usage && (usage.assignedProperties > 0 || usage.scheduleItems > 0 || usage.historyRecords > 0 || usage.attachments > 0);
+    const warningMessage = isInUse
+      ? `This Master Template is in use: ${usage.assignedProperties} assigned Property Templates, ${usage.scheduleItems} schedule items, ${usage.historyRecords} completion records, ${usage.attachments} template documents.`
+      : "";
     return new Promise(function (resolve) {
       const backdrop = window.document.createElement("div");
       backdrop.className = "template-delete-modal-backdrop";
@@ -5429,8 +5699,10 @@
       dialog.setAttribute("aria-labelledby", "template-delete-modal-title");
 
       dialog.innerHTML = `
-        <h3 id="template-delete-modal-title">Delete Template</h3>
-        <p>Are you sure you want to permanently delete this template? This action cannot be undone.</p>
+        <h3 id="template-delete-modal-title">Delete Master Template</h3>
+        <p>Are you sure you want to permanently delete this Master Template?</p>
+        ${warningMessage ? `<p>${warningMessage}</p>` : ""}
+        <p>Historical Property schedule and completion records are retained.</p>
         <div class="template-delete-modal-actions">
           <button class="btn btn-secondary" type="button" data-template-delete-confirm="cancel">Cancel</button>
           <button class="btn template-delete-btn" type="button" data-template-delete-confirm="delete">Delete</button>
@@ -5538,7 +5810,11 @@
     activeTemplateId = template && template.id ? template.id : "";
     resetTemplateForm();
 
-    templateFormTitle.textContent = mode === "edit" ? "Edit Template" : "Add Template";
+    templateFormTitle.textContent = mode === "edit" ? "Edit Master Template" : "Add Master Template";
+    if (templateFormDeleteBtn instanceof HTMLButtonElement) {
+      templateFormDeleteBtn.style.display = mode === "edit" ? "inline-flex" : "none";
+      templateFormDeleteBtn.disabled = mode !== "edit";
+    }
     if (mode === "edit" && template) {
       templateForm.elements.templateId.value = template.id;
       templateForm.elements.name.value = template.name || "";
@@ -5556,7 +5832,7 @@
     setBreadcrumbs([
       { label: "Buildings", onClick: goToDashboard },
       { label: "Template Library", onClick: openTemplateLibrary },
-      { label: mode === "edit" ? "Edit Template" : "Add Template", onClick: function () { openTemplateForm(mode, template); } },
+      { label: mode === "edit" ? "Edit Master Template" : "Add Master Template", onClick: function () { openTemplateForm(mode, template); } },
     ]);
   }
 
@@ -5595,6 +5871,21 @@
   }
 
   function handleCancelTemplate() {
+    openTemplateLibrary();
+  }
+
+  async function handleTemplateFormDelete() {
+    if (templateFormMode !== "edit" || !activeTemplateId) {
+      return;
+    }
+
+    const usage = summarizeMasterTemplateUsage(activeTemplateId);
+    const shouldDelete = await confirmTemplateDeleteDialog({ usage: usage });
+    if (!shouldDelete) {
+      return;
+    }
+
+    deleteTemplate(activeTemplateId);
     openTemplateLibrary();
   }
 
@@ -5700,17 +5991,6 @@
 
     if (target.closest(".template-edit-btn")) {
       openTemplateForm("edit", selected);
-      return;
-    }
-
-    if (target.closest('[data-template-action="delete"]')) {
-      const shouldDelete = await confirmTemplateDeleteDialog();
-      if (!shouldDelete) {
-        return;
-      }
-
-      deleteTemplate(templateId);
-      openTemplateLibrary();
       return;
     }
 
@@ -5898,14 +6178,39 @@
     tenancyBuildingName.textContent = building.buildingName;
     renderTenancyHistory(building);
 
-    if (!building.tenancy) {
+    const allTenancies = getAllTenanciesForBuilding(building);
+
+    if (allTenancies.length === 0) {
       renderTenancySectionState(false, "empty");
       setTenancyTab(activeTenancyTab);
       return;
     }
 
     renderTenancySectionState(true, "details");
-    renderTenancyDetails(building.tenancy);
+
+    if (allTenancies.length === 1) {
+      renderTenancyDetails(allTenancies[0]);
+    } else {
+      // Multiple tenancies: render each as a card inside the details list.
+      tenancyDetailsList.innerHTML = allTenancies.map(function (t) {
+        const rentReviewText = t.rentReviewDate
+          ? `${formatDate(t.rentReviewDate)}${t.rentReviewFrequency ? " (" + t.rentReviewFrequency + ")" : ""}`
+          : "";
+        return `
+          <div class="tenancy-list-card">
+            <h4>${escapeHtml(t.companyName || "Tenant")}</h4>
+            <p><strong>Lease:</strong> ${formatDate(t.leaseStart)} – ${formatDate(t.leaseEnd)}</p>
+            ${rentReviewText ? `<p><strong>Rent Review:</strong> ${escapeHtml(rentReviewText)}</p>` : ""}
+            ${t.renewalDate ? `<p><strong>Renewal:</strong> ${formatDate(t.renewalDate)}</p>` : ""}
+            <div class="tenancy-card-actions">
+              <button class="btn btn-secondary btn-small" type="button" data-tenancy-list-action="edit" data-tenancy-id="${escapeHtml(t.id)}">Edit</button>
+              <button class="btn btn-secondary btn-small" type="button" data-tenancy-list-action="archive" data-tenancy-id="${escapeHtml(t.id)}">Archive</button>
+            </div>
+          </div>
+        `;
+      }).join("");
+    }
+
     setTenancyTab(activeTenancyTab);
   }
 
@@ -5928,13 +6233,19 @@
     const company = ensureCompanyByName(companyName, "Tenant");
     const normalizedBuilding = ensureWorkflowCollections(building);
     const normalizedTenancy = existingTenancy || normalizedBuilding.tenancy || null;
+    // Read tenancy ID from hidden form field so edits to existing tenancies preserve the ID.
+    const formTenancyId = String(formData.get("tenancyId") || "").trim();
     return {
-      id: existingTenancy && existingTenancy.id ? existingTenancy.id : window.BuildingStorage.createId(),
+      id: formTenancyId || (existingTenancy && existingTenancy.id ? existingTenancy.id : window.BuildingStorage.createId()),
       companyName: companyName,
       companyId: company ? company.id : "",
       tradingName: String(formData.get("tradingName") || "").trim(),
       leaseStart: String(formData.get("leaseStart") || "").trim(),
       leaseEnd: String(formData.get("leaseEnd") || "").trim(),
+      rentReviewDate: String(formData.get("rentReviewDate") || "").trim(),
+      rentReviewFrequency: String(formData.get("rentReviewFrequency") || "Annual").trim() || "Annual",
+      renewalDate: String(formData.get("renewalDate") || "").trim(),
+      noticeDate: String(formData.get("noticeDate") || "").trim(),
       status: String(formData.get("status") || "Occupied"),
       notes: String(formData.get("notes") || "").trim(),
       contacts: normalizedTenancy && Array.isArray(normalizedTenancy.contacts) ? normalizedTenancy.contacts : [],
@@ -5950,7 +6261,7 @@
     };
   }
 
-  function openTenancyForm(mode) {
+  function openTenancyForm(mode, tenancyToEdit) {
     const building = findBuildingById(activeBuildingId);
     if (!building) {
       showDashboard();
@@ -5959,22 +6270,44 @@
 
     tenancyFormMode = mode;
     tenancyForm.reset();
-    tenancyFormTitle.textContent = mode === "edit" ? "Edit Current Tenancy" : "Add Current Tenancy";
+    tenancyFormTitle.textContent = mode === "edit" ? "Edit Tenancy" : "Add Current Tenancy";
 
-    if (mode === "edit" && building.tenancy) {
-      tenancyForm.elements.companyName.value = building.tenancy.companyName || "";
-      tenancyForm.elements.tradingName.value = building.tenancy.tradingName || "";
-      tenancyForm.elements.leaseStart.value = building.tenancy.leaseStart || "";
-      tenancyForm.elements.leaseEnd.value = building.tenancy.leaseEnd || "";
-      tenancyForm.elements.status.value = building.tenancy.status || "Occupied";
-      tenancyForm.elements.notes.value = building.tenancy.notes || "";
+    const tenancy = tenancyToEdit || (mode === "edit" ? (getAllTenanciesForBuilding(building)[0] || null) : null);
+
+    if (mode === "edit" && tenancy) {
+      if (tenancyForm.elements.tenancyId) {
+        tenancyForm.elements.tenancyId.value = tenancy.id || "";
+      }
+      tenancyForm.elements.companyName.value = tenancy.companyName || "";
+      tenancyForm.elements.tradingName.value = tenancy.tradingName || "";
+      tenancyForm.elements.leaseStart.value = tenancy.leaseStart || "";
+      tenancyForm.elements.leaseEnd.value = tenancy.leaseEnd || "";
+      if (tenancyForm.elements.rentReviewDate) {
+        tenancyForm.elements.rentReviewDate.value = tenancy.rentReviewDate || "";
+      }
+      if (tenancyForm.elements.rentReviewFrequency) {
+        tenancyForm.elements.rentReviewFrequency.value = tenancy.rentReviewFrequency || "Annual";
+      }
+      if (tenancyForm.elements.renewalDate) {
+        tenancyForm.elements.renewalDate.value = tenancy.renewalDate || "";
+      }
+      if (tenancyForm.elements.noticeDate) {
+        tenancyForm.elements.noticeDate.value = tenancy.noticeDate || "";
+      }
+      // Set status radio
+      const statusInputs = tenancyForm.querySelectorAll('input[name="status"]');
+      statusInputs.forEach(function (input) {
+        input.checked = input.value === (tenancy.status || "Occupied");
+      });
+      tenancyForm.elements.notes.value = tenancy.notes || "";
     }
 
+    const hasTenancies = getAllTenanciesForBuilding(building).length > 0;
     if (archiveTenancyBtn instanceof HTMLButtonElement) {
-      archiveTenancyBtn.style.display = mode === "edit" && building.tenancy ? "inline-flex" : "none";
+      archiveTenancyBtn.style.display = mode === "edit" && hasTenancies ? "inline-flex" : "none";
     }
 
-    renderTenancySectionState(Boolean(building.tenancy), "form");
+    renderTenancySectionState(hasTenancies, "form");
   }
 
   function createArchivedTenancyRecord(tenancy, archivedAt) {
@@ -6000,23 +6333,28 @@
 
   function handleArchiveTenancy() {
     const building = findBuildingById(activeBuildingId);
-    if (!building || !building.tenancy) {
+    const allTenancies = getAllTenanciesForBuilding(building);
+    if (!building || allTenancies.length === 0) {
       return;
     }
 
+    // Archive the primary (first) tenancy; for multiple tenancies, the UI provides per-tenancy archive.
+    const tenancyToArchive = allTenancies[0];
     const shouldArchive = window.confirm("Archive this tenancy? It will be removed from Current and kept in History with all lease information, documents, and audit records.");
     if (!shouldArchive) {
       return;
     }
 
     const now = new Date().toISOString();
-    const archivedEntry = createArchivedTenancyRecord(building.tenancy, now);
+    const archivedEntry = createArchivedTenancyRecord(tenancyToArchive, now);
     const history = Array.isArray(building.tenancyHistory) ? building.tenancyHistory : [];
+    const remainingTenancies = allTenancies.slice(1);
     const updated = {
       ...building,
-      tenancy: null,
+      tenancy: remainingTenancies[0] || null,
+      tenancies: remainingTenancies,
       tenancyHistory: history.concat(archivedEntry),
-      status: "Vacant",
+      status: remainingTenancies.length === 0 ? "Vacant" : building.status,
       lastUpdated: now,
     };
 
@@ -6149,10 +6487,30 @@
       return;
     }
 
-    const tenancyPayload = buildTenancyPayload(current, current.tenancy || null);
+    // Find the tenancy being edited so its existing data (docs, contactRefs, etc.) is preserved.
+    const existingTenancies = Array.isArray(current.tenancies)
+      ? current.tenancies.slice()
+      : (current.tenancy ? [current.tenancy] : []);
+    const formTenancyId = tenancyForm.elements.tenancyId
+      ? String(tenancyForm.elements.tenancyId.value || "").trim()
+      : "";
+    const matchedTenancy = formTenancyId
+      ? existingTenancies.find(function (t) { return String(t.id || "") === formTenancyId; })
+      : (existingTenancies[0] || null);
+
+    const tenancyPayload = buildTenancyPayload(current, matchedTenancy || null);
+    const editingId = String(tenancyPayload.id || "").trim();
+    const targetIndex = existingTenancies.findIndex(function (t) { return String(t.id || "") === editingId; });
+    if (targetIndex >= 0) {
+      existingTenancies[targetIndex] = tenancyPayload;
+    } else {
+      existingTenancies.push(tenancyPayload);
+    }
+
     const updated = {
       ...current,
-      tenancy: tenancyPayload,
+      tenancy: existingTenancies[0] || null,
+      tenancies: existingTenancies,
       lastUpdated: new Date().toISOString(),
     };
 
@@ -6668,6 +7026,47 @@
       return;
     }
 
+    // Handle per-tenancy Edit/Archive buttons in the multi-tenancy list.
+    const listAction = target.getAttribute("data-tenancy-list-action");
+    if (listAction) {
+      const tenancyId = String(target.getAttribute("data-tenancy-id") || "").trim();
+      const building = findBuildingById(activeBuildingId);
+      const tenancy = getAllTenanciesForBuilding(building).find(function (t) {
+        return String(t.id || "") === tenancyId;
+      });
+      if (!tenancy) {
+        return;
+      }
+      if (listAction === "edit") {
+        openTenancyForm("edit", tenancy);
+        return;
+      }
+      if (listAction === "archive") {
+        const shouldArchive = window.confirm("Archive this tenancy? It will be removed from Current and kept in History.");
+        if (!shouldArchive) {
+          return;
+        }
+        const now = new Date().toISOString();
+        const archivedEntry = createArchivedTenancyRecord(tenancy, now);
+        const remaining = getAllTenanciesForBuilding(building).filter(function (t) {
+          return String(t.id || "") !== tenancyId;
+        });
+        const history = Array.isArray(building.tenancyHistory) ? building.tenancyHistory : [];
+        const updated = {
+          ...building,
+          tenancy: remaining[0] || null,
+          tenancies: remaining,
+          tenancyHistory: history.concat(archivedEntry),
+          status: remaining.length === 0 ? "Vacant" : building.status,
+          lastUpdated: now,
+        };
+        window.BuildingStorage.updateBuilding(updated);
+        renderBuildings();
+        renderCurrentTenancyPage(updated);
+      }
+      return;
+    }
+
     if (!target.closest(".tenancy-company-link")) {
       return;
     }
@@ -7040,7 +7439,7 @@
       dialog.setAttribute("aria-labelledby", "template-master-create-title");
 
       dialog.innerHTML = `
-        <h3 id="template-master-create-title">New Master Template</h3>
+        <h3 id="template-master-create-title">Add Master Template</h3>
         <form class="template-master-create-form">
           <label>
             <span>Name</span>
@@ -7324,11 +7723,8 @@
 
   function showMasterTemplatePickerDialog(building) {
     return new Promise(function (resolve) {
-      const assignedMasterTemplateIds = new Set(getPropertyTemplates(building || {}).map(function (template) {
-        return String(template.masterTemplateId || "").trim();
-      }).filter(function (id) {
-        return Boolean(id);
-      }));
+      const assignedMasterTemplateIds = getAssignedMasterTemplateIdsForBuilding(building);
+      const initialSelectedIds = new Set(Array.from(assignedMasterTemplateIds));
       const selectedIds = new Set(Array.from(assignedMasterTemplateIds));
       let searchQuery = "";
       let createdTemplateId = "";
@@ -7343,9 +7739,12 @@
       dialog.setAttribute("aria-labelledby", "template-picker-title");
 
       dialog.innerHTML = `
-        <h3 id="template-picker-title">Add Templates To Property</h3>
+        <div class="template-picker-header">
+          <h3 id="template-picker-title">Add Templates To Property</h3>
+          <button class="template-picker-close" type="button" aria-label="Close" data-template-picker-action="close">&times;</button>
+        </div>
         <div class="template-picker-toolbar">
-          <button class="btn btn-secondary btn-small" type="button" data-template-picker-action="new-master">+ New Master Template</button>
+          <button class="btn btn-secondary btn-small" type="button" data-template-picker-action="new-master">+ Add Master Template</button>
         </div>
         <label class="template-picker-search-wrap">
           <span class="visually-hidden">Search templates</span>
@@ -7356,8 +7755,7 @@
           <button class="btn btn-secondary btn-small" type="button" data-template-picker-action="clear-all">Clear All</button>
         </div>
         <div class="template-picker-list" data-template-picker-list></div>
-        <div class="template-delete-modal-actions">
-          <button class="btn btn-secondary" type="button" data-template-picker-action="cancel">Cancel</button>
+        <div class="template-delete-modal-actions template-picker-actions">
           <button class="btn btn-primary" type="button" data-template-picker-action="add">Update Property Templates</button>
         </div>
       `;
@@ -7367,6 +7765,27 @@
 
       const listContainer = dialog.querySelector("[data-template-picker-list]");
       const searchInput = dialog.querySelector("#template-picker-search");
+      const commitButton = dialog.querySelector('[data-template-picker-action="add"]');
+
+      function selectionChanged() {
+        if (selectedIds.size !== initialSelectedIds.size) {
+          return true;
+        }
+
+        for (const id of selectedIds) {
+          if (!initialSelectedIds.has(id)) {
+            return true;
+          }
+        }
+
+        return false;
+      }
+
+      function renderCommitButtonState() {
+        if (commitButton instanceof HTMLButtonElement) {
+          commitButton.disabled = !selectionChanged();
+        }
+      }
 
       function getFilteredTemplates() {
         const templates = getScheduledItemTemplates();
@@ -7411,11 +7830,12 @@
               </span>
               <span class="template-picker-item-actions">
                 <button class="btn btn-secondary btn-small" type="button" data-template-picker-template-action="edit" data-template-id="${template.id}">Edit</button>
-                <button class="btn template-delete-btn btn-small" type="button" data-template-picker-template-action="delete" data-template-id="${template.id}">Delete</button>
               </span>
             </article>
           `;
         }).join("");
+
+        renderCommitButtonState();
       }
 
       function closeWith(selected) {
@@ -7426,7 +7846,7 @@
 
       function handleEscape(event) {
         if (event.key === "Escape") {
-          closeWith([]);
+          closeWith(null);
         }
       }
 
@@ -7434,7 +7854,7 @@
 
       backdrop.addEventListener("click", function (event) {
         if (event.target === backdrop) {
-          closeWith([]);
+          closeWith(null);
         }
       });
 
@@ -7455,6 +7875,8 @@
           } else {
             selectedIds.delete(templateId);
           }
+
+          renderCommitButtonState();
         }
       });
 
@@ -7492,20 +7914,6 @@
             return;
           }
 
-          if (rowAction === "delete") {
-            const shouldDelete = await confirmMasterTemplateDeleteDialog();
-            if (!shouldDelete) {
-              return;
-            }
-
-            const remaining = getScheduledItemTemplates().filter(function (template) {
-              return template.id !== templateId;
-            });
-            saveScheduledItemTemplates(remaining);
-            selectedIds.delete(templateId);
-            renderList();
-            return;
-          }
         }
 
         const action = target.getAttribute("data-template-picker-action");
@@ -7513,12 +7921,36 @@
           return;
         }
 
-        if (action === "cancel") {
-          closeWith([]);
+        if (action === "close") {
+          closeWith(null);
           return;
         }
 
         if (action === "add") {
+          const removedMasterTemplateIds = Array.from(initialSelectedIds).filter(function (id) {
+            return !selectedIds.has(id);
+          });
+
+          if (removedMasterTemplateIds.length > 0) {
+            const masterTemplatesById = new Map(getScheduledItemTemplates().map(function (template) {
+              return [String(template.id || "").trim(), template];
+            }));
+            const scheduleItemsToRemove = removedMasterTemplateIds.map(function (templateId) {
+              const template = masterTemplatesById.get(String(templateId || "").trim());
+              return String(template && template.name ? template.name : "").trim();
+            }).filter(function (name) {
+              return Boolean(name);
+            });
+
+            const shouldRemove = await confirmPropertyTemplateUnassignDialog({
+              buildingName: String(building && building.buildingName ? building.buildingName : "").trim(),
+              scheduleItemNames: scheduleItemsToRemove,
+            });
+            if (!shouldRemove) {
+              return;
+            }
+          }
+
           closeWith(Array.from(selectedIds));
           return;
         }
@@ -7548,10 +7980,11 @@
       });
 
       renderList();
+      renderCommitButtonState();
     });
   }
 
-  function confirmPropertyTemplateUnassignDialog(count) {
+  function confirmPropertyTemplateUnassignDialog(options) {
     return new Promise(function (resolve) {
       const backdrop = window.document.createElement("div");
       backdrop.className = "template-delete-modal-backdrop";
@@ -7562,17 +7995,31 @@
       dialog.setAttribute("aria-modal", "true");
       dialog.setAttribute("aria-labelledby", "template-unassign-modal-title");
 
-      const message = count === 1
-        ? "This will remove the assigned schedule item from this property."
-        : `This will remove ${count} assigned schedule items from this property.`;
+      const buildingName = String(options && options.buildingName ? options.buildingName : "").trim();
+      const scheduleItemNames = Array.isArray(options && options.scheduleItemNames)
+        ? options.scheduleItemNames.filter(function (name) {
+          return Boolean(String(name || "").trim());
+        })
+        : [];
+      const listMarkup = scheduleItemNames.length > 0
+        ? `
+          <p>You are about to remove the following schedule items from ${escapeHtml(buildingName || "this property")}:</p>
+          <ul class="template-unassign-list">
+            ${scheduleItemNames.map(function (name) {
+              return `<li>${escapeHtml(name)}</li>`;
+            }).join("")}
+          </ul>
+        `
+        : '<p>You are about to remove one or more schedule items from this property.</p>';
 
       dialog.innerHTML = `
-        <h3 id="template-unassign-modal-title">Remove Template Assignment</h3>
-        <p>${message}</p>
-        <p>Master templates and assignments on other properties will not be changed.</p>
+        <h3 id="template-unassign-modal-title">Remove Schedule Items?</h3>
+        ${listMarkup}
+        <p>Their historical completion records and associated history will be retained.</p>
+        <p>Do you wish to proceed?</p>
         <div class="template-delete-modal-actions">
           <button class="btn btn-secondary" type="button" data-template-unassign-action="cancel">Cancel</button>
-          <button class="btn template-delete-btn" type="button" data-template-unassign-action="remove">Remove</button>
+          <button class="btn template-delete-btn" type="button" data-template-unassign-action="remove">Remove Schedule Items</button>
         </div>
       `;
 
@@ -7618,9 +8065,7 @@
     });
   }
 
-  function removeMasterTemplatesFromBuilding(masterTemplateIds, buildingId) {
-    const targetBuildingId = String(buildingId || activeBuildingId || "").trim();
-    const building = findBuildingById(targetBuildingId);
+  function removeMasterTemplatesFromBuilding(building, masterTemplateIds) {
     if (!building) {
       return null;
     }
@@ -7660,9 +8105,7 @@
       scheduleItems: (normalized.scheduleItems || []).filter(function (item) {
         return !scheduleItemIdsToRemove.has(item.id);
       }),
-      historyRecords: (normalized.historyRecords || []).filter(function (record) {
-        return !scheduleItemIdsToRemove.has(record.scheduleItemId);
-      }),
+      historyRecords: Array.isArray(normalized.historyRecords) ? normalized.historyRecords.slice() : [],
       lastUpdated: new Date().toISOString(),
     };
   }
@@ -7844,81 +8287,183 @@
     });
   }
 
-  function addMasterTemplatesToActiveBuilding(masterTemplateIds, buildingId, templateSettings) {
-    const targetBuildingId = String(buildingId || activeBuildingId || "").trim();
-    const building = findBuildingById(targetBuildingId);
+  function addMasterTemplatesToBuilding(building, masterTemplateIds, templateSettings) {
+    const targetBuildingId = String(building && building.id ? building.id : activeBuildingId || "").trim();
     if (!building) {
       return null;
     }
 
     const normalized = ensureWorkflowCollections(building);
     const existing = getPropertyTemplates(normalized);
-    const alreadyLinked = new Set(existing.map(function (template) {
-      return template.masterTemplateId;
+    const existingByMasterTemplateId = new Map(existing.map(function (template) {
+      return [String(template.masterTemplateId || "").trim(), template];
     }));
+    const scheduleItemsByTemplateId = new Map((normalized.scheduleItems || []).map(function (item) {
+      const propertyTemplateId = String(item.propertyTemplateId || item.templateId || "").trim();
+      return [propertyTemplateId, item];
+    }));
+    const assignedMasterTemplateIds = getAssignedMasterTemplateIdsForBuilding(normalized);
     const settingsByTemplateId = new Map((templateSettings || []).map(function (entry) {
       return [String(entry.templateId || entry.id || ""), entry];
     }));
 
     const fallbackDueDate = new Date().toISOString().slice(0, 10);
-    const newPropertyTemplates = (masterTemplateIds || []).map(function (masterTemplateId) {
-      const master = findMasterTemplateById(masterTemplateId);
-      if (!master || alreadyLinked.has(master.id)) {
-        return null;
+    const templatesToCreate = [];
+    const templatesToUpdate = [];
+    const scheduleItemsToCreate = [];
+
+    (masterTemplateIds || []).forEach(function (masterTemplateId) {
+      const normalizedMasterTemplateId = String(masterTemplateId || "").trim();
+      if (!normalizedMasterTemplateId || assignedMasterTemplateIds.has(normalizedMasterTemplateId)) {
+        return;
       }
-      alreadyLinked.add(master.id);
+
+      const master = findMasterTemplateById(masterTemplateId);
+      if (!master) {
+        return;
+      }
+
       const settings = settingsByTemplateId.get(master.id) || {};
       const resolvedFrequency = String(settings.defaultFrequency || master.defaultFrequency || "Annual").trim() || "Annual";
       const resolvedInitialDueDate = String(settings.initialDueDate || settings.nextDueDate || master.nextDueDate || "").trim() || fallbackDueDate;
       const resolvedNextDueDate = String(settings.nextDueDate || resolvedInitialDueDate).trim() || resolvedInitialDueDate || fallbackDueDate;
-      return createPropertyTemplateFromMaster(master, {
+      const existingPropertyTemplate = existingByMasterTemplateId.get(normalizedMasterTemplateId) || null;
+
+      if (existingPropertyTemplate) {
+        const repairedTemplate = normalizePropertyTemplateRecord({
+          ...existingPropertyTemplate,
+          propertyId: targetBuildingId,
+          active: "Yes",
+          name: String(settings.name || existingPropertyTemplate.name || master.name || "").trim(),
+          category: String(settings.category || existingPropertyTemplate.category || master.category || "General").trim() || "General",
+          defaultFrequency: resolvedFrequency,
+          initialDueDate: resolvedInitialDueDate,
+          nextDueDate: resolvedNextDueDate,
+          customRecurringDates: resolvedFrequency === "Custom"
+            ? normalizeRecurringDateEntries(settings.customRecurringDates || existingPropertyTemplate.customRecurringDates || master.customRecurringDates)
+            : normalizeRecurringDateEntries(settings.customRecurringDates || existingPropertyTemplate.customRecurringDates || master.customRecurringDates),
+          defaultReminderPeriod: String(settings.defaultReminderPeriod || existingPropertyTemplate.defaultReminderPeriod || master.defaultReminderPeriod || "").trim(),
+          preferredCompanyId: String(settings.preferredCompanyId || existingPropertyTemplate.preferredCompanyId || master.preferredCompanyId || "").trim(),
+          preferredContactId: String(settings.preferredContactId || existingPropertyTemplate.preferredContactId || master.preferredContactId || "").trim(),
+          defaultNotes: String(settings.defaultNotes || existingPropertyTemplate.defaultNotes || master.defaultNotes || "").trim(),
+          suggestedDocuments: normalizeSuggestedDocuments(settings.suggestedDocuments || existingPropertyTemplate.suggestedDocuments || master.suggestedDocuments),
+          lastUpdated: new Date().toISOString(),
+        });
+
+        templatesToUpdate.push(repairedTemplate);
+
+        if (!scheduleItemsByTemplateId.has(String(repairedTemplate.id || ""))) {
+          scheduleItemsToCreate.push(createScheduleItemFromPropertyTemplate(repairedTemplate, targetBuildingId));
+        }
+        return;
+      }
+
+      const createdTemplate = createPropertyTemplateFromMaster(master, {
         propertyId: targetBuildingId,
         active: "Yes",
         defaultFrequency: resolvedFrequency,
         initialDueDate: resolvedInitialDueDate,
         nextDueDate: resolvedNextDueDate,
-        customRecurringDates: resolvedFrequency === "Custom" ? [] : normalizeRecurringDateEntries(settings.customRecurringDates || master.customRecurringDates),
+        customRecurringDates: normalizeRecurringDateEntries(settings.customRecurringDates || master.customRecurringDates),
         defaultReminderPeriod: String(settings.defaultReminderPeriod || master.defaultReminderPeriod || "").trim(),
         preferredCompanyId: String(settings.preferredCompanyId || master.preferredCompanyId || "").trim(),
         preferredContactId: String(settings.preferredContactId || master.preferredContactId || "").trim(),
         defaultNotes: String(settings.defaultNotes || master.defaultNotes || "").trim(),
         suggestedDocuments: normalizeSuggestedDocuments(settings.suggestedDocuments || master.suggestedDocuments),
       });
-    }).filter(function (template) {
-      return Boolean(template);
+
+      templatesToCreate.push(createdTemplate);
+      scheduleItemsToCreate.push(createScheduleItemFromPropertyTemplate(createdTemplate, targetBuildingId));
     });
 
-    const newScheduleItems = newPropertyTemplates.map(function (propertyTemplate) {
-      return createScheduleItemFromPropertyTemplate(propertyTemplate, targetBuildingId);
-    });
-
-    if (newPropertyTemplates.length === 0 || newScheduleItems.length === 0) {
+    if (templatesToCreate.length === 0 && templatesToUpdate.length === 0 && scheduleItemsToCreate.length === 0) {
       return {
         building: normalized,
         addedTemplateIds: [],
       };
     }
 
+    const updatesByTemplateId = new Map(templatesToUpdate.map(function (template) {
+      return [String(template.id || "").trim(), template];
+    }));
+    const mergedPropertyTemplates = existing
+      .map(function (template) {
+        const replacement = updatesByTemplateId.get(String(template.id || "").trim());
+        return replacement || template;
+      })
+      .concat(templatesToCreate);
+
     const updated = {
       ...normalized,
-      propertyTemplates: existing.concat(newPropertyTemplates),
-      scheduleItems: (normalized.scheduleItems || []).concat(newScheduleItems),
+      propertyTemplates: mergedPropertyTemplates,
+      scheduleItems: (normalized.scheduleItems || []).concat(scheduleItemsToCreate),
       lastUpdated: new Date().toISOString(),
     };
 
     const rehydrated = ensureWorkflowCollections(updated);
     return {
       building: rehydrated,
-      addedTemplateIds: newPropertyTemplates.map(function (template) {
+      addedTemplateIds: templatesToCreate.concat(templatesToUpdate).map(function (template) {
         return template.id;
       }),
     };
+  }
+
+  function getAssignedMasterTemplateIdsForBuilding(building) {
+    const normalized = ensureWorkflowCollections(building || {});
+    const propertyTemplates = getPropertyTemplates(normalized);
+    const templateIdsWithScheduleItems = new Set((normalized.scheduleItems || []).map(function (item) {
+      return String(item.propertyTemplateId || item.templateId || "").trim();
+    }).filter(function (id) {
+      return Boolean(id);
+    }));
+
+    return new Set(propertyTemplates
+      .filter(function (template) {
+        return Boolean(String(template.masterTemplateId || "").trim())
+          && templateIdsWithScheduleItems.has(String(template.id || "").trim());
+      })
+      .map(function (template) {
+        return String(template.masterTemplateId || "").trim();
+      })
+      .filter(function (id) {
+        return Boolean(id);
+      }));
   }
 
   function persistBuildingWithWorkflowSync(building) {
     const normalized = ensureWorkflowCollections(building);
     window.BuildingStorage.updateBuilding(normalized);
     return normalized;
+  }
+
+  function showManageTemplatesSaveConfirmation() {
+    if (!(manageTemplatesBtn instanceof HTMLButtonElement)) {
+      return;
+    }
+
+    const parent = manageTemplatesBtn.parentElement;
+    if (!(parent instanceof HTMLElement)) {
+      return;
+    }
+
+    const existing = parent.querySelector(".schedule-details-save-confirmation");
+    if (existing instanceof HTMLElement) {
+      existing.remove();
+    }
+
+    const confirmation = window.document.createElement("span");
+    confirmation.className = "schedule-details-save-confirmation";
+    confirmation.setAttribute("role", "status");
+    confirmation.setAttribute("aria-live", "polite");
+    confirmation.textContent = "✓ Saved";
+    parent.appendChild(confirmation);
+
+    window.setTimeout(function () {
+      if (confirmation.parentNode) {
+        confirmation.remove();
+      }
+    }, 2400);
   }
 
   async function handleManageTemplatesForProperty() {
@@ -7935,16 +8480,8 @@
     }
 
     const selected = await showMasterTemplatePickerDialog(activeBuilding);
-    if (!selected || selected.length === 0) {
-      const currentlyAssigned = new Set(getPropertyTemplates(activeBuilding).map(function (template) {
-        return String(template.masterTemplateId || "").trim();
-      }).filter(function (id) {
-        return Boolean(id);
-      }));
-
-      if (currentlyAssigned.size === 0) {
-        return;
-      }
+    if (!Array.isArray(selected)) {
+      return;
     }
 
     const currentBuilding = findBuildingById(propertyId);
@@ -7952,11 +8489,7 @@
       return;
     }
 
-    const currentlyAssigned = new Set(getPropertyTemplates(currentBuilding).map(function (template) {
-      return String(template.masterTemplateId || "").trim();
-    }).filter(function (id) {
-      return Boolean(id);
-    }));
+    const currentlyAssigned = getAssignedMasterTemplateIdsForBuilding(currentBuilding);
     const selectedIds = new Set((selected || []).map(function (id) {
       return String(id || "").trim();
     }).filter(function (id) {
@@ -7970,15 +8503,16 @@
       return !selectedIds.has(id);
     });
 
+    if (toAdd.length === 0 && toRemove.length === 0) {
+      return;
+    }
+
     let workingBuilding = ensureWorkflowCollections(currentBuilding);
 
     if (toRemove.length > 0) {
-      const shouldRemove = await confirmPropertyTemplateUnassignDialog(toRemove.length);
-      if (shouldRemove) {
-        const removed = removeMasterTemplatesFromBuilding(toRemove, propertyId);
-        if (removed) {
-          workingBuilding = ensureWorkflowCollections(removed);
-        }
+      const removed = removeMasterTemplatesFromBuilding(workingBuilding, toRemove);
+      if (removed) {
+        workingBuilding = ensureWorkflowCollections(removed);
       }
     }
 
@@ -7986,6 +8520,7 @@
       persistBuildingWithWorkflowSync(workingBuilding);
       renderBuildings();
       openScheduleView(propertyId);
+      showManageTemplatesSaveConfirmation();
       return;
     }
 
@@ -7994,12 +8529,12 @@
       return;
     }
 
-    persistBuildingWithWorkflowSync(workingBuilding);
-
-    const addResult = addMasterTemplatesToActiveBuilding(toAdd, propertyId, scheduleSettings);
+    const addResult = addMasterTemplatesToBuilding(workingBuilding, toAdd, scheduleSettings);
     if (!addResult || addResult.addedTemplateIds.length === 0) {
+      persistBuildingWithWorkflowSync(workingBuilding);
       renderBuildings();
       openScheduleView(propertyId);
+      showManageTemplatesSaveConfirmation();
       return;
     }
 
@@ -8007,6 +8542,7 @@
 
     renderBuildings();
     openScheduleView(propertyId);
+    showManageTemplatesSaveConfirmation();
   }
 
   function handleScheduleBack() {
@@ -8019,6 +8555,27 @@
   }
 
   function getScheduleDetailsData(building, scheduleItem) {
+    // Tenancy-generated items have no property template; build synthetic details data.
+    if (scheduleItem.sourceType === "tenancy") {
+      const tenancy = getAllTenanciesForBuilding(building).find(function (t) {
+        return String(t.id || "") === String(scheduleItem.tenancyId || "");
+      }) || null;
+      const records = (building.historyRecords || [])
+        .filter(function (record) {
+          return record.scheduleItemId === scheduleItem.id && !record.revertedAt;
+        })
+        .sort(function (left, right) {
+          return new Date(right.completedAt || right.completedDate).getTime() - new Date(left.completedAt || left.completedDate).getTime();
+        });
+      return {
+        template: null,
+        tenancy: tenancy,
+        records: records,
+        latestRecord: records[0] || null,
+        isTenancyItem: true,
+      };
+    }
+
     const template = findPropertyTemplateById(building, scheduleItem.propertyTemplateId || scheduleItem.templateId);
     if (!template) {
       return null;
@@ -8034,8 +8591,10 @@
 
     return {
       template: template,
+      tenancy: null,
       records: records,
       latestRecord: records[0] || null,
+      isTenancyItem: false,
     };
   }
 
@@ -8265,7 +8824,55 @@
   function applyScheduleDetailsUpdates(building, templateId, updates, options) {
     const now = new Date().toISOString();
     const resolvedUpdates = updates || {};
+    const normalizedTemplateId = String(templateId || "").trim();
     const targetScheduleItemId = options && options.scheduleItemId ? String(options.scheduleItemId || "") : "";
+
+    const nextPropertyTemplates = getPropertyTemplates(building).map(function (template) {
+      if (String(template.id || "") !== normalizedTemplateId) {
+        return template;
+      }
+
+      const nextTemplate = {
+        ...template,
+        propertyId: Object.prototype.hasOwnProperty.call(resolvedUpdates, "propertyId")
+          ? String(resolvedUpdates.propertyId || "").trim()
+          : String(template.propertyId || "").trim(),
+        name: Object.prototype.hasOwnProperty.call(resolvedUpdates, "name")
+          ? String(resolvedUpdates.name || "").trim()
+          : String(template.name || "").trim(),
+        category: Object.prototype.hasOwnProperty.call(resolvedUpdates, "category")
+          ? String(resolvedUpdates.category || "").trim()
+          : String(template.category || "General").trim() || "General",
+        defaultFrequency: Object.prototype.hasOwnProperty.call(resolvedUpdates, "defaultFrequency")
+          ? String(resolvedUpdates.defaultFrequency || "").trim()
+          : String(template.defaultFrequency || "Annual").trim() || "Annual",
+        initialDueDate: Object.prototype.hasOwnProperty.call(resolvedUpdates, "initialDueDate")
+          ? String(resolvedUpdates.initialDueDate || "").trim()
+          : String(template.initialDueDate || "").trim(),
+        nextDueDate: Object.prototype.hasOwnProperty.call(resolvedUpdates, "nextDueDate")
+          ? String(resolvedUpdates.nextDueDate || "").trim()
+          : String(template.nextDueDate || "").trim(),
+        customRecurringDates: Array.isArray(resolvedUpdates.customRecurringDates)
+          ? resolvedUpdates.customRecurringDates
+          : getRecurringDatesFromTemplate(template),
+        preferredContactId: String(template.preferredContactId || "").trim(),
+        defaultNotes: Object.prototype.hasOwnProperty.call(resolvedUpdates, "defaultNotes")
+          ? String(resolvedUpdates.defaultNotes || "").trim()
+          : String(template.defaultNotes || "").trim(),
+        lastUpdated: now,
+      };
+
+      if (!nextTemplate.nextDueDate) {
+        nextTemplate.nextDueDate = nextTemplate.initialDueDate || template.nextDueDate || "";
+      }
+
+      return normalizePropertyTemplateRecord(nextTemplate);
+    });
+
+    const updatedTemplate = nextPropertyTemplates.find(function (template) {
+      return String(template.id || "") === normalizedTemplateId;
+    }) || null;
+
     const nextScheduleItems = (building.scheduleItems || []).map(function (item) {
       const matchesCurrentItem = Boolean(targetScheduleItemId) && String(item.id || "") === targetScheduleItemId;
       if (!matchesCurrentItem) {
@@ -8301,6 +8908,19 @@
         lastUpdated: now,
       };
 
+      if (updatedTemplate) {
+        next.propertyTemplateId = updatedTemplate.id;
+        next.templateId = updatedTemplate.id;
+        next.propertyId = String(updatedTemplate.propertyId || next.propertyId || "").trim();
+        next.taskName = String(updatedTemplate.name || next.taskName || "").trim();
+        next.category = String(updatedTemplate.category || next.category || "General").trim() || "General";
+        next.frequency = String(updatedTemplate.defaultFrequency || next.frequency || "Annual").trim() || "Annual";
+        next.initialDueDate = String(updatedTemplate.initialDueDate || next.initialDueDate || "").trim();
+        next.dueDate = String(updatedTemplate.nextDueDate || next.dueDate || "").trim();
+        next.preferredContactId = String(updatedTemplate.preferredContactId || next.preferredContactId || "").trim();
+        next.notes = String(updatedTemplate.defaultNotes || next.notes || "").trim();
+      }
+
       if (!next.dueDate) {
         next.dueDate = next.initialDueDate || item.dueDate || "";
       }
@@ -8311,6 +8931,7 @@
 
     return {
       ...building,
+      propertyTemplates: nextPropertyTemplates,
       scheduleItems: nextScheduleItems,
       lastUpdated: now,
     };
@@ -8319,6 +8940,20 @@
   window.BuildingManagerSchedule = {
     applyScheduleDetailsUpdates: applyScheduleDetailsUpdates,
     handleScheduleDetailsSave: handleScheduleDetailsSave,
+    getNextDueDatePlaceholder: getNextDueDatePlaceholder,
+    applyTemplateCompletion: applyTemplateCompletion,
+    applyTenancyEventCompletion: applyTenancyEventCompletion,
+    getAllTenanciesForBuilding: getAllTenanciesForBuilding,
+    getAssignedMasterTemplateIdsForBuilding: function (building) {
+      return Array.from(getAssignedMasterTemplateIdsForBuilding(building));
+    },
+    addMasterTemplatesToBuilding: addMasterTemplatesToBuilding,
+    getSortedScheduleItems: function (building) {
+      const normalized = ensureWorkflowCollections(building);
+      return sortScheduleRows(decorateScheduleRows(normalized, normalized.scheduleItems || [])).map(function (row) {
+        return row.item;
+      });
+    },
     linkScheduleItemToContact: function (building, scheduleItemId, contactId) {
       const normalized = ensureWorkflowCollections(building);
       const scheduleItem = (normalized.scheduleItems || []).find(function (item) {
@@ -8379,30 +9014,28 @@
     },
   };
 
-  function calculateNextDueDateFromSettings(initialDueDate, frequency, latestRecord, recurringDates) {
-    const baseDate = String(initialDueDate || "").trim();
+  function calculateNextDueDateFromSettings(initialDueDate, frequency, _latestRecord, recurringDates, currentDueDate) {
+    const normalizedInitialDueDate = String(initialDueDate || "").trim();
+    const normalizedCurrentDueDate = String(currentDueDate || "").trim();
+    const baseDate = normalizedCurrentDueDate || normalizedInitialDueDate;
+
     if (!baseDate) {
       return "";
     }
 
     if (frequency === "Custom") {
-      const customBaseDate = latestRecord && latestRecord.completedDate ? latestRecord.completedDate : baseDate;
-      return getNextDueDatePlaceholder(customBaseDate, frequency, recurringDates, !latestRecord);
+      return getNextDueDatePlaceholder(baseDate, frequency, recurringDates, true);
     }
 
-    if (!latestRecord || !latestRecord.completedDate) {
-      return baseDate;
-    }
-
-    return getNextDueDatePlaceholder(latestRecord.completedDate, frequency, recurringDates, false);
+    return normalizedCurrentDueDate || normalizedInitialDueDate;
   }
 
-  function showScheduleDetailsSaveConfirmation(editForm) {
-    if (!(editForm instanceof HTMLFormElement)) {
+  function showScheduleDetailsSaveConfirmation(container) {
+    if (!(container instanceof HTMLElement)) {
       return;
     }
 
-    const actions = editForm.querySelector(".schedule-details-form-actions");
+    const actions = container.querySelector("[data-schedule-details-confirmation-anchor]");
     if (!(actions instanceof HTMLElement)) {
       return;
     }
@@ -8431,7 +9064,7 @@
     const title = String(formData.get("title") || "").trim();
     const frequency = String(formData.get("frequency") || "Annual").trim();
     const category = String(formData.get("category") || "General").trim();
-    const initialDueDate = String(formData.get("initialDueDate") || "").trim();
+    const submittedInitialDueDate = String(formData.get("initialDueDate") || "").trim();
     const propertyId = String(formData.get("propertyId") || "").trim();
     const latestBuilding = findBuildingById(building && building.id ? building.id : activeBuildingId) || building;
     const currentScheduleItem = latestBuilding && Array.isArray(latestBuilding.scheduleItems)
@@ -8443,8 +9076,20 @@
     const primaryContactId = readSchedulePrimaryContactId(form, formData, currentScheduleItem, detailsData && detailsData.template ? detailsData.template : null);
     const notes = String(formData.get("notes") || "").trim();
     const recurringDates = frequency === "Custom" ? readRecurringDatesFromEditForm(form) : [];
+    const fallbackInitialDueDate = currentScheduleItem
+      ? String(currentScheduleItem.initialDueDate || currentScheduleItem.dueDate || "").trim()
+      : "";
+    const templateInitialDueDate = detailsData && detailsData.template
+      ? String(detailsData.template.initialDueDate || detailsData.template.nextDueDate || "").trim()
+      : "";
+    const initialDueDate = submittedInitialDueDate || fallbackInitialDueDate || templateInitialDueDate;
 
-    if (!title || !initialDueDate || !propertyId) {
+    if (!title || !propertyId) {
+      alert("Title and Property are required.");
+      return;
+    }
+
+    if (frequency !== "Custom" && !initialDueDate) {
       alert("Title, Property and Initial Due Date are required.");
       return;
     }
@@ -8459,7 +9104,7 @@
     }
 
     const templateId = currentScheduleItem.propertyTemplateId || currentScheduleItem.templateId || detailsData.template.id;
-    const nextDueDate = calculateNextDueDateFromSettings(initialDueDate, frequency, detailsData.latestRecord, recurringDates);
+    const nextDueDate = calculateNextDueDateFromSettings(initialDueDate, frequency, detailsData.latestRecord, recurringDates, currentScheduleItem.dueDate);
     const updatedBuilding = applyScheduleDetailsUpdates(latestBuilding, templateId, {
       name: title,
       category: category,
@@ -8488,7 +9133,7 @@
     activeScheduleItemId = currentScheduleItem.id;
     renderBuildings();
     renderSchedulePage();
-    await openScheduleDetailsDialog(savedBuilding.id, currentScheduleItem.id, true);
+    await openScheduleDetailsDialog(savedBuilding.id, currentScheduleItem.id, true, "details");
   }
 
   async function handleScheduleDocumentUpload(building, scheduleItem, type) {
@@ -8574,24 +9219,214 @@
     window.BuildingStorage.updateBuilding(normalized);
   }
 
-  function renderScheduleDetailsDialogHtml(building, scheduleItem, detailsData) {
+  function getScheduleCompletionActionLabel(title) {
+    const normalizedTitle = String(title || "").trim();
+    if (!normalizedTitle) {
+      return "Mark Completed";
+    }
+
+    const shortened = normalizedTitle.replace(/^(annual|monthly|quarterly|weekly|6 monthly|six monthly|one[- ]off|custom dates|custom)\s+/i, "").trim();
+    return `${shortened || normalizedTitle} Completed`;
+  }
+
+  function getPrimaryContactForScheduleItem(building, scheduleItem, template) {
+    const contactId = String(scheduleItem.preferredContactId || template.preferredContactId || "").trim();
+    if (!contactId) {
+      return null;
+    }
+
+    const contact = findContactById(contactId);
+    if (!contact) {
+      return null;
+    }
+
+    const relationship = String(getBuildingRelationshipForContact(building, contact) || "").trim();
+    const companyName = String(getCompanyNameById(contact.companyId, "") || "").trim();
+    const phone = String(contact.mobile || contact.officePhone || "").trim();
+    const email = String(contact.email || "").trim();
+    const relationshipOrCompany = [companyName, relationship]
+      .filter(function (value, index, values) {
+        return Boolean(value) && values.indexOf(value) === index;
+      })
+      .join(" • ");
+
+    return {
+      id: contact.id,
+      name: String(contact.name || "").trim(),
+      relationshipOrCompany: relationshipOrCompany,
+      phone: phone,
+      email: email,
+    };
+  }
+
+  function renderPrimaryContactSection(building, scheduleItem, template) {
+    const primaryContact = getPrimaryContactForScheduleItem(building, scheduleItem, template);
+    if (!primaryContact || !primaryContact.name) {
+      return `
+        <section class="schedule-details-section">
+          <h4>Primary Contact</h4>
+          <p class="module-placeholder">No primary contact assigned</p>
+        </section>
+      `;
+    }
+
+    const phoneMarkup = primaryContact.phone
+      ? `<p><strong>Phone:</strong> <a class="schedule-details-contact-link" href="tel:${escapeHtml(primaryContact.phone)}">${escapeHtml(primaryContact.phone)}</a></p>`
+      : "";
+    const emailMarkup = primaryContact.email
+      ? `<p><strong>Email:</strong> <a class="schedule-details-contact-link" href="mailto:${escapeHtml(primaryContact.email)}">${escapeHtml(primaryContact.email)}</a></p>`
+      : "";
+
+    return `
+      <section class="schedule-details-section">
+        <h4>Primary Contact</h4>
+        <div class="schedule-details-primary-contact">
+          <button class="inline-link schedule-details-contact-open" type="button" data-schedule-details-action="open-primary-contact" data-contact-id="${escapeHtml(primaryContact.id)}">${escapeHtml(primaryContact.name)}</button>
+          ${primaryContact.relationshipOrCompany ? `<p>${escapeHtml(primaryContact.relationshipOrCompany)}</p>` : ""}
+          ${phoneMarkup}
+          ${emailMarkup}
+        </div>
+      </section>
+    `;
+  }
+
+  function renderScheduleDetailsDialogHtml(building, scheduleItem, detailsData, mode) {
+    const viewMode = mode === "edit" ? "edit" : "details";
+    const isTenancyItem = Boolean(detailsData.isTenancyItem);
     const template = detailsData.template;
-    const latestRecord = detailsData.latestRecord;
-    const canRevert = Boolean(getPendingRevertRecord(building, scheduleItem));
-    const statusText = latestRecord && wasCompletedToday(latestRecord)
-      ? "Completed"
-      : getScheduleStatusText(scheduleItem);
-    const titleValue = String(scheduleItem.taskName || template.name || "").trim();
-    const categoryValue = String(scheduleItem.category || template.category || "General").trim();
-    const frequencyValue = String(scheduleItem.frequency || template.defaultFrequency || "Annual").trim();
+    const tenancy = detailsData.tenancy || null;
+
+    const statusText = getScheduleStatusText(scheduleItem);
+    const titleValue = String(scheduleItem.taskName || (template ? template.name : "") || "").trim();
+    const categoryValue = String(scheduleItem.category || (template ? template.category : "") || "General").trim();
+    const frequencyValue = String(scheduleItem.frequency || (template ? template.defaultFrequency : "") || "Annual").trim();
     const propertyValue = String(scheduleItem.propertyId || building.id || "").trim();
+    const notesValue = String(scheduleItem.notes || (template ? template.defaultNotes : "") || "").trim();
+
+    // Tenancy-sourced items: read-only details, no edit form, Open Tenancy action
+    if (isTenancyItem) {
+      const eventTypeLabel = formatTenancyEventType(scheduleItem.tenancyEventType);
+      const tenancyCompanyName = tenancy ? (tenancy.tradingName || tenancy.companyName || "Tenant") : "Unknown Tenancy";
+      const isRecurring = scheduleItem.frequency !== "One-off";
+      const completionBtnLabel = isRecurring ? `${eventTypeLabel} Completed` : `${eventTypeLabel} Noted`;
+
+      const contactId = tenancy && Array.isArray(tenancy.contactRefs) && tenancy.contactRefs[0]
+        ? String(tenancy.contactRefs[0]).trim()
+        : "";
+      const contact = contactId ? findContactById(contactId) : null;
+      const tenancyContactSection = contact
+        ? `<section class="schedule-details-section">
+            <h4>Tenancy Contact</h4>
+            <div class="schedule-details-primary-contact">
+              <button class="inline-link schedule-details-contact-open" type="button" data-schedule-details-action="open-primary-contact" data-contact-id="${escapeHtml(contact.id)}">${escapeHtml(contact.name)}</button>
+              ${contact.mobile ? `<p><strong>Phone:</strong> <a class="schedule-details-contact-link" href="tel:${escapeHtml(contact.mobile)}">${escapeHtml(contact.mobile)}</a></p>` : ""}
+              ${contact.email ? `<p><strong>Email:</strong> <a class="schedule-details-contact-link" href="mailto:${escapeHtml(contact.email)}">${escapeHtml(contact.email)}</a></p>` : ""}
+            </div>
+          </section>`
+        : "";
+
+      return `
+        <div class="schedule-details-modal" role="dialog" aria-modal="true" aria-labelledby="schedule-details-title">
+          <header class="schedule-details-header">
+            <h3 id="schedule-details-title">${escapeHtml(titleValue)}</h3>
+            <button class="btn btn-secondary btn-small" type="button" data-schedule-details-action="close">Back</button>
+          </header>
+          <section class="schedule-details-section">
+            <h4>Schedule Details</h4>
+            <dl class="schedule-details-grid">
+              <div><dt>Property</dt><dd>${escapeHtml(getBuildingNameById(propertyValue) || "Property not assigned")}</dd></div>
+              <div><dt>Tenancy</dt><dd>${escapeHtml(tenancyCompanyName)}</dd></div>
+              <div><dt>Event Type</dt><dd>${escapeHtml(eventTypeLabel)}</dd></div>
+              <div><dt>Category</dt><dd>${escapeHtml(categoryValue)}</dd></div>
+              ${isRecurring ? `<div><dt>Frequency</dt><dd>${escapeHtml(frequencyValue)}</dd></div>` : ""}
+              <div><dt>Status</dt><dd>${escapeHtml(statusText)}</dd></div>
+              <div><dt>Next Due Date</dt><dd>${formatDate(scheduleItem.dueDate)}</dd></div>
+              <div><dt>Last Completed</dt><dd>${formatLastCompletedDate(scheduleItem.lastCompletedDate || "")}</dd></div>
+            </dl>
+          </section>
+          ${tenancyContactSection}
+          <section class="schedule-details-section">
+            <h4>Completion History</h4>
+            ${renderScheduleHistoryTable(detailsData.records)}
+          </section>
+          <section class="schedule-details-bottom-actions" data-schedule-details-confirmation-anchor aria-label="Schedule actions">
+            <div class="schedule-details-bottom-actions-left">
+              <button class="btn btn-secondary" type="button" data-schedule-details-action="open-tenancy">Open Tenancy</button>
+            </div>
+            <button class="btn btn-primary" type="button" data-schedule-details-action="complete">${escapeHtml(completionBtnLabel)}</button>
+          </section>
+        </div>
+      `;
+    }
+
+    // Standard building-template item
+    const canRevert = Boolean(getPendingRevertRecord(building, scheduleItem));
     const initialDueDateValue = String(scheduleItem.initialDueDate || scheduleItem.dueDate || template.initialDueDate || "").trim();
-    const notesValue = String(scheduleItem.notes || template.defaultNotes || "").trim();
+    const isCustomFrequency = frequencyValue === "Custom";
+    const customDates = isCustomFrequency ? getRecurringDatesFromTemplate(template) : [];
+    const frequencyDisplay = isCustomFrequency ? "Custom Dates" : frequencyValue;
+    const scheduledDatesMarkup = customDates.length > 0
+      ? `<div class="schedule-details-row-span"><dt>Scheduled Dates</dt><dd>${customDates.map(function (entry) {
+        return `<span>${escapeHtml(formatRecurringDateEntry(entry))}</span>`;
+      }).join("")}</dd></div>`
+      : "";
+
+    if (viewMode === "edit") {
+      return `
+        <div class="schedule-details-modal" role="dialog" aria-modal="true" aria-labelledby="schedule-details-title">
+          <header class="schedule-details-header">
+            <h3 id="schedule-details-title">Edit Schedule Item</h3>
+            <button class="btn btn-secondary btn-small" type="button" data-schedule-details-action="close">Back</button>
+          </header>
+
+          <section class="schedule-details-section">
+            <form class="schedule-details-edit-form" data-schedule-details-edit-form>
+              <label>Title<input name="title" type="text" value="${escapeHtml(titleValue)}" required /></label>
+              <label>Property *
+                <select name="propertyId" required>
+                  ${renderPropertySelectOptions(propertyValue || building.id)}
+                </select>
+              </label>
+              <label>Frequency
+                <select name="frequency">
+                  ${TEMPLATE_FREQUENCY_OPTIONS.map(function (option) {
+                    const selected = option === frequencyValue ? " selected" : "";
+                    return `<option value="${option}"${selected}>${option}</option>`;
+                  }).join("")}
+                </select>
+              </label>
+              <label>Category
+                <select name="category">
+                  ${TEMPLATE_CATEGORY_OPTIONS.map(function (option) {
+                    const selected = option === categoryValue ? " selected" : "";
+                    return `<option value="${option}"${selected}>${option}</option>`;
+                  }).join("")}
+                </select>
+              </label>
+              <label data-initial-due-date-wrap style="display: ${isCustomFrequency ? "none" : "grid"};">Initial Due Date<input name="initialDueDate" type="date" value="${escapeHtml(initialDueDateValue)}" ${isCustomFrequency ? "" : "required"} /></label>
+              <label>Primary Contact
+                <select name="primaryContactId" data-primary-contact-select>
+                  ${renderSchedulePrimaryContactOptions(building, scheduleItem.preferredContactId || template.preferredContactId || "")}
+                </select>
+              </label>
+              <div data-recurring-dates-section style="display: ${isCustomFrequency ? "grid" : "none"}; gap: 0.7rem;">
+                ${renderRecurringDatesSection(getRecurringDatesFromTemplate(template))}
+              </div>
+              <label>Notes<textarea name="notes" rows="3">${escapeHtml(notesValue)}</textarea></label>
+              <div class="schedule-details-form-actions" data-schedule-details-confirmation-anchor>
+                <button class="btn btn-secondary btn-small" type="button" data-schedule-details-action="cancel-edit">Cancel</button>
+                <button class="btn btn-primary btn-small" type="button" data-schedule-details-action="save">Save</button>
+              </div>
+            </form>
+          </section>
+        </div>
+      `;
+    }
 
     return `
       <div class="schedule-details-modal" role="dialog" aria-modal="true" aria-labelledby="schedule-details-title">
         <header class="schedule-details-header">
-          <h3 id="schedule-details-title">${escapeHtml(scheduleItem.taskName)}</h3>
+          <h3 id="schedule-details-title">${escapeHtml(titleValue)}</h3>
           <button class="btn btn-secondary btn-small" type="button" data-schedule-details-action="close">Back</button>
         </header>
 
@@ -8600,59 +9435,21 @@
             <h4>Schedule Details</h4>
           </div>
           <dl class="schedule-details-grid" data-schedule-details-display>
-            <div><dt>Title</dt><dd>${escapeHtml(titleValue)}</dd></div>
-            <div><dt>Category</dt><dd>${escapeHtml(categoryValue)}</dd></div>
-            <div><dt>Frequency</dt><dd>${escapeHtml(frequencyValue)}</dd></div>
             <div><dt>Property</dt><dd>${escapeHtml(getBuildingNameById(propertyValue) || "Property not assigned")}</dd></div>
-            <div><dt>Initial Due Date</dt><dd>${formatDate(initialDueDateValue)}</dd></div>
-            <div><dt>Last Completed</dt><dd>${formatLastCompletedDate(scheduleItem.lastCompletedDate || "")}</dd></div>
-            <div><dt>Next Due Date</dt><dd>${formatDate(scheduleItem.dueDate)}</dd></div>
+            <div><dt>Frequency</dt><dd>${escapeHtml(frequencyDisplay)}</dd></div>
+            ${scheduledDatesMarkup}
+            <div><dt>Category</dt><dd>${escapeHtml(categoryValue)}</dd></div>
             <div><dt>Status</dt><dd>${escapeHtml(statusText)}</dd></div>
+            <div><dt>Next Due Date</dt><dd>${formatDate(scheduleItem.dueDate)}</dd></div>
+            <div><dt>Last Completed</dt><dd>${formatLastCompletedDate(scheduleItem.lastCompletedDate || "")}</dd></div>
           </dl>
-
-          <form class="schedule-details-edit-form" data-schedule-details-edit-form>
-            <dl class="schedule-details-grid schedule-details-readonly-grid">
-              <div><dt>Last Completed</dt><dd>${escapeHtml(formatLastCompletedDate(scheduleItem.lastCompletedDate || ""))}</dd></div>
-              <div><dt>Next Due Date</dt><dd>${formatDate(scheduleItem.dueDate)}</dd></div>
-            </dl>
-            <label>Title<input name="title" type="text" value="${escapeHtml(titleValue)}" required /></label>
-            <label>Property *
-              <select name="propertyId" required>
-                ${renderPropertySelectOptions(propertyValue || building.id)}
-              </select>
-            </label>
-            <label>Frequency
-              <select name="frequency">
-                ${TEMPLATE_FREQUENCY_OPTIONS.map(function (option) {
-                  const selected = option === frequencyValue ? " selected" : "";
-                  return `<option value="${option}"${selected}>${option}</option>`;
-                }).join("")}
-              </select>
-            </label>
-            <label>Category
-              <select name="category">
-                ${TEMPLATE_CATEGORY_OPTIONS.map(function (option) {
-                  const selected = option === categoryValue ? " selected" : "";
-                  return `<option value="${option}"${selected}>${option}</option>`;
-                }).join("")}
-              </select>
-            </label>
-            <label>Initial Due Date<input name="initialDueDate" type="date" value="${escapeHtml(initialDueDateValue)}" required /></label>
-            <label>Primary Contact
-              <select name="primaryContactId" data-primary-contact-select>
-                ${renderSchedulePrimaryContactOptions(building, scheduleItem.preferredContactId || template.preferredContactId || "")}
-              </select>
-            </label>
-            <div data-recurring-dates-section style="display: ${frequencyValue === "Custom" ? "grid" : "none"}; gap: 0.7rem;">
-              ${renderRecurringDatesSection(getRecurringDatesFromTemplate(template))}
-            </div>
-            <label>Notes<textarea name="notes" rows="3">${escapeHtml(notesValue)}</textarea></label>
-            <div class="schedule-details-form-actions">
-              <button class="btn btn-primary btn-small" type="button" data-schedule-details-action="save">Save</button>
-              <button class="btn btn-secondary btn-small" type="button" data-schedule-details-action="cancel-edit">Cancel</button>
-            </div>
-          </form>
         </section>
+
+        ${renderPrimaryContactSection(building, scheduleItem, template)}
+
+        ${notesValue
+          ? `<section class="schedule-details-section"><h4>Notes</h4><p class="schedule-details-notes">${escapeHtml(notesValue)}</p></section>`
+          : ""}
 
         <section class="schedule-details-section">
           <h4>Documents</h4>
@@ -8666,11 +9463,14 @@
           ${renderScheduleHistoryTable(detailsData.records)}
         </section>
 
-        <section class="schedule-details-bottom-actions" aria-label="Schedule actions">
-          ${canRevert
-            ? '<button class="btn schedule-revert-action-btn" type="button" data-schedule-details-action="revert">Revert</button>'
-            : ""}
-          <button class="btn btn-primary" type="button" data-schedule-details-action="complete">Complete</button>
+        <section class="schedule-details-bottom-actions" data-schedule-details-confirmation-anchor aria-label="Schedule actions">
+          <div class="schedule-details-bottom-actions-left">
+            ${canRevert
+              ? '<button class="btn schedule-revert-action-btn" type="button" data-schedule-details-action="revert">Revert</button>'
+              : ""}
+            <button class="btn btn-secondary" type="button" data-schedule-details-action="edit">Edit</button>
+          </div>
+          <button class="btn btn-primary" type="button" data-schedule-details-action="complete">${escapeHtml(getScheduleCompletionActionLabel(titleValue))}</button>
         </section>
       </div>
     `;
@@ -8787,22 +9587,33 @@
       return;
     }
 
-    const companyUsedId = scheduleItem.preferredCompanyId || "";
-    const companyUsed = getCompanyNameById(companyUsedId, scheduleItem.preferredCompany || "");
-    const contactUsedId = scheduleItem.preferredContactId || "";
-    const contactUsed = contactUsedId ? getContactNameById(contactUsedId) : "";
     const completedAt = new Date(`${result.completedDate}T${new Date().toTimeString().slice(0, 8)}`).toISOString();
     const normalized = ensureWorkflowCollections(building);
-    const updated = applyTemplateCompletion(normalized, scheduleItem, {
-      completedAt: completedAt,
-      completedBy: result.completedBy,
-      companyUsed: companyUsed,
-      companyUsedId: companyUsedId,
-      contactUsed: contactUsed,
-      contactUsedId: contactUsedId,
-      notes: result.notes,
-      completionDocument: result.completionDocument,
-    });
+    let updated;
+
+    if (scheduleItem.sourceType === "tenancy") {
+      updated = applyTenancyEventCompletion(normalized, scheduleItem, {
+        completedAt: completedAt,
+        completedBy: result.completedBy,
+        notes: result.notes,
+      });
+    } else {
+      const companyUsedId = scheduleItem.preferredCompanyId || "";
+      const companyUsed = getCompanyNameById(companyUsedId, scheduleItem.preferredCompany || "");
+      const contactUsedId = scheduleItem.preferredContactId || "";
+      const contactUsed = contactUsedId ? getContactNameById(contactUsedId) : "";
+      updated = applyTemplateCompletion(normalized, scheduleItem, {
+        completedAt: completedAt,
+        completedBy: result.completedBy,
+        companyUsed: companyUsed,
+        companyUsedId: companyUsedId,
+        contactUsed: contactUsed,
+        contactUsedId: contactUsedId,
+        notes: result.notes,
+        completionDocument: result.completionDocument,
+      });
+    }
+
     if (!updated) {
       return;
     }
@@ -8811,7 +9622,8 @@
     renderSchedulePage();
   }
 
-  async function openScheduleDetailsDialog(buildingId, itemId, showSavedConfirmation) {
+  async function openScheduleDetailsDialog(buildingId, itemId, showSavedConfirmation, mode) {
+    const viewMode = mode === "edit" ? "edit" : "details";
     const building = findBuildingById(buildingId);
     if (!building) {
       return;
@@ -8837,7 +9649,7 @@
 
     const backdrop = window.document.createElement("div");
     backdrop.className = "schedule-details-backdrop";
-    backdrop.innerHTML = renderScheduleDetailsDialogHtml(building, scheduleItem, detailsData);
+  backdrop.innerHTML = renderScheduleDetailsDialogHtml(building, scheduleItem, detailsData, viewMode);
     window.document.body.appendChild(backdrop);
 
     const modal = backdrop.querySelector(".schedule-details-modal");
@@ -8848,16 +9660,24 @@
         return isTopModalLayer(layer);
       }
     );
+
+    if (showSavedConfirmation && modal instanceof HTMLElement && viewMode === "details") {
+      showScheduleDetailsSaveConfirmation(modal);
+    }
+
     const editForm = backdrop.querySelector("[data-schedule-details-edit-form]");
     const template = detailsData.template;
     let saveButton = null;
+    let restoreFormValues = null;
 
-    if (editForm instanceof HTMLFormElement) {
+    if (editForm instanceof HTMLFormElement && viewMode === "edit") {
       saveButton = editForm.querySelector('button[data-schedule-details-action="save"], button[type="submit"]');
       const select = editForm.querySelector("[data-primary-contact-select]");
       const frequencySelect = editForm.querySelector('select[name="frequency"]');
       const recurringSection = editForm.querySelector("[data-recurring-dates-section]");
       const recurringList = editForm.querySelector("[data-recurring-dates-list]");
+      const initialDueDateWrap = editForm.querySelector("[data-initial-due-date-wrap]");
+      const initialDueDateInput = editForm.elements.initialDueDate;
       const initialValues = {
         title: String(scheduleItem.taskName || template.name || "").trim(),
         propertyId: String(scheduleItem.propertyId || building.id || "").trim(),
@@ -8872,10 +9692,6 @@
       const primaryContactSelect = editForm.querySelector("[data-primary-contact-select]");
       if (primaryContactSelect instanceof HTMLSelectElement) {
         primaryContactSelect.value = initialValues.primaryContactId;
-      }
-
-      if (showSavedConfirmation) {
-        showScheduleDetailsSaveConfirmation(editForm);
       }
 
       function getFormSnapshot() {
@@ -8918,7 +9734,23 @@
         }
       }
 
-      function restoreFormValues() {
+      function updateEditFrequencyVisibility() {
+        if (!(frequencySelect instanceof HTMLSelectElement)) {
+          return;
+        }
+
+        const isCustomFrequency = String(frequencySelect.value || "") === "Custom";
+        if (initialDueDateWrap instanceof HTMLElement) {
+          initialDueDateWrap.style.display = isCustomFrequency ? "none" : "grid";
+        }
+        if (initialDueDateInput instanceof HTMLInputElement) {
+          initialDueDateInput.required = !isCustomFrequency;
+        }
+
+        setScheduleRecurringDatesSectionVisibility(recurringSection, frequencySelect.value);
+      }
+
+      restoreFormValues = function () {
         if (editForm.elements.title) {
           editForm.elements.title.value = initialValues.title;
         }
@@ -8947,7 +9779,7 @@
         }
 
         if (frequencySelect instanceof HTMLSelectElement && recurringSection instanceof HTMLElement && recurringList instanceof HTMLElement) {
-          setScheduleRecurringDatesSectionVisibility(recurringSection, frequencySelect.value);
+          updateEditFrequencyVisibility();
           recurringList.innerHTML = initialValues.recurringDates.length === 0
             ? '<p class="module-placeholder">No recurring dates added yet.</p>'
             : initialValues.recurringDates.map(function (entry, index) {
@@ -8956,11 +9788,11 @@
         }
 
         updateSaveState();
-      }
+      };
 
       if (frequencySelect instanceof HTMLSelectElement && recurringSection instanceof HTMLElement && recurringList instanceof HTMLElement) {
         const renderRecurringRows = function () {
-          setScheduleRecurringDatesSectionVisibility(recurringSection, frequencySelect.value);
+          updateEditFrequencyVisibility();
           if (frequencySelect.value !== "Custom") {
             updateSaveState();
             return;
@@ -9049,6 +9881,7 @@
 
       editForm.addEventListener("input", updateSaveState);
       editForm.addEventListener("change", updateSaveState);
+      updateEditFrequencyVisibility();
       updateSaveState();
     }
 
@@ -9089,10 +9922,21 @@
         return;
       }
 
+      if (action === "edit") {
+        close();
+        // Tenancy-generated items must be edited in the Tenancy form, not the schedule edit form.
+        if (scheduleItem.sourceType === "tenancy") {
+          openCurrentTenancyView(building.id);
+          return;
+        }
+        await openScheduleDetailsDialog(building.id, scheduleItem.id, false, "edit");
+        return;
+      }
+
       if (action === "save") {
         event.preventDefault();
         event.stopPropagation();
-        if (saveButton instanceof HTMLButtonElement && saveButton.disabled) {
+        if (!(editForm instanceof HTMLFormElement) || (saveButton instanceof HTMLButtonElement && saveButton.disabled)) {
           return;
         }
         await handleScheduleDetailsSave(building, scheduleItem, editForm);
@@ -9130,14 +9974,34 @@
       }
 
       if (action === "cancel-edit") {
-        if (editForm instanceof HTMLFormElement) {
+        if (typeof restoreFormValues === "function") {
           restoreFormValues();
         }
+        close();
+        await openScheduleDetailsDialog(building.id, scheduleItem.id, false, "details");
+        return;
+      }
+
+      if (action === "open-primary-contact") {
+        const contactId = String(target.getAttribute("data-contact-id") || "").trim();
+        const contact = contactId ? findContactById(contactId) : null;
+        if (!contact) {
+          return;
+        }
+        setCurrentPropertyId(building.id);
+        close();
+        openContactDetailsDialog(contact);
+        return;
+      }
+
+      if (action === "open-tenancy") {
+        close();
+        openCurrentTenancyView(building.id);
         return;
       }
 
       const docTile = target.closest("[data-schedule-doc-type]");
-      if (docTile instanceof HTMLElement) {
+      if (docTile instanceof HTMLElement && viewMode === "details") {
         const type = String(docTile.getAttribute("data-schedule-doc-type") || "").trim();
         if (!type) {
           return;
@@ -9146,7 +10010,7 @@
       }
     });
 
-    if (editForm instanceof HTMLFormElement && saveButton instanceof HTMLButtonElement) {
+    if (editForm instanceof HTMLFormElement && saveButton instanceof HTMLButtonElement && viewMode === "edit") {
       saveButton.addEventListener("click", function (event) {
         event.preventDefault();
         event.stopPropagation();
@@ -9564,6 +10428,12 @@
   setupCreateContactBtn.addEventListener("click", addNewContactToSetup);
   setupLinkedContactsList.addEventListener("click", handleSetupLinkedContactListClick);
   setupStep3NextBtn.addEventListener("click", handleSetupStepThreeNext);
+  if (setupSelectAllBtn instanceof HTMLButtonElement) {
+    setupSelectAllBtn.addEventListener("click", handleSetupSelectAll);
+  }
+  if (setupClearAllBtn instanceof HTMLButtonElement) {
+    setupClearAllBtn.addEventListener("click", handleSetupClearAll);
+  }
   setupStep4NextBtn.addEventListener("click", handleSetupStepFourNext);
   setupConfigureList.addEventListener("change", handleConfigureListChange);
   setupStep5FinishBtn.addEventListener("click", handleSetupStepFiveFinish);
@@ -9588,6 +10458,12 @@
     openTenancyForm("add");
   });
   editTenancyBtn.addEventListener("click", handleEditTenancy);
+  const addAnotherTenancyBtn = document.getElementById("add-another-tenancy-btn");
+  if (addAnotherTenancyBtn instanceof HTMLButtonElement) {
+    addAnotherTenancyBtn.addEventListener("click", function () {
+      openTenancyForm("add");
+    });
+  }
   tenancyTabCurrent.addEventListener("click", handleTenancyTabCurrent);
   tenancyTabHistory.addEventListener("click", handleTenancyTabHistory);
   if (archiveTenancyBtn instanceof HTMLButtonElement) {
@@ -9612,6 +10488,9 @@
   cancelCompanyBtn.addEventListener("click", handleCancelCompany);
   addTemplateBtn.addEventListener("click", handleAddTemplate);
   addTemplateInlineBtn.addEventListener("click", handleAddTemplate);
+  if (templateFormDeleteBtn instanceof HTMLButtonElement) {
+    templateFormDeleteBtn.addEventListener("click", handleTemplateFormDelete);
+  }
   cancelTemplateBtn.addEventListener("click", handleCancelTemplate);
   cancelCompleteTaskBtn.addEventListener("click", handleCancelCompleteTask);
   placeholderBackBtn.addEventListener("click", handlePlaceholderBack);

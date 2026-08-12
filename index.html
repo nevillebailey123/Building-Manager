@@ -89,20 +89,20 @@
         <section id="template-library-empty-state" class="module-content-card">
           <p class="module-placeholder">No templates have been created.</p>
           <div class="actions-row actions-row-tight">
-            <button id="add-template-btn" class="btn btn-primary" type="button">+ Add Template</button>
+            <button id="add-template-btn" class="btn btn-primary" type="button">+ Add Master Template</button>
           </div>
         </section>
 
         <section id="template-library-list-card" class="module-content-card">
           <div class="contacts-list-header">
             <h3>Template Directory</h3>
-            <button id="add-template-inline-btn" class="btn btn-primary" type="button">+ Add Template</button>
+            <button id="add-template-inline-btn" class="btn btn-primary" type="button">+ Add Master Template</button>
           </div>
           <section id="template-library-list" class="building-list" aria-live="polite"></section>
         </section>
 
         <section id="template-library-form-card" class="module-content-card">
-          <h3 id="template-form-title">Add Template</h3>
+          <h3 id="template-form-title">Add Master Template</h3>
           <form id="template-form" class="building-form">
             <input id="templateId" name="templateId" type="hidden" />
 
@@ -138,6 +138,7 @@
 
             <div class="form-actions">
               <button class="btn btn-primary" type="submit">Save</button>
+              <button id="template-form-delete-btn" class="btn template-delete-btn" type="button" style="display: none;">Delete Master Template</button>
               <button id="cancel-template-btn" class="btn btn-secondary" type="button">Cancel</button>
             </div>
           </form>
@@ -300,10 +301,14 @@
           <form id="setup-templates-form" class="building-form">
             <h3 id="setup-step-4-title">Step 4: Scheduled Items</h3>
             <p class="module-placeholder">Select the schedule templates that apply to this building.</p>
+            <div class="setup-template-bulk-actions">
+              <button id="setup-select-all-btn" class="btn btn-secondary btn-small" type="button">Select All</button>
+              <button id="setup-clear-all-btn" class="btn btn-secondary btn-small" type="button">Clear All</button>
+            </div>
             <section id="setup-template-list" class="setup-template-list"></section>
 
             <div class="form-actions">
-              <button id="setup-step-4-next-btn" class="btn btn-primary" type="button">Configure Selected Items</button>
+              <button id="setup-step-4-next-btn" class="btn btn-primary" type="button">Continue</button>
             </div>
           </form>
         </section>
@@ -414,11 +419,16 @@
           <section id="tenancy-details-card" class="module-content-card">
             <h3>Current</h3>
             <dl id="tenancy-details-list" class="snapshot-list"></dl>
+            <div class="actions-row actions-row-tight">
+              <button id="add-another-tenancy-btn" class="btn btn-secondary btn-small" type="button">+ Add Another Tenancy</button>
+            </div>
           </section>
 
           <section id="tenancy-form-card" class="module-content-card">
             <h3 id="tenancy-form-title">Add Current Tenancy</h3>
             <form id="tenancy-form" class="building-form">
+              <input type="hidden" name="tenancyId" id="tenancyFormId" />
+
               <label for="tenancyCompanyName">Company Name</label>
               <input id="tenancyCompanyName" name="companyName" type="text" required />
 
@@ -430,6 +440,23 @@
 
               <label for="tenancyLeaseEnd">Lease End Date</label>
               <input id="tenancyLeaseEnd" name="leaseEnd" type="date" required />
+
+              <label for="tenancyRentReviewDate">Rent Review Date (optional)</label>
+              <input id="tenancyRentReviewDate" name="rentReviewDate" type="date" />
+
+              <label for="tenancyRentReviewFrequency">Rent Review Frequency</label>
+              <select id="tenancyRentReviewFrequency" name="rentReviewFrequency">
+                <option value="Annual">Annual</option>
+                <option value="2 Yearly">2 Yearly</option>
+                <option value="3 Yearly">3 Yearly</option>
+                <option value="One-off">One-off</option>
+              </select>
+
+              <label for="tenancyRenewalDate">Renewal / Option Date (optional)</label>
+              <input id="tenancyRenewalDate" name="renewalDate" type="date" />
+
+              <label for="tenancyNoticeDate">Notice Date (optional)</label>
+              <input id="tenancyNoticeDate" name="noticeDate" type="date" />
 
               <fieldset class="status-group">
                 <legend>Status</legend>
@@ -676,7 +703,7 @@
             <p class="tagline">Live operations queue for scheduled work.</p>
             <p id="schedule-building-name" class="overview-building-name visually-hidden"></p>
           </div>
-          <div class="top-right-actions">
+          <div class="top-right-actions schedule-header-actions">
             <button id="manage-templates-btn" class="btn btn-secondary btn-small" type="button">Manage Templates</button>
             <button id="schedule-back-btn" class="btn btn-secondary" type="button">← Back</button>
           </div>
