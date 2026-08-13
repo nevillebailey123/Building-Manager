@@ -2577,8 +2577,13 @@
     const now = new Date().toISOString();
     const existingById = new Set(existing.map(function (template) { return template.id; }));
     const migrated = existing.slice();
+    const tenancies = getAllTenanciesForBuilding(building);
 
     (scheduleItems || []).forEach(function (item) {
+      if (resolveLegacyTenancyEventKey(item, tenancies)) {
+        return;
+      }
+
       const linkedPropertyTemplateId = String(item.propertyTemplateId || item.templateId || "").trim();
       if (linkedPropertyTemplateId && existingById.has(linkedPropertyTemplateId)) {
         return;
@@ -2667,6 +2672,18 @@
     return [];
   }
 
+  function createUniqueTenancyId(usedIds) {
+    const baseId = String(window.BuildingStorage.createId() || "tenancy").trim() || "tenancy";
+    let candidate = baseId;
+    let suffix = 1;
+    while (usedIds.has(candidate)) {
+      candidate = baseId + "-" + suffix;
+      suffix += 1;
+    }
+    usedIds.add(candidate);
+    return candidate;
+  }
+
   function getTenancyLabelForScheduleItem(item) {
     if (!item || item.sourceType !== "tenancy" || !item.tenancyId) {
       return "";
@@ -2694,18 +2711,227 @@
     return labels[String(eventType || "")] || String(eventType || "").replace(/-/g, " ");
   }
 
-  function syncTenancyScheduleItems(building, existingTenancyItems) {
+  function getTenancyEventSourceDate(tenancy, eventType) {
+    if (!tenancy) {
+      return "";
+    }
+
+    if (eventType === "rent-review") {
+      return String(tenancy.rentReviewDate || "").trim();
+    }
+    if (eventType === "lease-expiry") {
+      return String(tenancy.leaseEnd || "").trim();
+    }
+    if (eventType === "renewal-option") {
+      return String(tenancy.renewalDate || "").trim();
+    }
+    if (eventType === "notice-date") {
+      return String(tenancy.noticeDate || "").trim();
+    }
+
+    return "";
+  }
+
+  function inferTenancyEventTypeFromItem(item) {
+    const explicit = String(item && item.tenancyEventType || "").trim();
+    if (explicit) {
+      return explicit;
+    }
+
+    const taskName = normalizeText(item && item.taskName || "");
+    if (taskName.includes("lease expiry")) {
+      return "lease-expiry";
+    }
+    if (taskName.includes("rent review")) {
+      return "rent-review";
+    }
+    if (taskName.includes("renewal") || taskName.includes("option")) {
+      return "renewal-option";
+    }
+    if (taskName.includes("notice date")) {
+      return "notice-date";
+    }
+
+    return "";
+  }
+
+  function buildTenancyEventKey(tenancyId, eventType) {
+    const normalizedTenancyId = String(tenancyId || "").trim();
+    const normalizedEventType = String(eventType || "").trim();
+    if (!normalizedTenancyId || !normalizedEventType) {
+      return "";
+    }
+    return normalizedTenancyId + "|" + normalizedEventType;
+  }
+
+  function doesTaskNameMatchTenancy(itemTaskName, tenancy) {
+    const task = normalizeText(itemTaskName || "");
+    if (!task) {
+      return false;
+    }
+
+    const labels = [
+      normalizeText(tenancy && tenancy.companyName || ""),
+      normalizeText(tenancy && tenancy.tradingName || ""),
+    ].filter(Boolean);
+
+    if (labels.length === 0) {
+      return false;
+    }
+
+    return labels.some(function (label) {
+      return task.includes(label);
+    });
+  }
+
+  function resolveLegacyTenancyEventKey(item, tenancies) {
+    if (!item) {
+      return "";
+    }
+
+    if (String(item.sourceType || "") === "tenancy" && item.tenancyId) {
+      const explicitEventType = inferTenancyEventTypeFromItem(item);
+      return buildTenancyEventKey(item.tenancyId, explicitEventType);
+    }
+
+    const eventType = inferTenancyEventTypeFromItem(item);
+    if (!eventType) {
+      return "";
+    }
+
+    const dueDate = String(item.dueDate || "").trim();
+    if (!dueDate) {
+      return "";
+    }
+
+    const matchingTenancies = (tenancies || []).filter(function (tenancy) {
+      if (!tenancy || !String(tenancy.id || "").trim()) {
+        return false;
+      }
+
+      const sourceDate = getTenancyEventSourceDate(tenancy, eventType);
+      if (!sourceDate || sourceDate !== dueDate) {
+        return false;
+      }
+
+      return doesTaskNameMatchTenancy(item.taskName, tenancy);
+    });
+
+    if (matchingTenancies.length !== 1) {
+      return "";
+    }
+
+    return buildTenancyEventKey(matchingTenancies[0].id, eventType);
+  }
+
+  function getScheduleItemMetadataScore(item) {
+    if (!item || typeof item !== "object") {
+      return 0;
+    }
+
+    let score = 0;
+    if (String(item.sourceType || "") === "tenancy") {
+      score += 2;
+    }
+    if (String(item.lastCompletedDate || "").trim()) {
+      score += 3;
+    }
+    if (String(item.lastCompletionHistoryId || "").trim()) {
+      score += 3;
+    }
+    if (String(item.preferredCompanyId || item.preferredCompany || "").trim()) {
+      score += 1;
+    }
+    if (String(item.preferredContactId || "").trim()) {
+      score += 1;
+    }
+    if (String(item.notes || "").trim()) {
+      score += 1;
+    }
+
+    return score;
+  }
+
+  function chooseBestScheduleItemCandidate(candidates) {
+    if (!Array.isArray(candidates) || candidates.length === 0) {
+      return null;
+    }
+
+    return candidates.slice().sort(function (left, right) {
+      const scoreDiff = getScheduleItemMetadataScore(right) - getScheduleItemMetadataScore(left);
+      if (scoreDiff !== 0) {
+        return scoreDiff;
+      }
+
+      const rightIsTenancy = String(right.sourceType || "") === "tenancy";
+      const leftIsTenancy = String(left.sourceType || "") === "tenancy";
+      if (rightIsTenancy !== leftIsTenancy) {
+        return rightIsTenancy ? 1 : -1;
+      }
+
+      return String(left.id || "").localeCompare(String(right.id || ""));
+    })[0] || null;
+  }
+
+  function mergeScheduleItemMetadata(baseItem, candidates) {
+    const merged = {
+      ...baseItem,
+    };
+
+    (candidates || []).forEach(function (candidate) {
+      if (!candidate || typeof candidate !== "object") {
+        return;
+      }
+
+      if (!String(merged.preferredCompanyId || "").trim() && String(candidate.preferredCompanyId || "").trim()) {
+        merged.preferredCompanyId = candidate.preferredCompanyId;
+      }
+      if (!String(merged.preferredCompany || "").trim() && String(candidate.preferredCompany || "").trim()) {
+        merged.preferredCompany = candidate.preferredCompany;
+      }
+      if (!String(merged.preferredContactId || "").trim() && String(candidate.preferredContactId || "").trim()) {
+        merged.preferredContactId = candidate.preferredContactId;
+      }
+      if (!String(merged.lastCompletedDate || "").trim() && String(candidate.lastCompletedDate || "").trim()) {
+        merged.lastCompletedDate = candidate.lastCompletedDate;
+      }
+      if (!String(merged.lastCompletionHistoryId || "").trim() && String(candidate.lastCompletionHistoryId || "").trim()) {
+        merged.lastCompletionHistoryId = candidate.lastCompletionHistoryId;
+      }
+      if (!String(merged.notes || "").trim() && String(candidate.notes || "").trim()) {
+        merged.notes = candidate.notes;
+      }
+      if (!String(merged.createdDate || "").trim() && String(candidate.createdDate || "").trim()) {
+        merged.createdDate = candidate.createdDate;
+      }
+      if (!String(merged.frequency || "").trim() && String(candidate.frequency || "").trim()) {
+        merged.frequency = candidate.frequency;
+      }
+    });
+
+    return merged;
+  }
+
+  function syncTenancyScheduleItems(building, existingScheduleItems) {
     const tenancies = getAllTenanciesForBuilding(building);
     const propertyId = String(building && building.id ? building.id : "").trim();
     const now = new Date().toISOString();
 
-    const existingById = new Map(
-      (existingTenancyItems || []).map(function (item) {
-        return [String(item.id || ""), item];
-      })
-    );
+    const candidatesByKey = new Map();
+    (existingScheduleItems || []).forEach(function (item) {
+      const key = resolveLegacyTenancyEventKey(item, tenancies);
+      if (!key) {
+        return;
+      }
+
+      const existing = candidatesByKey.get(key) || [];
+      existing.push(item);
+      candidatesByKey.set(key, existing);
+    });
 
     const generated = [];
+    const consumedItemIds = new Set();
+    const droppedItemIdMap = {};
 
     tenancies.forEach(function (tenancy) {
       if (!tenancy || !String(tenancy.id || "").trim()) {
@@ -2719,13 +2945,31 @@
         if (!String(sourceDueDate || "").trim()) {
           return;
         }
-        const itemId = "tenancy-event-" + tenancyId + "-" + eventType;
-        const existing = existingById.get(itemId);
+        const key = buildTenancyEventKey(tenancyId, eventType);
+        const candidates = candidatesByKey.get(key) || [];
+        const retainedCandidate = chooseBestScheduleItemCandidate(candidates);
+        const itemId = retainedCandidate && String(retainedCandidate.id || "").trim()
+          ? String(retainedCandidate.id || "").trim()
+          : "tenancy-event-" + tenancyId + "-" + eventType;
+
+        candidates.forEach(function (candidate) {
+          const candidateId = String(candidate && candidate.id || "").trim();
+          if (!candidateId) {
+            return;
+          }
+
+          consumedItemIds.add(candidateId);
+          if (candidateId !== itemId) {
+            droppedItemIdMap[candidateId] = itemId;
+          }
+        });
+
         // For recurring items, preserve an advanced dueDate; for fixed items, always pin to source.
-        const dueDate = (frequency !== "One-off" && existing && String(existing.dueDate || "").trim())
-          ? existing.dueDate
+        const dueDate = (frequency !== "One-off" && retainedCandidate && String(retainedCandidate.dueDate || "").trim())
+          ? retainedCandidate.dueDate
           : sourceDueDate;
-        const item = {
+
+        const baseItem = {
           id: itemId,
           sourceType: "tenancy",
           tenancyId: tenancyId,
@@ -2738,16 +2982,18 @@
           frequency: frequency,
           dueDate: dueDate,
           initialDueDate: sourceDueDate,
-          lastCompletedDate: existing ? String(existing.lastCompletedDate || "") : "",
-          lastCompletionHistoryId: existing ? String(existing.lastCompletionHistoryId || "") : "",
+          lastCompletedDate: retainedCandidate ? String(retainedCandidate.lastCompletedDate || "") : "",
+          lastCompletionHistoryId: retainedCandidate ? String(retainedCandidate.lastCompletionHistoryId || "") : "",
           preferredCompany: "",
           preferredCompanyId: "",
           preferredContactId: "",
-          notes: "",
+          notes: retainedCandidate ? String(retainedCandidate.notes || "") : "",
           status: "",
-          createdDate: existing ? existing.createdDate : now,
+          createdDate: retainedCandidate ? retainedCandidate.createdDate : now,
           lastUpdated: now,
         };
+
+        const item = mergeScheduleItemMetadata(baseItem, candidates);
         item.status = getScheduleStatusText(item);
         generated.push(item);
       }
@@ -2774,7 +3020,11 @@
       }
     });
 
-    return generated;
+    return {
+      items: generated,
+      consumedItemIds: consumedItemIds,
+      droppedItemIdMap: droppedItemIdMap,
+    };
   }
 
   function applyTenancyEventCompletion(building, scheduleItem, options) {
@@ -3014,30 +3264,47 @@
       };
     });
 
-    // Preserve tenancy-sourced items across the property-template sync
-    const preSyncTenancyItems = next.scheduleItems.filter(function (item) {
-      return item.sourceType === "tenancy";
-    });
+    const tenancySync = syncTenancyScheduleItems(next, next.scheduleItems);
+    const consumedTenancyItemIds = tenancySync.consumedItemIds || new Set();
     const nonTenancyItems = next.scheduleItems.filter(function (item) {
-      return item.sourceType !== "tenancy";
+      const itemId = String(item && item.id || "").trim();
+      return item.sourceType !== "tenancy" && (!itemId || !consumedTenancyItemIds.has(itemId));
     });
 
     const templateDerivedItems = syncScheduleItemsFromPropertyTemplates(next, nonTenancyItems);
-    const tenancySyncedItems = syncTenancyScheduleItems(next, preSyncTenancyItems);
+    next.scheduleItems = templateDerivedItems.concat(tenancySync.items || []);
 
-    next.scheduleItems = templateDerivedItems.concat(tenancySyncedItems);
+    const droppedItemIdMap = tenancySync.droppedItemIdMap || {};
+    next.historyRecords = next.historyRecords.map(function (record) {
+      const replacementScheduleItemId = droppedItemIdMap[String(record.scheduleItemId || "")];
+      if (!replacementScheduleItemId) {
+        return record;
+      }
+
+      return {
+        ...record,
+        scheduleItemId: replacementScheduleItemId,
+      };
+    });
 
     // Normalise legacy single-tenancy to tenancies array for multi-tenancy support.
     if (!Array.isArray(next.tenancies)) {
       next.tenancies = next.tenancy ? [next.tenancy] : [];
     }
 
+    const usedTenancyIds = new Set();
     next.tenancies = next.tenancies
       .filter(function (tenancy) {
         return Boolean(tenancy && typeof tenancy === "object");
       })
       .map(function (tenancy) {
-        const tenancyId = String(tenancy.id || "").trim() || window.BuildingStorage.createId();
+        const existingTenancyId = String(tenancy.id || "").trim();
+        let tenancyId = existingTenancyId;
+        if (!tenancyId || usedTenancyIds.has(tenancyId)) {
+          tenancyId = createUniqueTenancyId(usedTenancyIds);
+        } else {
+          usedTenancyIds.add(tenancyId);
+        }
         const lease = tenancy.lease && typeof tenancy.lease === "object"
           ? tenancy.lease
           : {
@@ -6328,8 +6595,12 @@
     const normalizedTenancy = existingTenancy || (createMode ? null : normalizedBuilding.tenancy) || null;
     // Read tenancy ID from hidden form field so edits to existing tenancies preserve the ID.
     const formTenancyId = createMode ? "" : String(formData.get("tenancyId") || "").trim();
+    const usedTenancyIds = new Set(getAllTenanciesForBuilding(building).map(function (tenancy) {
+      return String(tenancy.id || "").trim();
+    }).filter(Boolean));
+    const tenancyId = formTenancyId || (existingTenancy && existingTenancy.id ? existingTenancy.id : "");
     return {
-      id: formTenancyId || (existingTenancy && existingTenancy.id ? existingTenancy.id : window.BuildingStorage.createId()),
+      id: tenancyId || createUniqueTenancyId(usedTenancyIds),
       companyName: companyName,
       companyId: company ? company.id : "",
       tradingName: String(formData.get("tradingName") || "").trim(),

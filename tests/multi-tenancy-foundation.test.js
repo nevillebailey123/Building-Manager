@@ -498,28 +498,73 @@ assert.ok(a2, "A2 should be present");
 assert.notStrictEqual(String(a2.id || ""), String(a1.id || ""), "A2 must have a unique ID");
 assert.strictEqual(a2.companyName, "Tenant A2", "A2 company should be saved");
 
-// 9-10: Edit A2 only and ensure A1 remains unchanged.
+// TEST 3a: A third and fourth tenancy append without replacing earlier records.
+clickButton(addAnotherTenancyBtn);
+setTenancyFormValues({
+  companyName: "Tenant A3",
+  tradingName: "A3 Trading",
+  leaseStart: "2026-03-01",
+  leaseEnd: "2032-03-01",
+  status: "Occupied",
+  notes: "A3 original",
+});
+submitTenancyForm();
+
+const buildingAAfterA3 = ctx3.window.BuildingStorage.getBuildingById("bld-workflow-a");
+assert.strictEqual(buildingAAfterA3.tenancies.length, 3, "Adding A3 must preserve A1 and A2");
+assert.strictEqual(buildingAAfterA3.tenancies[0].companyName, "Tenant A1", "A1 must remain after adding A3");
+assert.strictEqual(buildingAAfterA3.tenancies[1].companyName, "Tenant A2", "A2 must remain after adding A3");
+const a3 = buildingAAfterA3.tenancies.find(function (tenancy) {
+  return tenancy.companyName === "Tenant A3";
+});
+assert.ok(a3, "A3 should be present after append");
+
+clickButton(addAnotherTenancyBtn);
+setTenancyFormValues({
+  companyName: "Tenant A4",
+  tradingName: "A4 Trading",
+  leaseStart: "2026-04-01",
+  leaseEnd: "2033-04-01",
+  status: "Occupied",
+  notes: "A4 original",
+});
+submitTenancyForm();
+
+const buildingAAfterA4 = ctx3.window.BuildingStorage.getBuildingById("bld-workflow-a");
+assert.strictEqual(buildingAAfterA4.tenancies.length, 4, "Adding A4 must preserve all four tenancies");
+assert.strictEqual(new Set(buildingAAfterA4.tenancies.map(function (tenancy) { return tenancy.id; })).size, 4, "All four tenancy IDs must be unique");
+assert.strictEqual(
+  buildingAAfterA4.tenancies.map(function (tenancy) { return tenancy.companyName; }).join("|"),
+  "Tenant A1|Tenant A2|Tenant A3|Tenant A4",
+  "Adding A4 must not replace an earlier tenancy"
+);
+const a4 = buildingAAfterA4.tenancies.find(function (tenancy) {
+  return tenancy.companyName === "Tenant A4";
+});
+assert.ok(a4, "A4 should be present after append");
+
+// 9-10: Edit A3 only and ensure the other three tenancies remain unchanged.
 const detailsActionTarget = new FakeElement("", "BUTTON");
 detailsActionTarget.setAttribute("data-tenancy-list-action", "details");
-detailsActionTarget.setAttribute("data-tenancy-id", a2.id);
+detailsActionTarget.setAttribute("data-tenancy-id", a3.id);
 const detailsHandlers = tenancyDetailsList.listeners.click || [];
 assert.ok(detailsHandlers.length > 0, "Tenancy details click handler missing");
 detailsHandlers[0]({ target: detailsActionTarget });
 
 clickButton(editTenancyBtn);
 setTenancyFormValues({
-  tenancyId: a2.id,
-  companyName: "Tenant A2 Updated",
-  tradingName: "A2 Trading",
-  leaseStart: "2026-02-01",
-  leaseEnd: "2031-02-01",
+  tenancyId: a3.id,
+  companyName: "Tenant A3 Updated",
+  tradingName: "A3 Trading Updated",
+  leaseStart: "2026-03-01",
+  leaseEnd: "2032-03-02",
   status: "Occupied",
-  notes: "A2 updated",
+  notes: "A3 updated",
 });
 submitTenancyForm();
 
 const buildingAAfterEdit = ctx3.window.BuildingStorage.getBuildingById("bld-workflow-a");
-assert.strictEqual(buildingAAfterEdit.tenancies.length, 2, "Editing A2 must not duplicate or remove tenancies");
+assert.strictEqual(buildingAAfterEdit.tenancies.length, 4, "Editing A3 must not duplicate or remove tenancies");
 
 const a1Final = buildingAAfterEdit.tenancies.find(function (tenancy) {
   return String(tenancy.id || "") === String(a1.id || "");
@@ -527,23 +572,219 @@ const a1Final = buildingAAfterEdit.tenancies.find(function (tenancy) {
 const a2Final = buildingAAfterEdit.tenancies.find(function (tenancy) {
   return String(tenancy.id || "") === String(a2.id || "");
 });
+const a3Final = buildingAAfterEdit.tenancies.find(function (tenancy) {
+  return String(tenancy.id || "") === String(a3.id || "");
+});
+const a4Final = buildingAAfterEdit.tenancies.find(function (tenancy) {
+  return String(tenancy.id || "") === String(a4.id || "");
+});
 assert.ok(a1Final, "A1 should still exist after editing A2");
 assert.ok(a2Final, "A2 should still exist after editing A2");
+assert.ok(a3Final, "A3 should still exist after editing A3");
+assert.ok(a4Final, "A4 should still exist after editing A3");
 assert.strictEqual(a1Final.companyName, "Tenant A1", "A1 should not be modified by editing A2");
 assert.strictEqual(a1Final.notes, "A1 original", "A1 notes should not change when editing A2");
-assert.strictEqual(a2Final.companyName, "Tenant A2 Updated", "A2 update should be applied");
-assert.strictEqual(a2Final.leaseEnd, "2031-02-01", "A2 lease end should be updated");
+assert.strictEqual(a2Final.companyName, "Tenant A2", "A2 should not be modified by editing A3");
+assert.strictEqual(a2Final.notes, "A2 original", "A2 notes should not change when editing A3");
+assert.strictEqual(a3Final.companyName, "Tenant A3 Updated", "A3 update should be applied");
+assert.strictEqual(a3Final.leaseEnd, "2032-03-02", "A3 lease end should be updated");
+assert.strictEqual(a4Final.companyName, "Tenant A4", "A4 should not be modified by editing A3");
+assert.strictEqual(a4Final.notes, "A4 original", "A4 notes should not change when editing A3");
 
-// 11-12: Reload/normalize and verify both tenancies persist.
+// 11-12: Reload/normalize and verify all four tenancies persist.
 const persistedAfterWorkflow = JSON.parse(ctx3.localStorage.getItem("buildingManagerBuildings"));
 const ctx4 = createHarness(persistedAfterWorkflow);
 const buildingAAfterReload = ctx4.window.BuildingStorage.getBuildingById("bld-workflow-a");
-assert.strictEqual(buildingAAfterReload.tenancies.length, 2, "Both tenancies must survive reload/normalization");
+assert.strictEqual(buildingAAfterReload.tenancies.length, 4, "All four tenancies must survive reload/normalization");
 assert.ok(buildingAAfterReload.tenancies.some(function (tenancy) { return String(tenancy.id || "") === String(a1.id || ""); }), "A1 missing after reload");
 assert.ok(buildingAAfterReload.tenancies.some(function (tenancy) { return String(tenancy.id || "") === String(a2.id || ""); }), "A2 missing after reload");
+assert.ok(buildingAAfterReload.tenancies.some(function (tenancy) { return String(tenancy.id || "") === String(a3.id || ""); }), "A3 missing after reload");
+assert.ok(buildingAAfterReload.tenancies.some(function (tenancy) { return String(tenancy.id || "") === String(a4.id || ""); }), "A4 missing after reload");
+
+const reloadedScheduleItems = ctx4.window.BuildingManagerSchedule.getSortedScheduleItems(buildingAAfterReload)
+  .filter(function (item) {
+    return item.sourceType === "tenancy" && item.tenancyEventType === "lease-expiry";
+  });
+assert.strictEqual(reloadedScheduleItems.length, 4, "All four tenancy schedule events must survive reload");
+assert.strictEqual(
+  reloadedScheduleItems.map(function (item) { return item.tenancyId; }).sort().join("|"),
+  [a1.id, a2.id, a3.id, a4.id].sort().join("|"),
+  "Schedule events must remain associated with the correct tenancy IDs"
+);
 
 const buildingBAfterWorkflow = ctx4.window.BuildingStorage.getBuildingById("bld-workflow-b");
 assert.strictEqual(buildingBAfterWorkflow.tenancies.length, 1, "Building B should remain isolated");
 assert.strictEqual(buildingBAfterWorkflow.tenancies[0].companyName, "Beta Tenant", "Building B tenancy should remain unchanged");
+
+// TEST 4: Legacy + tenancy-linked duplicate lease expiry is upgraded into one tenancy event item.
+const api4 = ctx4.window.BuildingManagerSchedule;
+const duplicateSourceBuilding = {
+  id: "bld-dup-eit",
+  buildingName: "Ford Onekawa",
+  streetAddress: "44 Onekawa Road",
+  city: "Napier",
+  status: "Occupied",
+  tenancy: makeTenancy("t-eit", "EIT", "2030-08-07"),
+  tenancies: [
+    makeTenancy("t-eit", "EIT", "2030-08-07"),
+  ],
+  propertyTemplates: [],
+  scheduleItems: [
+    {
+      id: "legacy-lease-eit",
+      propertyId: "bld-dup-eit",
+      taskName: "Lease Expiry \u2014 EIT",
+      category: "Tenancy",
+      dueDate: "2030-08-07",
+      frequency: "One-off",
+      preferredCompanyId: "company-legacy",
+      preferredCompany: "Legacy Service Co",
+      preferredContactId: "contact-legacy",
+      notes: "legacy metadata",
+      lastCompletedDate: "2029-08-07",
+      lastCompletionHistoryId: "hist-legacy-eit",
+      createdDate: "2026-01-01T00:00:00.000Z",
+      lastUpdated: "2026-01-01T00:00:00.000Z",
+    },
+    {
+      id: "tenancy-event-t-eit-lease-expiry",
+      sourceType: "tenancy",
+      tenancyId: "t-eit",
+      tenancyEventType: "lease-expiry",
+      propertyId: "bld-dup-eit",
+      taskName: "Lease Expiry \u2014 EIT",
+      category: "Tenancy",
+      dueDate: "2030-08-07",
+      frequency: "One-off",
+      preferredCompanyId: "",
+      preferredCompany: "",
+      preferredContactId: "",
+      notes: "",
+      createdDate: "2026-02-01T00:00:00.000Z",
+      lastUpdated: "2026-02-01T00:00:00.000Z",
+    },
+  ],
+  historyRecords: [
+    {
+      id: "hist-legacy-eit",
+      scheduleItemId: "legacy-lease-eit",
+      tenancyId: "t-eit",
+      tenancyEventType: "lease-expiry",
+      completedAt: "2029-08-07T00:00:00.000Z",
+      completedDate: "2029-08-07",
+      completedBy: "Tester",
+      taskName: "Lease Expiry \u2014 EIT",
+      notes: "done",
+      previousDueDate: "2030-08-07",
+      newDueDate: "2030-08-07",
+      nextDueDate: "2030-08-07",
+      revertedAt: "",
+      revertedBy: "",
+      createdDate: "2029-08-07T00:00:00.000Z",
+    },
+  ],
+  documents: [],
+  createdDate: "2026-01-01T00:00:00.000Z",
+  lastUpdated: "2026-01-01T00:00:00.000Z",
+};
+
+const dedupedItems = api4.getSortedScheduleItems(duplicateSourceBuilding).filter(function (item) {
+  return item.tenancyEventType === "lease-expiry" && item.tenancyId === "t-eit";
+});
+assert.strictEqual(dedupedItems.length, 1, "Expected one EIT lease expiry after normalization");
+assert.strictEqual(dedupedItems[0].sourceType, "tenancy", "Lease expiry should be tenancy-associated");
+assert.strictEqual(dedupedItems[0].dueDate, "2030-08-07", "Lease expiry due date should be preserved");
+assert.strictEqual(dedupedItems[0].preferredCompanyId, "company-legacy", "Legacy metadata should be retained");
+assert.strictEqual(dedupedItems[0].lastCompletionHistoryId, "hist-legacy-eit", "Completion link should be preserved");
+
+const normalizedDupBuilding = api4.linkScheduleItemToContact(duplicateSourceBuilding, dedupedItems[0].id, "");
+assert.ok(normalizedDupBuilding, "Expected normalized building payload for duplicate repair check");
+const repairedLeaseItems = (normalizedDupBuilding.scheduleItems || []).filter(function (item) {
+  return item.tenancyEventType === "lease-expiry" && item.tenancyId === "t-eit";
+});
+assert.strictEqual(repairedLeaseItems.length, 1, "Duplicate lease expiry should be removed from authoritative schedule collection");
+assert.strictEqual(normalizedDupBuilding.historyRecords[0].scheduleItemId, repairedLeaseItems[0].id, "History should point to retained schedule item id");
+
+// TEST 5: Two tenancies each keep exactly one lease expiry across repeated normalization/edit cycles.
+const idempotentBuilding = {
+  id: "bld-idempotent",
+  buildingName: "Idempotent Tower",
+  streetAddress: "55 Stable Street",
+  city: "Auckland",
+  status: "Occupied",
+  tenancy: makeTenancy("t-panpac", "Pan Pac forestry ltd", "2029-08-11"),
+  tenancies: [
+    makeTenancy("t-panpac", "Pan Pac forestry ltd", "2029-08-11"),
+    makeTenancy("t-eit-2", "EIT", "2030-08-07"),
+  ],
+  propertyTemplates: [],
+  scheduleItems: [
+    {
+      id: "legacy-panpac",
+      propertyId: "bld-idempotent",
+      taskName: "Lease Expiry \u2014 Pan Pac forestry ltd",
+      category: "Tenancy",
+      dueDate: "2029-08-11",
+      frequency: "One-off",
+      createdDate: "2026-01-01T00:00:00.000Z",
+      lastUpdated: "2026-01-01T00:00:00.000Z",
+    },
+    {
+      id: "legacy-eit2",
+      propertyId: "bld-idempotent",
+      taskName: "Lease Expiry \u2014 EIT",
+      category: "Tenancy",
+      dueDate: "2030-08-07",
+      frequency: "One-off",
+      createdDate: "2026-01-01T00:00:00.000Z",
+      lastUpdated: "2026-01-01T00:00:00.000Z",
+    },
+  ],
+  historyRecords: [],
+  documents: [],
+  createdDate: "2026-01-01T00:00:00.000Z",
+  lastUpdated: "2026-01-01T00:00:00.000Z",
+};
+
+let idempotentState = { ...idempotentBuilding };
+for (let i = 0; i < 6; i += 1) {
+  const normalizedItems = api4.getSortedScheduleItems(idempotentState);
+  const leaseExpiryItems = normalizedItems.filter(function (item) {
+    return item.tenancyEventType === "lease-expiry";
+  });
+
+  const byTenancy = leaseExpiryItems.reduce(function (acc, item) {
+    acc[item.tenancyId] = (acc[item.tenancyId] || 0) + 1;
+    return acc;
+  }, {});
+
+  assert.strictEqual(byTenancy["t-panpac"], 1, "Pan Pac should have exactly one lease expiry event");
+  assert.strictEqual(byTenancy["t-eit-2"], 1, "EIT should have exactly one lease expiry event");
+
+  idempotentState = {
+    ...idempotentState,
+    scheduleItems: normalizedItems,
+  };
+
+  if (i === 2) {
+    idempotentState = {
+      ...idempotentState,
+      tenancies: idempotentState.tenancies.map(function (tenancy) {
+        if (tenancy.id !== "t-eit-2") {
+          return tenancy;
+        }
+        return {
+          ...tenancy,
+          leaseEnd: "2031-08-07",
+        };
+      }),
+    };
+  }
+}
+
+const isolatedBuildingBItems = api4.getSortedScheduleItems(buildingBForWorkflow).filter(function (item) {
+  return item.tenancyEventType === "lease-expiry";
+});
+assert.strictEqual(isolatedBuildingBItems.length, 1, "Building B should remain isolated from Building A normalization cycles");
 
 console.log("multi-tenancy foundation regression test passed");
