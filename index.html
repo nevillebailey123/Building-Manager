@@ -396,7 +396,6 @@
             <p id="tenancy-building-name" class="overview-building-name visually-hidden"></p>
           </div>
           <div class="top-right-actions">
-            <button id="edit-tenancy-btn" class="btn btn-secondary" type="button">✏ Edit Tenancy</button>
             <button id="tenancy-back-btn" class="btn btn-secondary" type="button">← Back</button>
           </div>
         </header>
@@ -417,7 +416,7 @@
           </section>
 
           <section id="tenancy-details-card" class="module-content-card">
-            <h3>Current</h3>
+            <h3>Current Tenancies</h3>
             <dl id="tenancy-details-list" class="snapshot-list"></dl>
             <div class="actions-row actions-row-tight">
               <button id="add-another-tenancy-btn" class="btn btn-secondary btn-small" type="button">+ Add Tenancy</button>
@@ -473,10 +472,20 @@
               <label for="tenancyNotes">Tenant Notes</label>
               <textarea id="tenancyNotes" name="notes" rows="4"></textarea>
 
+              <section id="tenancy-contacts-section" class="contact-linked-schedule-section">
+                <div class="contacts-list-header">
+                  <h3>Contacts</h3>
+                  <div class="contacts-list-actions">
+                    <button id="tenancy-add-contact-link-btn" class="btn btn-secondary" type="button">Add Link</button>
+                  </div>
+                </div>
+                <section id="tenancy-contacts-list" class="building-list" aria-live="polite"></section>
+              </section>
+
               <div class="form-actions">
                 <button class="btn btn-primary" type="submit">Save</button>
                 <button id="archive-tenancy-btn" class="btn btn-secondary" type="button" style="display: none;">Archive Tenancy</button>
-                <button id="cancel-tenancy-btn" class="btn btn-secondary" type="button">Cancel</button>
+                <button id="cancel-tenancy-btn" class="btn btn-secondary" type="button">← Back</button>
               </div>
             </form>
           </section>
@@ -609,6 +618,17 @@
               </div>
             </div>
             <section id="contact-linked-schedule-list" class="building-list" aria-live="polite"></section>
+          </section>
+
+          <section id="contact-linked-tenancy-section" class="contact-linked-schedule-section" style="display: block;">
+            <div class="contacts-list-header">
+              <h3>Linked Tenancies</h3>
+              <div class="contacts-list-actions">
+                <button id="contact-add-tenancy-link-btn" class="btn btn-secondary" type="button">Add Link</button>
+                <button id="contact-remove-tenancy-link-btn" class="btn btn-secondary" type="button">Remove Link</button>
+              </div>
+            </div>
+            <section id="contact-linked-tenancy-list" class="building-list" aria-live="polite"></section>
           </section>
 
           <div class="form-actions">

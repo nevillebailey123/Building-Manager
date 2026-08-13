@@ -401,7 +401,7 @@ const buildingBForWorkflow = {
 const ctx3 = createHarness([buildingAForWorkflow, buildingBForWorkflow]);
 const addTenancyBtn = ctx3.document.getElementById("add-tenancy-btn");
 const addAnotherTenancyBtn = ctx3.document.getElementById("add-another-tenancy-btn");
-const editTenancyBtn = ctx3.document.getElementById("edit-tenancy-btn");
+const cancelTenancyBtn = ctx3.document.getElementById("cancel-tenancy-btn");
 const tenancyDetailsList = ctx3.document.getElementById("tenancy-details-list");
 const tenancyForm = ctx3.document.getElementById("tenancy-form");
 
@@ -450,6 +450,20 @@ function clickButton(button) {
   const handlers = button.listeners.click || [];
   assert.ok(handlers.length > 0, "Expected click handler on button");
   handlers[0]({ target: button });
+}
+
+// Clicking anywhere on a tenancy tile opens that tenancy in the Edit Tenancy form.
+function clickTenancyTile(tenancyId) {
+  const tile = new FakeElement("", "ARTICLE");
+  tile.setAttribute("data-tenancy-list-action", "edit");
+  tile.setAttribute("data-tenancy-id", tenancyId);
+  const handlers = tenancyDetailsList.listeners.click || [];
+  assert.ok(handlers.length > 0, "Tenancy list click handler missing");
+  handlers[0]({ target: tile });
+}
+
+function renderedTenancyListHtml() {
+  return String(tenancyDetailsList.innerHTML || "");
 }
 
 // 1-5: Create Building A tenancy A1, then add A2.
@@ -544,14 +558,18 @@ const a4 = buildingAAfterA4.tenancies.find(function (tenancy) {
 assert.ok(a4, "A4 should be present after append");
 
 // 9-10: Edit A3 only and ensure the other three tenancies remain unchanged.
-const detailsActionTarget = new FakeElement("", "BUTTON");
-detailsActionTarget.setAttribute("data-tenancy-list-action", "details");
-detailsActionTarget.setAttribute("data-tenancy-id", a3.id);
-const detailsHandlers = tenancyDetailsList.listeners.click || [];
-assert.ok(detailsHandlers.length > 0, "Tenancy details click handler missing");
-detailsHandlers[0]({ target: detailsActionTarget });
+clickTenancyTile(a3.id);
+assert.strictEqual(
+  tenancyForm.elements.companyName.value,
+  "Tenant A3",
+  "Clicking a tenancy tile must populate the Edit Tenancy form with that tenancy"
+);
+assert.strictEqual(
+  tenancyForm.elements.tenancyId.value,
+  a3.id,
+  "Edit Tenancy form must carry the clicked tenancy ID"
+);
 
-clickButton(editTenancyBtn);
 setTenancyFormValues({
   tenancyId: a3.id,
   companyName: "Tenant A3 Updated",
@@ -590,6 +608,54 @@ assert.strictEqual(a3Final.companyName, "Tenant A3 Updated", "A3 update should b
 assert.strictEqual(a3Final.leaseEnd, "2032-03-02", "A3 lease end should be updated");
 assert.strictEqual(a4Final.companyName, "Tenant A4", "A4 should not be modified by editing A3");
 assert.strictEqual(a4Final.notes, "A4 original", "A4 notes should not change when editing A3");
+
+// After Save, the tenancy list must render every tenancy in the building.
+const listHtmlAfterSave = renderedTenancyListHtml();
+["Tenant A1", "Tenant A2", "Tenant A3 Updated", "Tenant A4"].forEach(function (name) {
+  assert.ok(listHtmlAfterSave.includes(name), `Tenancy list after Save must display ${name}`);
+});
+assert.strictEqual(
+  (listHtmlAfterSave.match(/data-tenancy-list-action="edit"/g) || []).length,
+  4,
+  "Tenancy list after Save must render one clickable tile per tenancy"
+);
+assert.strictEqual(
+  listHtmlAfterSave.includes('data-tenancy-list-action="details"'),
+  false,
+  "Tenancy Details action must be removed from the tenancy list"
+);
+
+// BACK: unsaved edits are discarded and the full tenancy list is restored.
+clickTenancyTile(a2.id);
+assert.strictEqual(tenancyForm.elements.companyName.value, "Tenant A2", "Back test should start from A2");
+setTenancyFormValues({
+  tenancyId: a2.id,
+  companyName: "Tenant A2 UNSAVED",
+  tradingName: "A2 Trading UNSAVED",
+  leaseStart: "2026-02-01",
+  leaseEnd: "2030-02-01",
+  status: "Occupied",
+  notes: "A2 unsaved edit",
+});
+clickButton(cancelTenancyBtn);
+
+const buildingAAfterBack = ctx3.window.BuildingStorage.getBuildingById("bld-workflow-a");
+assert.strictEqual(buildingAAfterBack.tenancies.length, 4, "Back must not change the tenancy count");
+const a2AfterBack = buildingAAfterBack.tenancies.find(function (tenancy) {
+  return String(tenancy.id || "") === String(a2.id || "");
+});
+assert.strictEqual(a2AfterBack.companyName, "Tenant A2", "Back must discard unsaved company name changes");
+assert.strictEqual(a2AfterBack.notes, "A2 original", "Back must discard unsaved note changes");
+
+const listHtmlAfterBack = renderedTenancyListHtml();
+["Tenant A1", "Tenant A2", "Tenant A3 Updated", "Tenant A4"].forEach(function (name) {
+  assert.ok(listHtmlAfterBack.includes(name), `Tenancy list after Back must display ${name}`);
+});
+assert.strictEqual(
+  listHtmlAfterBack.includes("UNSAVED"),
+  false,
+  "Tenancy list after Back must not contain discarded edits"
+);
 
 // 11-12: Reload/normalize and verify all four tenancies persist.
 const persistedAfterWorkflow = JSON.parse(ctx3.localStorage.getItem("buildingManagerBuildings"));
@@ -786,5 +852,144 @@ const isolatedBuildingBItems = api4.getSortedScheduleItems(buildingBForWorkflow)
   return item.tenancyEventType === "lease-expiry";
 });
 assert.strictEqual(isolatedBuildingBItems.length, 1, "Building B should remain isolated from Building A normalization cycles");
+
+// TEST 6: Tenancy <-> master Contact relationships (tenancy.contactRefs[]).
+const tenancyApi = ctx3.window.BuildingManagerSchedule;
+const tenancyContactsList = ctx3.document.getElementById("tenancy-contacts-list");
+
+function makeContact(id, name) {
+  return {
+    id,
+    companyId: "",
+    name,
+    contactType: "Person",
+    responsibility: "Tenant Contact",
+    mobile: "",
+    officePhone: "",
+    email: `${id}@example.com`,
+    preferredContactMethod: "Email",
+    active: true,
+    notes: "",
+    createdDate: "2026-01-01T00:00:00.000Z",
+    lastUpdated: "2026-01-01T00:00:00.000Z",
+  };
+}
+
+ctx3.window.BuildingStorage.upsertContact(makeContact("contact-1", "Contact One"));
+ctx3.window.BuildingStorage.upsertContact(makeContact("contact-2", "Contact Two"));
+
+function reloadWorkflowBuildingA() {
+  return ctx3.window.BuildingStorage.getBuildingById("bld-workflow-a");
+}
+
+// 13-14: link Contact 1 to A1 and Contact 2 to A2.
+let linkState = tenancyApi.linkContactToTenancy(reloadWorkflowBuildingA(), a1.id, "contact-1");
+assert.ok(linkState, "Linking Contact 1 to tenancy A1 should return an updated building");
+ctx3.window.BuildingStorage.updateBuilding(linkState);
+
+linkState = tenancyApi.linkContactToTenancy(reloadWorkflowBuildingA(), a2.id, "contact-2");
+assert.ok(linkState, "Linking Contact 2 to tenancy A2 should return an updated building");
+ctx3.window.BuildingStorage.updateBuilding(linkState);
+
+// 15-16: each tenancy keeps its own contact and nothing else was altered.
+let workflowA = reloadWorkflowBuildingA();
+assert.strictEqual(workflowA.tenancies.length, 4, "Linking contacts must not add or remove tenancies");
+assert.strictEqual(
+  tenancyApi.getTenancyContactRefs(workflowA.tenancies.find(function (t) { return t.id === a1.id; })).join(","),
+  "contact-1",
+  "A1 should hold only Contact 1"
+);
+assert.strictEqual(
+  tenancyApi.getTenancyContactRefs(workflowA.tenancies.find(function (t) { return t.id === a2.id; })).join(","),
+  "contact-2",
+  "A2 should hold only Contact 2"
+);
+assert.strictEqual(
+  tenancyApi.getTenancyContactRefs(workflowA.tenancies.find(function (t) { return t.id === a3.id; })).length,
+  0,
+  "A3 must be untouched by contact linking"
+);
+assert.strictEqual(
+  workflowA.tenancies.find(function (t) { return t.id === a4.id; }).companyName,
+  "Tenant A4",
+  "A4 must be untouched by contact linking"
+);
+
+// 17-19: one contact can be linked to multiple tenancies and a tenancy can hold multiple contacts.
+linkState = tenancyApi.linkContactToTenancy(reloadWorkflowBuildingA(), a2.id, "contact-1");
+assert.ok(linkState, "Contact 1 should also be linkable to tenancy A2");
+ctx3.window.BuildingStorage.updateBuilding(linkState);
+
+workflowA = reloadWorkflowBuildingA();
+assert.strictEqual(
+  tenancyApi.getTenancyContactRefs(workflowA.tenancies.find(function (t) { return t.id === a2.id; })).join(","),
+  "contact-2,contact-1",
+  "A2 should hold both contacts"
+);
+assert.strictEqual(
+  tenancyApi.getTenancyLinksForContact("contact-1").length,
+  2,
+  "Contact 1 should report links to two tenancies"
+);
+
+// 20: duplicate links are rejected.
+assert.strictEqual(
+  tenancyApi.linkContactToTenancy(reloadWorkflowBuildingA(), a2.id, "contact-1"),
+  null,
+  "Duplicate contact links must be rejected"
+);
+
+// 21-23: unlink Contact 1 from A1 via the Edit Tenancy UI; the contact and its A2 link survive.
+const removeLinkTarget = new FakeElement("", "BUTTON");
+removeLinkTarget.setAttribute("data-tenancy-contact-action", "remove");
+removeLinkTarget.setAttribute("data-tenancy-id", a1.id);
+removeLinkTarget.setAttribute("data-contact-id", "contact-1");
+const tenancyContactHandlers = tenancyContactsList.listeners.click || [];
+assert.ok(tenancyContactHandlers.length > 0, "Tenancy contacts click handler missing");
+tenancyContactHandlers[0]({ target: removeLinkTarget });
+
+workflowA = reloadWorkflowBuildingA();
+assert.strictEqual(
+  tenancyApi.getTenancyContactRefs(workflowA.tenancies.find(function (t) { return t.id === a1.id; })).length,
+  0,
+  "Contact 1 should be unlinked from A1"
+);
+assert.ok(
+  ctx3.window.BuildingStorage.getMasterData().contacts.some(function (contact) {
+    return contact.id === "contact-1";
+  }),
+  "Unlinking must not delete the master contact"
+);
+assert.ok(
+  tenancyApi.getTenancyContactRefs(workflowA.tenancies.find(function (t) { return t.id === a2.id; })).includes("contact-1"),
+  "Contact 1 should keep its A2 relationship"
+);
+assert.strictEqual(workflowA.tenancies.length, 4, "Unlinking must not delete any tenancy");
+
+// 24-25: the Contact screen reports its linked tenancies, and relationships survive reload/normalization.
+const contactOneLinks = tenancyApi.getTenancyLinksForContact("contact-1");
+assert.strictEqual(contactOneLinks.length, 1, "Contact 1 should now report a single linked tenancy");
+assert.strictEqual(contactOneLinks[0].tenancy.id, a2.id, "Contact 1 should report tenancy A2");
+assert.strictEqual(contactOneLinks[0].building.id, "bld-workflow-a", "Contact 1 link should identify the building");
+
+const ctx5 = createHarness(JSON.parse(ctx3.localStorage.getItem("buildingManagerBuildings")));
+ctx5.localStorage.setItem("buildingManagerMasterData", ctx3.localStorage.getItem("buildingManagerMasterData"));
+const reloadedWorkflowA = ctx5.window.BuildingStorage.getBuildingById("bld-workflow-a");
+assert.strictEqual(reloadedWorkflowA.tenancies.length, 4, "All four tenancies must survive the contact-linking reload");
+assert.strictEqual(
+  new Set(reloadedWorkflowA.tenancies.map(function (tenancy) { return tenancy.id; })).size,
+  4,
+  "All tenancy IDs must remain unique after reload"
+);
+assert.strictEqual(
+  ctx5.window.BuildingManagerSchedule.getTenancyContactRefs(reloadedWorkflowA.tenancies.find(function (t) { return t.id === a2.id; })).join(","),
+  "contact-2,contact-1",
+  "A2 contact relationships must persist across reload/normalization"
+);
+assert.strictEqual(
+  ctx5.window.BuildingManagerSchedule.getTenancyContactRefs(reloadedWorkflowA.tenancies.find(function (t) { return t.id === a1.id; })).length,
+  0,
+  "A1 must remain unlinked after reload"
+);
 
 console.log("multi-tenancy foundation regression test passed");

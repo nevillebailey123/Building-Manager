@@ -43,7 +43,6 @@
   const addContactBtn = document.getElementById("add-contact-btn");
   const addCompanyBtn = document.getElementById("add-company-btn");
   const addCompanyInlineBtn = document.getElementById("add-company-inline-btn");
-  const editTenancyBtn = document.getElementById("edit-tenancy-btn");
   const archiveTenancyBtn = document.getElementById("archive-tenancy-btn");
   const deleteBuildingBtn = document.getElementById("delete-building-btn");
   const emptyState = document.getElementById("empty-state");
@@ -82,6 +81,9 @@
   const tenancyCurrentPanel = document.getElementById("tenancy-current-panel");
   const tenancyHistoryPanel = document.getElementById("tenancy-history-panel");
   const tenancyHistoryList = document.getElementById("tenancy-history-list");
+  const tenancyContactsSection = document.getElementById("tenancy-contacts-section");
+  const tenancyContactsList = document.getElementById("tenancy-contacts-list");
+  const tenancyAddContactLinkBtn = document.getElementById("tenancy-add-contact-link-btn");
   const contactsBuildingName = document.getElementById("contacts-building-name");
   const contactsEmptyState = document.getElementById("contacts-empty-state");
   const contactsListCard = document.getElementById("contacts-list-card");
@@ -96,6 +98,10 @@
   const contactLinkedScheduleList = document.getElementById("contact-linked-schedule-list");
   const contactAddScheduleLinkBtn = document.getElementById("contact-add-schedule-link-btn");
   const contactRemoveScheduleLinkBtn = document.getElementById("contact-remove-schedule-link-btn");
+  const contactLinkedTenancySection = document.getElementById("contact-linked-tenancy-section");
+  const contactLinkedTenancyList = document.getElementById("contact-linked-tenancy-list");
+  const contactAddTenancyLinkBtn = document.getElementById("contact-add-tenancy-link-btn");
+  const contactRemoveTenancyLinkBtn = document.getElementById("contact-remove-tenancy-link-btn");
   const companiesBuildingName = document.getElementById("companies-building-name");
   const companiesEmptyState = document.getElementById("companies-empty-state");
   const companiesListCard = document.getElementById("companies-list-card");
@@ -2672,6 +2678,121 @@
     return [];
   }
 
+  function getTenancyDisplayName(tenancy) {
+    if (!tenancy) {
+      return "Tenancy";
+    }
+    return String(tenancy.tradingName || tenancy.companyName || "Tenancy").trim() || "Tenancy";
+  }
+
+  function getBuildingDisplayLabel(building) {
+    if (!building) {
+      return "Unknown property";
+    }
+    const name = String(building.buildingName || "").trim();
+    const address = String(building.streetAddress || "").trim();
+    if (name && address) {
+      return `${name} — ${address}`;
+    }
+    return name || address || "Unknown property";
+  }
+
+  // Canonical tenancy -> contact relationship storage: tenancy.contactRefs[] holds master contact ids.
+  function getTenancyContactRefs(tenancy) {
+    if (!tenancy || !Array.isArray(tenancy.contactRefs)) {
+      return [];
+    }
+
+    const seen = new Set();
+    return tenancy.contactRefs
+      .map(function (contactId) {
+        return String(contactId || "").trim();
+      })
+      .filter(function (contactId) {
+        if (!contactId || seen.has(contactId)) {
+          return false;
+        }
+        seen.add(contactId);
+        return true;
+      });
+  }
+
+  function getContactsForTenancy(tenancy) {
+    return getTenancyContactRefs(tenancy)
+      .map(function (contactId) {
+        return findContactById(contactId);
+      })
+      .filter(Boolean);
+  }
+
+  function applyTenancyContactRefs(building, tenancyId, nextRefs) {
+    const targetId = String(tenancyId || "").trim();
+    const nextTenancies = getAllTenanciesForBuilding(building).map(function (tenancy) {
+      if (String(tenancy.id || "") !== targetId) {
+        return tenancy;
+      }
+
+      return { ...tenancy, contactRefs: nextRefs };
+    });
+
+    return {
+      ...building,
+      tenancies: nextTenancies,
+      tenancy: nextTenancies[0] || null,
+      lastUpdated: new Date().toISOString(),
+    };
+  }
+
+  function linkContactToTenancy(building, tenancyId, contactId) {
+    const targetContactId = String(contactId || "").trim();
+    const tenancy = getTenancyById(building, tenancyId);
+    if (!tenancy || !targetContactId) {
+      return null;
+    }
+
+    const existingRefs = getTenancyContactRefs(tenancy);
+    if (existingRefs.includes(targetContactId)) {
+      return null;
+    }
+
+    return applyTenancyContactRefs(building, tenancy.id, existingRefs.concat(targetContactId));
+  }
+
+  function unlinkContactFromTenancy(building, tenancyId, contactId) {
+    const targetContactId = String(contactId || "").trim();
+    const tenancy = getTenancyById(building, tenancyId);
+    if (!tenancy || !targetContactId) {
+      return null;
+    }
+
+    const existingRefs = getTenancyContactRefs(tenancy);
+    if (!existingRefs.includes(targetContactId)) {
+      return null;
+    }
+
+    return applyTenancyContactRefs(building, tenancy.id, existingRefs.filter(function (refId) {
+      return refId !== targetContactId;
+    }));
+  }
+
+  function getTenancyLinksForContact(contactId) {
+    const targetContactId = String(contactId || "").trim();
+    if (!targetContactId) {
+      return [];
+    }
+
+    const links = [];
+    window.BuildingStorage.getBuildings().forEach(function (building) {
+      getAllTenanciesForBuilding(building).forEach(function (tenancy) {
+        if (getTenancyContactRefs(tenancy).includes(targetContactId)) {
+          links.push({ building: building, tenancy: tenancy });
+        }
+      });
+    });
+
+    return links;
+  }
+
   function createUniqueTenancyId(usedIds) {
     const baseId = String(window.BuildingStorage.createId() || "tenancy").trim() || "tenancy";
     let candidate = baseId;
@@ -3589,7 +3710,7 @@
   function confirmScheduleRevertDialog() {
     return new Promise(function (resolve) {
       const backdrop = window.document.createElement("div");
-      backdrop.className = "template-delete-modal-backdrop";
+      backdrop.className = "template-delete-modal-backdrop app-modal-backdrop-confirm";
 
       const dialog = window.document.createElement("div");
       dialog.className = "template-delete-modal";
@@ -4294,25 +4415,6 @@
         `;
       })
       .join("");
-  }
-
-  function renderTenancyDetails(tenancy) {
-    const companyNameDisplay = tenancy.companyName || "Not provided";
-    const tradingName = tenancy.tradingName || "Not provided";
-    const rentReviewText = tenancy.rentReviewDate
-      ? `${formatDate(tenancy.rentReviewDate)}${tenancy.rentReviewFrequency ? " (" + tenancy.rentReviewFrequency + ")" : ""}`
-      : "";
-
-    tenancyDetailsList.innerHTML = `
-      <div><dt>Current Tenant</dt><dd>${escapeHtml(companyNameDisplay)}</dd></div>
-      <div><dt>Trading Name</dt><dd>${escapeHtml(tradingName)}</dd></div>
-      <div><dt>Lease Start</dt><dd>${formatDate(tenancy.leaseStart)}</dd></div>
-      <div><dt>Lease Expiry</dt><dd>${formatDate(tenancy.leaseEnd)}</dd></div>
-      <div><dt>Status</dt><dd>${escapeHtml(tenancy.status || "Occupied")}</dd></div>
-      ${rentReviewText ? `<div><dt>Rent Review</dt><dd>${escapeHtml(rentReviewText)}</dd></div>` : ""}
-      ${tenancy.renewalDate ? `<div><dt>Renewal / Option</dt><dd>${formatDate(tenancy.renewalDate)}</dd></div>` : ""}
-      ${tenancy.noticeDate ? `<div><dt>Notice Date</dt><dd>${formatDate(tenancy.noticeDate)}</dd></div>` : ""}
-    `;
   }
 
   function getLeaseStatusLabel(tenancy) {
@@ -5659,6 +5761,23 @@
         </section>
       `;
 
+    const tenancyLinks = getTenancyLinksForContact(contact.id);
+    const linkedTenanciesMarkup = tenancyLinks.length === 0
+      ? '<p class="module-placeholder">No linked tenancies.</p>'
+      : `
+        <section class="building-list" aria-live="polite">
+          ${tenancyLinks.map(function (link) {
+            return `
+              <article class="building-card">
+                <h3>${escapeHtml(getTenancyDisplayName(link.tenancy))}</h3>
+                <p><strong>Property:</strong> ${escapeHtml(getBuildingDisplayLabel(link.building))}</p>
+                <p><strong>Company:</strong> ${escapeHtml(link.tenancy.companyName || "Not provided")}</p>
+              </article>
+            `;
+          }).join("")}
+        </section>
+      `;
+
     const backdrop = window.document.createElement("div");
     backdrop.className = "schedule-details-backdrop contact-details-backdrop";
     backdrop.innerHTML = `
@@ -5678,12 +5797,18 @@
             <div><dt>Email</dt><dd>${escapeHtml(contact.email || "Not provided")}</dd></div>
             <div><dt>Notes</dt><dd>${escapeHtml(contact.notes || "Not provided")}</dd></div>
             <div><dt>Linked Schedule Items</dt><dd>${linkedItems.length}</dd></div>
+            <div><dt>Linked Tenancies</dt><dd>${tenancyLinks.length}</dd></div>
           </dl>
         </section>
 
         <section class="schedule-details-section">
           <h4>Linked Schedule Items</h4>
           ${linkedItemsMarkup}
+        </section>
+
+        <section class="schedule-details-section">
+          <h4>Linked Tenancies</h4>
+          ${linkedTenanciesMarkup}
         </section>
 
         <section class="schedule-details-bottom-actions" aria-label="Contact actions">
@@ -6011,7 +6136,7 @@
       : "";
     return new Promise(function (resolve) {
       const backdrop = window.document.createElement("div");
-      backdrop.className = "template-delete-modal-backdrop";
+      backdrop.className = "template-delete-modal-backdrop app-modal-backdrop-confirm";
 
       const dialog = window.document.createElement("div");
       dialog.className = "template-delete-modal";
@@ -6436,8 +6561,10 @@
 
     if (mode === "edit" && contact && contact.id) {
       renderContactLinkedScheduleItems(contact);
+      renderContactLinkedTenancies(contact);
     } else {
       renderContactLinkedScheduleItems(null);
+      renderContactLinkedTenancies(null);
     }
 
     renderContactSectionState("form");
@@ -6495,77 +6622,96 @@
     window.BuildingStorage.updateBuilding(updated);
   }
 
+  function getTelHref(phone) {
+    return String(phone || "").replace(/[^\d+]/g, "");
+  }
+
+  // Read-only rendering of the tenancy's linked master contacts. Never mutates masterData.contacts.
+  function renderTenancyTileContacts(tenancy) {
+    const linkedContacts = getContactsForTenancy(tenancy);
+    if (linkedContacts.length === 0) {
+      return '<p><strong>Contact:</strong> Not set</p>';
+    }
+
+    const heading = linkedContacts.length === 1 ? "Contact" : "Contacts";
+    const entries = linkedContacts.map(function (contact) {
+      const phone = String(contact.mobile || contact.officePhone || "").trim();
+      const email = String(contact.email || "").trim();
+      const telHref = getTelHref(phone);
+
+      return `
+        <div class="tenancy-card-contact">
+          <p class="tenancy-card-contact-name">${escapeHtml(contact.name || "Contact")}</p>
+          ${telHref ? `<p><a class="contact-phone-link" href="tel:${escapeHtml(telHref)}">${escapeHtml(phone)}</a></p>` : ""}
+          ${email ? `<p><a class="contact-email-link" href="mailto:${escapeHtml(email)}">${escapeHtml(email)}</a></p>` : ""}
+        </div>
+      `;
+    }).join("");
+
+    return `
+      <div class="tenancy-card-contacts">
+        <p class="tenancy-card-contacts-heading"><strong>${heading}</strong></p>
+        ${entries}
+      </div>
+    `;
+  }
+
+  // Maps each tenancy id to the building that owns it, so a tile never shows the wrong property.
+  function buildTenancyOwnerBuildingMap() {
+    const owners = new Map();
+    window.BuildingStorage.getBuildings().forEach(function (building) {
+      getAllTenanciesForBuilding(building).forEach(function (tenancy) {
+        owners.set(String(tenancy.id || ""), building);
+      });
+    });
+    return owners;
+  }
+
   function renderCurrentTenancyPage(building) {
     tenancyBuildingName.textContent = building.buildingName;
     renderTenancyHistory(building);
 
+    // Canonical tenancy list renderer: always driven by building.tenancies[].
+    activeTenancyDetailsId = "";
     const allTenancies = getAllTenanciesForBuilding(building);
     const tenancyDetailsHeading = tenancyDetailsCard.querySelector("h3");
+    if (tenancyDetailsHeading) {
+      tenancyDetailsHeading.textContent = "Current Tenancies";
+    }
 
     if (allTenancies.length === 0) {
-      activeTenancyDetailsId = "";
-      if (editTenancyBtn instanceof HTMLButtonElement) {
-        editTenancyBtn.style.display = "none";
-      }
-      if (tenancyDetailsHeading) {
-        tenancyDetailsHeading.textContent = "Current";
-      }
-      renderTenancySectionState(false, "empty");
+      renderTenancySectionState(false, "list");
       setTenancyTab(activeTenancyTab);
       return;
     }
 
-    renderTenancySectionState(true, "details");
+    renderTenancySectionState(true, "list");
 
-    const selectedTenancy = getTenancyById(building, activeTenancyDetailsId);
+    const ownerBuildings = buildTenancyOwnerBuildingMap();
 
-    if (!selectedTenancy) {
-      if (editTenancyBtn instanceof HTMLButtonElement) {
-        editTenancyBtn.style.display = "none";
-      }
-      if (tenancyDetailsHeading) {
-        tenancyDetailsHeading.textContent = "Current Tenancies";
-      }
+    tenancyDetailsList.innerHTML = allTenancies.map(function (tenancy) {
+      const companyName = String(tenancy.companyName || tenancy.tradingName || "Tenancy").trim();
+      const tradingName = String(tenancy.tradingName || "").trim();
+      const tenancyStatus = String(tenancy.status || "Occupied").trim() || "Occupied";
+      const tenancyId = escapeHtml(tenancy.id);
+      const ownerBuilding = ownerBuildings.get(String(tenancy.id || "")) || building;
+      const ownerBuildingName = String(ownerBuilding.buildingName || "Not set").trim() || "Not set";
 
-      tenancyDetailsList.innerHTML = allTenancies.map(function (tenancy) {
-        const tenantName = String(tenancy.tradingName || tenancy.companyName || "Tenant").trim();
-        const companyName = String(tenancy.companyName || "Not provided").trim();
-        const tenancyStatus = String(tenancy.status || "Occupied").trim() || "Occupied";
-
-        return `
-          <article class="tenancy-list-card">
-            <h4>${escapeHtml(tenantName)}</h4>
-            <p><strong>Company:</strong> ${escapeHtml(companyName)}</p>
-            <p><strong>Lease Start:</strong> ${formatDate(tenancy.leaseStart)}</p>
-            <p><strong>Lease End:</strong> ${formatDate(tenancy.leaseEnd)}</p>
-            <p><strong>Status:</strong> ${escapeHtml(tenancyStatus)}</p>
-            <div class="tenancy-card-actions">
-              <button class="btn btn-secondary btn-small" type="button" data-tenancy-list-action="details" data-tenancy-id="${escapeHtml(tenancy.id)}">Details</button>
-              <button class="btn btn-secondary btn-small" type="button" data-tenancy-list-action="archive" data-tenancy-id="${escapeHtml(tenancy.id)}">Archive</button>
-            </div>
-          </article>
-        `;
-      }).join("");
-
-      setTenancyTab(activeTenancyTab);
-      return;
-    }
-
-    activeTenancyDetailsId = selectedTenancy.id;
-    if (editTenancyBtn instanceof HTMLButtonElement) {
-      editTenancyBtn.style.display = "inline-flex";
-    }
-    if (tenancyDetailsHeading) {
-      tenancyDetailsHeading.textContent = "Tenancy Details";
-    }
-
-    renderTenancyDetails(selectedTenancy);
-    tenancyDetailsList.innerHTML += `
-      <div class="tenancy-card-actions">
-        <button class="btn btn-secondary btn-small" type="button" data-tenancy-list-action="back-to-list">Back to Tenancies</button>
-        <button class="btn btn-secondary btn-small" type="button" data-tenancy-list-action="archive" data-tenancy-id="${escapeHtml(selectedTenancy.id)}">Archive</button>
-      </div>
-    `;
+      return `
+        <article class="tenancy-list-card clickable-card" role="button" tabindex="0" data-tenancy-list-action="edit" data-tenancy-id="${tenancyId}" aria-label="Edit tenancy ${escapeHtml(companyName)}">
+          <h4>${escapeHtml(companyName)}</h4>
+          ${tradingName && tradingName !== companyName ? `<p><strong>Trading Name:</strong> ${escapeHtml(tradingName)}</p>` : ""}
+          <p><strong>Building:</strong> ${escapeHtml(ownerBuildingName)}</p>
+          <p><strong>Lease Start:</strong> ${formatDate(tenancy.leaseStart)}</p>
+          <p><strong>Lease End:</strong> ${formatDate(tenancy.leaseEnd)}</p>
+          <p><strong>Status:</strong> ${escapeHtml(tenancyStatus)}</p>
+          ${renderTenancyTileContacts(tenancy)}
+          <div class="tenancy-card-actions">
+            <button class="btn btn-secondary btn-small" type="button" data-tenancy-list-action="archive" data-tenancy-id="${tenancyId}">Archive</button>
+          </div>
+        </article>
+      `;
+    }).join("");
 
     setTenancyTab(activeTenancyTab);
   }
@@ -6579,9 +6725,8 @@
 
     setCurrentPropertyId(building.id);
     activeTenancyTab = "current";
-    if (!getTenancyById(building, activeTenancyDetailsId)) {
-      activeTenancyDetailsId = "";
-    }
+    activeTenancyDetailsId = "";
+    tenancyFormMode = "";
     renderCurrentTenancyPage(building);
     showTenancyView();
   }
@@ -6682,7 +6827,180 @@
       archiveTenancyBtn.style.display = mode === "edit" && hasTenancies ? "inline-flex" : "none";
     }
 
+    renderTenancyContactsSection(mode === "edit" ? tenancy : null);
     renderTenancySectionState(hasTenancies, "form");
+  }
+
+  function renderTenancyContactsSection(tenancy) {
+    if (!tenancyContactsSection || !tenancyContactsList) {
+      return;
+    }
+
+    tenancyContactsSection.style.display = "block";
+
+    if (!tenancy || !tenancy.id) {
+      tenancyContactsList.innerHTML = '<p class="module-placeholder">Save this tenancy before linking contacts.</p>';
+      if (tenancyAddContactLinkBtn instanceof HTMLButtonElement) {
+        tenancyAddContactLinkBtn.style.display = "none";
+        tenancyAddContactLinkBtn.disabled = true;
+      }
+      return;
+    }
+
+    if (tenancyAddContactLinkBtn instanceof HTMLButtonElement) {
+      tenancyAddContactLinkBtn.style.display = "inline-flex";
+      tenancyAddContactLinkBtn.disabled = false;
+    }
+
+    const linkedContacts = getContactsForTenancy(tenancy);
+    if (linkedContacts.length === 0) {
+      tenancyContactsList.innerHTML = '<p class="module-placeholder">No linked contacts.</p>';
+      return;
+    }
+
+    tenancyContactsList.innerHTML = linkedContacts.map(function (contact) {
+      return `
+        <article class="building-card">
+          <h3>${escapeHtml(contact.name || "Contact")}</h3>
+          <p><strong>Company:</strong> ${escapeHtml(getCompanyNameById(contact.companyId, "Not set"))}</p>
+          <p><strong>Mobile:</strong> ${escapeHtml(contact.mobile || "Not provided")}</p>
+          <p><strong>Email:</strong> ${escapeHtml(contact.email || "Not provided")}</p>
+          <div class="tenancy-card-actions">
+            <button class="btn btn-secondary btn-small" type="button" data-tenancy-contact-action="remove" data-contact-id="${escapeHtml(contact.id)}" data-tenancy-id="${escapeHtml(tenancy.id)}">Remove Link</button>
+          </div>
+        </article>
+      `;
+    }).join("");
+  }
+
+  function showTenancyContactLinkDialog(tenancy, availableContacts) {
+    return new Promise(function (resolve) {
+      const backdrop = window.document.createElement("div");
+      backdrop.className = "template-delete-modal-backdrop";
+      backdrop.innerHTML = `
+        <div class="template-delete-modal" role="dialog" aria-modal="true" aria-labelledby="tenancy-link-contact-title">
+          <h3 id="tenancy-link-contact-title">Link Contact</h3>
+          <p>Select a contact to link to ${escapeHtml(getTenancyDisplayName(tenancy))}.</p>
+          <label>
+            <span class="visually-hidden">Contact</span>
+            <select id="tenancy-link-contact-select" class="schedule-filter-select">
+              <option value="">Select contact</option>
+              ${availableContacts.map(function (contact) {
+                const companyName = getCompanyNameById(contact.companyId, "");
+                const suffix = companyName ? ` - ${companyName}` : "";
+                return `<option value="${escapeHtml(contact.id)}">${escapeHtml(contact.name || "Contact")}${escapeHtml(suffix)}</option>`;
+              }).join("")}
+            </select>
+          </label>
+          <div class="template-delete-modal-actions">
+            <button class="btn btn-secondary" type="button" data-tenancy-contact-link-action="cancel">Cancel</button>
+            <button class="btn btn-primary" type="button" data-tenancy-contact-link-action="save">Link</button>
+          </div>
+        </div>
+      `;
+
+      window.document.body.appendChild(backdrop);
+
+      function close(value) {
+        backdrop.remove();
+        resolve(value);
+      }
+
+      backdrop.addEventListener("click", function (event) {
+        if (event.target === backdrop) {
+          close("");
+          return;
+        }
+
+        const target = event.target;
+        if (!(target instanceof HTMLElement)) {
+          return;
+        }
+
+        const action = target.getAttribute("data-tenancy-contact-link-action");
+        if (action === "cancel") {
+          close("");
+          return;
+        }
+
+        if (action === "save") {
+          const select = backdrop.querySelector("#tenancy-link-contact-select");
+          close(select instanceof HTMLSelectElement ? String(select.value || "").trim() : "");
+        }
+      });
+    });
+  }
+
+  function getTenancyBeingEdited() {
+    const building = findBuildingById(activeBuildingId);
+    if (!building || tenancyFormMode !== "edit") {
+      return null;
+    }
+
+    const formTenancyId = tenancyForm && tenancyForm.elements.tenancyId
+      ? String(tenancyForm.elements.tenancyId.value || "").trim()
+      : "";
+    return getTenancyById(building, formTenancyId);
+  }
+
+  async function handleAddContactLinkForTenancy() {
+    const building = findBuildingById(activeBuildingId);
+    const tenancy = getTenancyBeingEdited();
+    if (!building || !tenancy) {
+      return;
+    }
+
+    const linkedIds = getTenancyContactRefs(tenancy);
+    const availableContacts = dedupeContacts(getContacts()).filter(function (contact) {
+      return contact && contact.id && !linkedIds.includes(String(contact.id));
+    });
+
+    if (availableContacts.length === 0) {
+      alert("There are no further contacts available to link. Create the contact first from the Contacts screen.");
+      return;
+    }
+
+    const contactId = await showTenancyContactLinkDialog(tenancy, availableContacts);
+    if (!contactId) {
+      return;
+    }
+
+    const updated = linkContactToTenancy(building, tenancy.id, contactId);
+    if (!updated) {
+      return;
+    }
+
+    window.BuildingStorage.updateBuilding(updated);
+    renderBuildings();
+    renderTenancyContactsSection(getTenancyById(updated, tenancy.id));
+  }
+
+  function handleTenancyContactsListClick(event) {
+    const target = event.target;
+    if (!(target instanceof HTMLElement)) {
+      return;
+    }
+
+    const actionHost = (typeof target.closest === "function" && target.closest("[data-tenancy-contact-action]")) || target;
+    if (actionHost.getAttribute("data-tenancy-contact-action") !== "remove") {
+      return;
+    }
+
+    const building = findBuildingById(activeBuildingId);
+    if (!building) {
+      return;
+    }
+
+    const tenancyId = String(actionHost.getAttribute("data-tenancy-id") || "").trim();
+    const contactId = String(actionHost.getAttribute("data-contact-id") || "").trim();
+    const updated = unlinkContactFromTenancy(building, tenancyId, contactId);
+    if (!updated) {
+      return;
+    }
+
+    window.BuildingStorage.updateBuilding(updated);
+    renderBuildings();
+    renderTenancyContactsSection(getTenancyById(updated, tenancyId));
   }
 
   function createArchivedTenancyRecord(tenancy, archivedAt) {
@@ -6745,9 +7063,8 @@
 
     window.BuildingStorage.updateBuilding(updated);
     renderBuildings();
-    activeTenancyDetailsId = "";
     setTenancyTab("current");
-    renderCurrentTenancyPage(updated);
+    openCurrentTenancyView(updated.id);
   }
 
   function renderOverviewModule(moduleName, building) {
@@ -6910,9 +7227,10 @@
     };
 
     window.BuildingStorage.updateBuilding(updated);
-    activeTenancyDetailsId = isCreateMode ? "" : String(tenancyPayload.id || "").trim();
+    activeTenancyDetailsId = "";
+    tenancyFormMode = "";
     renderBuildings();
-    renderCurrentTenancyPage(updated);
+    openCurrentTenancyView(updated.id);
   }
 
   function handleAddContact() {
@@ -7201,6 +7519,246 @@
     };
   }
 
+  function renderContactLinkedTenancies(contact) {
+    if (!contactLinkedTenancySection || !contactLinkedTenancyList) {
+      return;
+    }
+
+    contactLinkedTenancySection.style.display = "block";
+
+    if (!contact || !contact.id) {
+      contactLinkedTenancyList.innerHTML = '<p class="module-placeholder">Save this contact before linking tenancies.</p>';
+      if (contactAddTenancyLinkBtn instanceof HTMLButtonElement) {
+        contactAddTenancyLinkBtn.style.display = "none";
+        contactAddTenancyLinkBtn.disabled = true;
+      }
+      if (contactRemoveTenancyLinkBtn instanceof HTMLButtonElement) {
+        contactRemoveTenancyLinkBtn.style.display = "none";
+        contactRemoveTenancyLinkBtn.disabled = true;
+      }
+      return;
+    }
+
+    const links = getTenancyLinksForContact(contact.id);
+
+    if (contactAddTenancyLinkBtn instanceof HTMLButtonElement) {
+      contactAddTenancyLinkBtn.style.display = "inline-flex";
+      contactAddTenancyLinkBtn.disabled = false;
+    }
+    if (contactRemoveTenancyLinkBtn instanceof HTMLButtonElement) {
+      contactRemoveTenancyLinkBtn.style.display = "inline-flex";
+      contactRemoveTenancyLinkBtn.disabled = links.length === 0;
+    }
+
+    if (links.length === 0) {
+      contactLinkedTenancyList.innerHTML = '<p class="module-placeholder">No linked tenancies.</p>';
+      return;
+    }
+
+    contactLinkedTenancyList.innerHTML = links.map(function (link) {
+      return `
+        <article class="building-card">
+          <h3>${escapeHtml(getTenancyDisplayName(link.tenancy))}</h3>
+          <p><strong>Property:</strong> ${escapeHtml(getBuildingDisplayLabel(link.building))}</p>
+          <p><strong>Company:</strong> ${escapeHtml(link.tenancy.companyName || "Not provided")}</p>
+        </article>
+      `;
+    }).join("");
+  }
+
+  function showContactTenancyLinkDialog(contact, availableTenancies) {
+    return new Promise(function (resolve) {
+      const backdrop = window.document.createElement("div");
+      backdrop.className = "template-delete-modal-backdrop";
+      backdrop.innerHTML = `
+        <div class="template-delete-modal" role="dialog" aria-modal="true" aria-labelledby="contact-link-tenancy-title">
+          <h3 id="contact-link-tenancy-title">Link Tenancy</h3>
+          <p>Select a tenancy to link to ${escapeHtml(contact.name)}.</p>
+          <label>
+            <span class="visually-hidden">Tenancy</span>
+            <select id="contact-link-tenancy-select" class="schedule-filter-select">
+              <option value="">Select tenancy</option>
+              ${availableTenancies.map(function (entry) {
+                return `<option value="${escapeHtml(entry.tenancy.id)}">${escapeHtml(getTenancyDisplayName(entry.tenancy))} - ${escapeHtml(getBuildingDisplayLabel(entry.building))}</option>`;
+              }).join("")}
+            </select>
+          </label>
+          <div class="template-delete-modal-actions">
+            <button class="btn btn-secondary" type="button" data-contact-tenancy-link-action="cancel">Cancel</button>
+            <button class="btn btn-primary" type="button" data-contact-tenancy-link-action="save">Link</button>
+          </div>
+        </div>
+      `;
+
+      window.document.body.appendChild(backdrop);
+
+      function close(value) {
+        backdrop.remove();
+        resolve(value);
+      }
+
+      backdrop.addEventListener("click", function (event) {
+        if (event.target === backdrop) {
+          close("");
+          return;
+        }
+
+        const target = event.target;
+        if (!(target instanceof HTMLElement)) {
+          return;
+        }
+
+        const action = target.getAttribute("data-contact-tenancy-link-action");
+        if (action === "cancel") {
+          close("");
+          return;
+        }
+
+        if (action === "save") {
+          const select = backdrop.querySelector("#contact-link-tenancy-select");
+          close(select instanceof HTMLSelectElement ? String(select.value || "").trim() : "");
+        }
+      });
+    });
+  }
+
+  function showContactTenancyUnlinkDialog(contact, links) {
+    return new Promise(function (resolve) {
+      const backdrop = window.document.createElement("div");
+      backdrop.className = "template-delete-modal-backdrop";
+      backdrop.innerHTML = `
+        <div class="template-delete-modal" role="dialog" aria-modal="true" aria-labelledby="contact-unlink-tenancy-title">
+          <h3 id="contact-unlink-tenancy-title">Remove Tenancy Link</h3>
+          <p>Select a linked tenancy to unlink from ${escapeHtml(contact.name)}. The tenancy and the contact are both kept.</p>
+          <label>
+            <span class="visually-hidden">Linked tenancy</span>
+            <select id="contact-unlink-tenancy-select" class="schedule-filter-select">
+              <option value="">Select linked tenancy</option>
+              ${links.map(function (link) {
+                return `<option value="${escapeHtml(link.building.id)}::${escapeHtml(link.tenancy.id)}">${escapeHtml(getTenancyDisplayName(link.tenancy))} - ${escapeHtml(getBuildingDisplayLabel(link.building))}</option>`;
+              }).join("")}
+            </select>
+          </label>
+          <div class="template-delete-modal-actions">
+            <button class="btn btn-secondary" type="button" data-contact-tenancy-unlink-action="cancel">Cancel</button>
+            <button class="btn template-delete-btn" type="button" data-contact-tenancy-unlink-action="remove">Remove Link</button>
+          </div>
+        </div>
+      `;
+
+      window.document.body.appendChild(backdrop);
+
+      function close(value) {
+        backdrop.remove();
+        resolve(value);
+      }
+
+      backdrop.addEventListener("click", function (event) {
+        if (event.target === backdrop) {
+          close("");
+          return;
+        }
+
+        const target = event.target;
+        if (!(target instanceof HTMLElement)) {
+          return;
+        }
+
+        const action = target.getAttribute("data-contact-tenancy-unlink-action");
+        if (action === "cancel") {
+          close("");
+          return;
+        }
+
+        if (action === "remove") {
+          const select = backdrop.querySelector("#contact-unlink-tenancy-select");
+          close(select instanceof HTMLSelectElement ? String(select.value || "").trim() : "");
+        }
+      });
+    });
+  }
+
+  async function handleAddTenancyLinkForContact() {
+    if (!activeContactId) {
+      return;
+    }
+
+    const contact = findContactById(activeContactId);
+    const building = findBuildingById(activeBuildingId);
+    if (!contact || !building) {
+      return;
+    }
+
+    const availableTenancies = getAllTenanciesForBuilding(building)
+      .filter(function (tenancy) {
+        return !getTenancyContactRefs(tenancy).includes(String(contact.id));
+      })
+      .map(function (tenancy) {
+        return { building: building, tenancy: tenancy };
+      });
+
+    if (availableTenancies.length === 0) {
+      alert("There are no further tenancies available to link for this building.");
+      return;
+    }
+
+    const tenancyId = await showContactTenancyLinkDialog(contact, availableTenancies);
+    if (!tenancyId) {
+      return;
+    }
+
+    const updated = linkContactToTenancy(building, tenancyId, contact.id);
+    if (!updated) {
+      return;
+    }
+
+    window.BuildingStorage.updateBuilding(updated);
+    renderBuildings();
+    renderContactLinkedTenancies(contact);
+  }
+
+  async function handleRemoveTenancyLinkForContact() {
+    if (!activeContactId) {
+      return;
+    }
+
+    const contact = findContactById(activeContactId);
+    if (!contact) {
+      return;
+    }
+
+    const links = getTenancyLinksForContact(contact.id);
+    if (links.length === 0) {
+      return;
+    }
+
+    const selection = await showContactTenancyUnlinkDialog(contact, links);
+    if (!selection) {
+      return;
+    }
+
+    const separatorIndex = selection.indexOf("::");
+    if (separatorIndex < 0) {
+      return;
+    }
+
+    const buildingId = selection.slice(0, separatorIndex);
+    const tenancyId = selection.slice(separatorIndex + 2);
+    const building = findBuildingById(buildingId);
+    if (!building) {
+      return;
+    }
+
+    const updated = unlinkContactFromTenancy(building, tenancyId, contact.id);
+    if (!updated) {
+      return;
+    }
+
+    window.BuildingStorage.updateBuilding(updated);
+    renderBuildings();
+    renderContactLinkedTenancies(contact);
+  }
+
   async function handleAddScheduleLinkForContact() {
     if (!activeContactId) {
       return;
@@ -7422,29 +7980,32 @@
       return;
     }
 
-    // Handle per-tenancy list actions.
-    const listAction = target.getAttribute("data-tenancy-list-action");
+    // Phone/email links act on their own; they must not also open Edit Tenancy.
+    if (typeof target.closest === "function"
+      && (target.closest(".contact-phone-link") || target.closest(".contact-email-link"))) {
+      if (typeof event.stopPropagation === "function") {
+        event.stopPropagation();
+      }
+      return;
+    }
+
+    // Handle per-tenancy list actions. The whole tile is clickable, so resolve the nearest action host.
+    const actionHost = (typeof target.closest === "function" && target.closest("[data-tenancy-list-action]")) || target;
+    const listAction = actionHost.getAttribute("data-tenancy-list-action");
     if (listAction) {
       const building = findBuildingById(activeBuildingId);
       if (!building) {
         return;
       }
 
-      if (listAction === "back-to-list") {
-        activeTenancyDetailsId = "";
-        renderCurrentTenancyPage(building);
-        return;
-      }
-
-      const tenancyId = String(target.getAttribute("data-tenancy-id") || "").trim();
+      const tenancyId = String(actionHost.getAttribute("data-tenancy-id") || "").trim();
       const tenancy = getTenancyById(building, tenancyId);
       if (!tenancy) {
         return;
       }
 
-      if (listAction === "details") {
-        activeTenancyDetailsId = tenancyId;
-        renderCurrentTenancyPage(building);
+      if (listAction === "edit") {
+        openTenancyForm("edit", tenancy);
         return;
       }
 
@@ -7469,8 +8030,7 @@
         };
         window.BuildingStorage.updateBuilding(updated);
         renderBuildings();
-        activeTenancyDetailsId = "";
-        renderCurrentTenancyPage(updated);
+        openCurrentTenancyView(updated.id);
       }
       return;
     }
@@ -7517,31 +8077,8 @@
   }
 
   function handleCancelTenancy() {
-    const formTenancyId = tenancyForm && tenancyForm.elements.tenancyId
-      ? String(tenancyForm.elements.tenancyId.value || "").trim()
-      : "";
-    if (tenancyFormMode === "edit" && formTenancyId) {
-      activeTenancyDetailsId = formTenancyId;
-    }
-    if (tenancyFormMode === "add") {
-      activeTenancyDetailsId = "";
-    }
+    // Back discards unsaved form edits and returns to the canonical tenancy list.
     openCurrentTenancyView(activeBuildingId);
-  }
-
-  function handleEditTenancy() {
-    const building = findBuildingById(activeBuildingId);
-    if (!building) {
-      return;
-    }
-
-    const tenancy = getTenancyById(building, activeTenancyDetailsId)
-      || (getAllTenanciesForBuilding(building)[0] || null);
-    if (!tenancy) {
-      return;
-    }
-
-    openTenancyForm("edit", tenancy);
   }
 
   function handleTenancyBack() {
@@ -7858,7 +8395,7 @@
   function openInlineMasterTemplateCreateDialog() {
     return new Promise(function (resolve) {
       const backdrop = window.document.createElement("div");
-      backdrop.className = "template-delete-modal-backdrop";
+      backdrop.className = "template-delete-modal-backdrop app-modal-backdrop-nested";
 
       const dialog = window.document.createElement("div");
       dialog.className = "template-delete-modal template-master-create-modal";
@@ -7975,7 +8512,7 @@
       }
 
       const backdrop = window.document.createElement("div");
-      backdrop.className = "template-delete-modal-backdrop";
+      backdrop.className = "template-delete-modal-backdrop app-modal-backdrop-nested";
 
       const dialog = window.document.createElement("div");
       dialog.className = "template-delete-modal template-master-create-modal";
@@ -8090,7 +8627,7 @@
   function confirmMasterTemplateDeleteDialog() {
     return new Promise(function (resolve) {
       const backdrop = window.document.createElement("div");
-      backdrop.className = "template-delete-modal-backdrop";
+      backdrop.className = "template-delete-modal-backdrop app-modal-backdrop-confirm";
 
       const dialog = window.document.createElement("div");
       dialog.className = "template-delete-modal";
@@ -8415,7 +8952,7 @@
   function confirmPropertyTemplateUnassignDialog(options) {
     return new Promise(function (resolve) {
       const backdrop = window.document.createElement("div");
-      backdrop.className = "template-delete-modal-backdrop";
+      backdrop.className = "template-delete-modal-backdrop app-modal-backdrop-confirm";
 
       const dialog = window.document.createElement("div");
       dialog.className = "template-delete-modal";
@@ -9372,6 +9909,11 @@
     applyTemplateCompletion: applyTemplateCompletion,
     applyTenancyEventCompletion: applyTenancyEventCompletion,
     getAllTenanciesForBuilding: getAllTenanciesForBuilding,
+    getTenancyContactRefs: getTenancyContactRefs,
+    getContactsForTenancy: getContactsForTenancy,
+    getTenancyLinksForContact: getTenancyLinksForContact,
+    linkContactToTenancy: linkContactToTenancy,
+    unlinkContactFromTenancy: unlinkContactFromTenancy,
     getAssignedMasterTemplateIdsForBuilding: function (building) {
       return Array.from(getAssignedMasterTemplateIdsForBuilding(building));
     },
@@ -9907,7 +10449,7 @@
   function showScheduleCompletionDialog(building, scheduleItem) {
     return new Promise(function (resolve) {
       const backdrop = window.document.createElement("div");
-      backdrop.className = "schedule-details-backdrop";
+      backdrop.className = "schedule-details-backdrop app-modal-backdrop-nested";
 
       const now = new Date().toISOString().slice(0, 10);
       let selectedFile = null;
@@ -10398,6 +10940,7 @@
         close();
         renderBuildings();
         renderSchedulePage();
+        await openScheduleDetailsDialog(building.id, scheduleItem.id, false, "details");
         return;
       }
 
@@ -10885,7 +11428,6 @@
   addTenancyBtn.addEventListener("click", function () {
     openTenancyForm("add");
   });
-  editTenancyBtn.addEventListener("click", handleEditTenancy);
   const addAnotherTenancyBtn = document.getElementById("add-another-tenancy-btn");
   if (addAnotherTenancyBtn instanceof HTMLButtonElement) {
     addAnotherTenancyBtn.addEventListener("click", function () {
@@ -10912,6 +11454,18 @@
   contactAddScheduleLinkBtn.addEventListener("click", handleAddScheduleLinkForContact);
   if (contactRemoveScheduleLinkBtn instanceof HTMLButtonElement) {
     contactRemoveScheduleLinkBtn.addEventListener("click", handleRemoveScheduleLinkForContact);
+  }
+  if (contactAddTenancyLinkBtn instanceof HTMLButtonElement) {
+    contactAddTenancyLinkBtn.addEventListener("click", handleAddTenancyLinkForContact);
+  }
+  if (contactRemoveTenancyLinkBtn instanceof HTMLButtonElement) {
+    contactRemoveTenancyLinkBtn.addEventListener("click", handleRemoveTenancyLinkForContact);
+  }
+  if (tenancyAddContactLinkBtn instanceof HTMLButtonElement) {
+    tenancyAddContactLinkBtn.addEventListener("click", handleAddContactLinkForTenancy);
+  }
+  if (tenancyContactsList) {
+    tenancyContactsList.addEventListener("click", handleTenancyContactsListClick);
   }
   cancelCompanyBtn.addEventListener("click", handleCancelCompany);
   addTemplateBtn.addEventListener("click", handleAddTemplate);

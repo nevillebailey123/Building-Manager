@@ -28,6 +28,30 @@
   --type-body-contacts: 1rem;
   --spacing-stack-contacts: 0.65rem;
   --spacing-card-pad-contacts: 0.85rem;
+  /* Modal stacking hierarchy: base modals < nested dialogs < confirmations. */
+  --layer-modal: 2000;
+  --layer-modal-nested: 2200;
+  --layer-modal-confirm: 2400;
+}
+
+/* Shared backdrop layer. All backdrops are appended to <body> so they share one stacking context. */
+.template-delete-modal-backdrop,
+.document-modal-backdrop,
+.schedule-details-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: var(--layer-modal);
+  display: grid;
+  place-items: center;
+  padding: 1rem;
+}
+
+.app-modal-backdrop-nested {
+  z-index: var(--layer-modal-nested);
+}
+
+.app-modal-backdrop-confirm {
+  z-index: var(--layer-modal-confirm);
 }
 
 * {
@@ -483,13 +507,7 @@ body {
 }
 
 .template-delete-modal-backdrop {
-  position: fixed;
-  inset: 0;
-  z-index: 2000;
   background: rgba(6, 10, 16, 0.68);
-  display: grid;
-  place-items: center;
-  padding: 1rem;
 }
 
 .template-delete-modal {
@@ -1427,13 +1445,7 @@ body {
 }
 
 .schedule-details-backdrop {
-  position: fixed;
-  inset: 0;
-  z-index: 2200;
   background: rgba(6, 10, 16, 0.72);
-  display: grid;
-  place-items: center;
-  padding: 1rem;
 }
 
 .schedule-details-modal,
@@ -1783,6 +1795,28 @@ body {
   color: var(--text-muted);
 }
 
+.tenancy-card-contacts {
+  display: grid;
+  gap: 0.35rem;
+  margin-top: 0.35rem;
+  padding-top: 0.4rem;
+  border-top: 1px solid var(--border);
+}
+
+.tenancy-list-card .tenancy-card-contacts-heading {
+  color: var(--text-main);
+}
+
+.tenancy-card-contact {
+  display: grid;
+  gap: 0.1rem;
+}
+
+.tenancy-list-card .tenancy-card-contact-name {
+  color: var(--text-main);
+  font-weight: 600;
+}
+
 .tenancy-card-actions {
   display: flex;
   gap: 0.5rem;
@@ -1962,13 +1996,7 @@ body {
 }
 
 .document-modal-backdrop {
-  position: fixed;
-  inset: 0;
-  z-index: 2100;
   background: rgba(6, 10, 16, 0.7);
-  display: grid;
-  place-items: center;
-  padding: 1rem;
 }
 
 .document-modal {
