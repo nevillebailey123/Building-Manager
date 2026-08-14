@@ -1,6 +1,6 @@
 {
-  "name": "Building Manager",
-  "short_name": "Building Manager",
+  "name": "Compliance HQ",
+  "short_name": "Compliance HQ",
   "display": "standalone",
   "start_url": "./",
   "theme_color": "#2563eb",

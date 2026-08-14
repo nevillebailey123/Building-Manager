@@ -6,62 +6,36 @@ const appSource = fs.readFileSync("./app.js", "utf8");
 const indexSource = fs.readFileSync("./index.html", "utf8");
 const serviceWorkerSource = fs.readFileSync("./service-worker.js", "utf8");
 
-assert.ok(indexSource.includes('data-workspace-module="Documents"'), "Home Documents tile must use the Documents module name");
-assert.ok(indexSource.includes('data-module="Documents"'), "Building Documents tile must use the Documents module name");
-assert.ok(appSource.includes("workspaceModuleNav.addEventListener(\"click\", handleWorkspaceModuleNavigationClick)"), "Home Dashboard must register the delegated module click listener");
-assert.ok(appSource.includes('moduleName === "Documents"'), "Home Dashboard handler must recognize Documents");
-assert.ok(serviceWorkerSource.includes('building-manager-shell-v2'), "Service worker shell cache must invalidate stale dashboard code");
-assert.ok(serviceWorkerSource.includes('building-manager-runtime-v2'), "Service worker runtime cache must invalidate stale dashboard code");
+assert.ok(indexSource.includes('data-app-module="Documents"'), "Shared shell must expose the Documents module");
+assert.ok(indexSource.includes('data-module="Documents"'), "Property Documents tile must use the Documents module name");
+assert.ok(appSource.includes("appModuleNav.addEventListener(\"click\", handleAppModuleNavClick)"), "Shared shell must register the delegated module click listener");
+assert.ok(appSource.includes('moduleKey === "Documents"'), "Shared shell handler must recognize Documents");
+assert.ok(serviceWorkerSource.includes('building-manager-shell-v3'), "Service worker shell cache must invalidate stale shell code");
+assert.ok(serviceWorkerSource.includes('building-manager-runtime-v3'), "Service worker runtime cache must invalidate stale shell code");
 
-const homeHandlerStart = appSource.indexOf("function handleWorkspaceModuleNavigationClick");
-const homeHandlerEnd = appSource.indexOf("\n\n  function handleBreadcrumbClick", homeHandlerStart);
+const homeHandlerStart = appSource.indexOf("function openAppModule");
+const homeHandlerEnd = appSource.indexOf("\n\n  function handleAppModuleNavClick", homeHandlerStart);
 const homeHandlerSource = appSource.slice(homeHandlerStart, homeHandlerEnd);
 const navigationCalls = [];
-const dashboardNav = {
-  listener: null,
-  addEventListener(type, listener) {
-    if (type === "click") {
-      this.listener = listener;
-    }
-  },
-  dispatchClick(target) {
-    if (!this.listener) {
-      throw new Error("Dashboard Documents listener was not registered");
-    }
-    this.listener({ target: target });
-  },
-};
 const homeContext = {
   activeBuildingId: "",
-  HTMLElement: function HTMLElement() {},
-  alert() {
-    throw new Error("Documents navigation should not require a selected Building");
-  },
+  goToDashboard() {},
+  openSettingsView() {},
+  openCurrentTenancyView() {},
+  openContactsView() {},
+  openScheduleView() {},
   openLeaseView(buildingId) {
     navigationCalls.push(buildingId);
   },
-  workspaceModuleNav: dashboardNav,
 };
-function createHomeButton() {
-  const button = Object.create(homeContext.HTMLElement.prototype);
-  button.closest = function () { return button; };
-  button.getAttribute = function (name) {
-    return name === "data-workspace-module" ? "Documents" : "";
-  };
-  return button;
-}
-homeContext.HTMLElement.prototype.constructor = homeContext.HTMLElement;
-homeContext.createHomeButton = createHomeButton;
 vm.createContext(homeContext);
 vm.runInContext(homeHandlerSource, homeContext);
-vm.runInContext('workspaceModuleNav.addEventListener("click", handleWorkspaceModuleNavigationClick);', homeContext);
-assert.ok(dashboardNav.listener, "Dashboard Documents listener must be registered");
 ["", "ford-onekawa"].forEach(function (buildingId) {
   homeContext.activeBuildingId = buildingId;
   navigationCalls.length = 0;
-  dashboardNav.dispatchClick(createHomeButton());
-  assert.strictEqual(navigationCalls.length, 1, "Home Documents action must open the Documents page");
-  assert.strictEqual(navigationCalls[0], buildingId, "Home Documents action must preserve the shared Building filter");
+  vm.runInContext('openAppModule("Documents");', homeContext);
+  assert.strictEqual(navigationCalls.length, 1, "Shared shell Documents action must open the Documents page");
+  assert.strictEqual(navigationCalls[0], buildingId, "Shared shell Documents action must preserve the shared Property selection");
 });
 const fixedCategoriesStart = appSource.indexOf("  const FIXED_DOCUMENT_CATEGORIES = [");
 const fixedCategoriesEnd = appSource.indexOf("\n\n  const DEFAULT_TEMPLATE_LIBRARY", fixedCategoriesStart);

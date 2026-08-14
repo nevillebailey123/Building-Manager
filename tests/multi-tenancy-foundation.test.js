@@ -400,7 +400,6 @@ const buildingBForWorkflow = {
 
 const ctx3 = createHarness([buildingAForWorkflow, buildingBForWorkflow]);
 const addTenancyBtn = ctx3.document.getElementById("add-tenancy-btn");
-const addAnotherTenancyBtn = ctx3.document.getElementById("add-another-tenancy-btn");
 const cancelTenancyBtn = ctx3.document.getElementById("cancel-tenancy-btn");
 const tenancyDetailsList = ctx3.document.getElementById("tenancy-details-list");
 const tenancyForm = ctx3.document.getElementById("tenancy-form");
@@ -483,7 +482,7 @@ assert.strictEqual(buildingAAfterA1.tenancies.length, 1, "Expected one tenancy a
 const a1 = buildingAAfterA1.tenancies[0];
 assert.ok(a1.id, "A1 ID should be generated");
 
-clickButton(addAnotherTenancyBtn);
+clickButton(addTenancyBtn);
 setTenancyFormValues({
   companyName: "Tenant A2",
   tradingName: "A2 Trading",
@@ -513,7 +512,7 @@ assert.notStrictEqual(String(a2.id || ""), String(a1.id || ""), "A2 must have a 
 assert.strictEqual(a2.companyName, "Tenant A2", "A2 company should be saved");
 
 // TEST 3a: A third and fourth tenancy append without replacing earlier records.
-clickButton(addAnotherTenancyBtn);
+clickButton(addTenancyBtn);
 setTenancyFormValues({
   companyName: "Tenant A3",
   tradingName: "A3 Trading",
@@ -533,7 +532,7 @@ const a3 = buildingAAfterA3.tenancies.find(function (tenancy) {
 });
 assert.ok(a3, "A3 should be present after append");
 
-clickButton(addAnotherTenancyBtn);
+clickButton(addTenancyBtn);
 setTenancyFormValues({
   companyName: "Tenant A4",
   tradingName: "A4 Trading",

@@ -12,22 +12,25 @@
   const completeTaskView = document.getElementById("complete-task-view");
   const placeholderView = document.getElementById("placeholder-view");
   const editView = document.getElementById("edit-view");
+  const settingsView = document.getElementById("settings-view");
+  const appShellHeader = document.getElementById("app-shell-header");
+  const appBrandBtn = document.getElementById("app-brand-btn");
+  const appPropertySelector = document.getElementById("app-property-selector");
+  const appModuleNav = document.getElementById("app-module-nav");
+  const settingsPropertyList = document.getElementById("settings-property-list");
+  const settingsAddPropertyBtn = document.getElementById("settings-add-property-btn");
+  const settingsTemplatesBtn = document.getElementById("settings-templates-btn");
+  const editPropertyManagementHelp = document.getElementById("edit-property-management-help");
+  const editArchivePropertyBtn = document.getElementById("edit-archive-property-btn");
+  const editRestorePropertyBtn = document.getElementById("edit-restore-property-btn");
+  const editDeletePropertyBtn = document.getElementById("edit-delete-property-btn");
   const breadcrumbNav = document.getElementById("breadcrumb-nav");
   const cancelBtn = document.getElementById("cancel-btn");
-  const selectedBuildingBtn = document.getElementById("selected-building-btn");
-  const selectedBuildingName = document.getElementById("selected-building-name");
-  const selectedBuildingStatus = document.getElementById("selected-building-status");
-  const buildingSelectorList = document.getElementById("building-selector-list");
   const workspaceDashboardCard = document.getElementById("workspace-dashboard-card");
+  const workspaceDashboardTitle = document.getElementById("workspace-dashboard-title");
   const workspaceDashboardSummary = document.getElementById("workspace-dashboard-summary");
-  const workspaceModuleNav = document.getElementById("workspace-module-nav");
-  const overviewBackBtn = document.getElementById("overview-back-btn");
   const editBuildingBtn = document.getElementById("edit-building-btn");
-  const tenancyBackBtn = document.getElementById("tenancy-back-btn");
-  const leaseBackBtn = document.getElementById("lease-back-btn");
-  const contactsBackBtn = document.getElementById("contacts-back-btn");
   const companiesBackBtn = document.getElementById("companies-back-btn");
-  const scheduleBackBtn = document.getElementById("schedule-back-btn");
   const manageTemplatesBtn = document.getElementById("manage-templates-btn");
   const historyBackBtn = document.getElementById("history-back-btn");
   const templateLibraryBackBtn = document.getElementById("template-library-back-btn");
@@ -40,11 +43,9 @@
   const cancelEditBtn = document.getElementById("cancel-edit-btn");
   const cancelTenancyBtn = document.getElementById("cancel-tenancy-btn");
   const addTenancyBtn = document.getElementById("add-tenancy-btn");
-  const addContactBtn = document.getElementById("add-contact-btn");
   const addCompanyBtn = document.getElementById("add-company-btn");
   const addCompanyInlineBtn = document.getElementById("add-company-inline-btn");
   const archiveTenancyBtn = document.getElementById("archive-tenancy-btn");
-  const deleteBuildingBtn = document.getElementById("delete-building-btn");
   const emptyState = document.getElementById("empty-state");
   const overviewBuildingName = document.getElementById("overview-building-name");
   const overviewStreetAddress = document.getElementById("overview-street-address");
@@ -60,8 +61,8 @@
   const leaseCommencementDate = document.getElementById("lease-commencement-date");
   const leaseExpiryDate = document.getElementById("lease-expiry-date");
   const documentsAddBtn = document.getElementById("documents-add-btn");
+  const leaseRepositoryCard = document.getElementById("lease-repository-card");
   const leaseSearch = document.getElementById("lease-search");
-  const leaseSearchTools = document.getElementById("lease-search-tools");
   const leaseCategoryFilter = document.getElementById("lease-category-filter");
   const leaseDashboardPanel = document.getElementById("lease-dashboard-panel");
   const leaseCategoryGrid = document.getElementById("lease-category-grid");
@@ -70,7 +71,6 @@
   const documentForm = document.getElementById("document-form");
   const documentTitleInput = document.getElementById("document-title-input");
   const documentBuildingSelect = document.getElementById("document-building-select");
-  const documentTypeSelect = document.getElementById("document-type-select");
   const documentCategorySelect = document.getElementById("document-category-select");
   const documentDateInput = document.getElementById("document-date-input");
   const documentExpiryInput = document.getElementById("document-expiry-input");
@@ -79,6 +79,7 @@
   const documentFileInput = document.getElementById("document-file-input");
   const documentFileHelp = document.getElementById("document-file-help");
   const documentCurrentFile = document.getElementById("document-current-file");
+  const documentSaveBtn = document.getElementById("document-save-btn");
   const documentNotesInput = document.getElementById("document-notes-input");
   const documentDeleteBtn = document.getElementById("document-delete-btn");
   const documentCancelBtn = document.getElementById("document-cancel-btn");
@@ -124,7 +125,6 @@
   const completeTaskBuildingName = document.getElementById("complete-task-building-name");
   const completeTaskName = document.getElementById("complete-task-name");
   const scheduleOpsList = document.getElementById("schedule-ops-list");
-  const scheduleFilterProperty = document.getElementById("schedule-filter-property");
   const scheduleFilterCategory = document.getElementById("schedule-filter-category");
   const scheduleFilterStatus = document.getElementById("schedule-filter-status");
   const scheduleFilterDuePeriod = document.getElementById("schedule-filter-due-period");
@@ -135,7 +135,6 @@
   const placeholderDescription = document.getElementById("placeholder-description");
   const placeholderBuildingName = document.getElementById("placeholder-building-name");
   const placeholderMessage = document.getElementById("placeholder-message");
-  const placeholderBackBtn = document.getElementById("placeholder-back-btn");
   const setupProgress = document.getElementById("setup-progress");
   const setupStep1 = document.getElementById("setup-step-1");
   const setupStep2 = document.getElementById("setup-step-2");
@@ -191,13 +190,12 @@
   const backupExportBtn = document.getElementById("backup-export-btn");
   const backupRestoreBtn = document.getElementById("backup-restore-btn");
   const backupRestoreInput = document.getElementById("backup-restore-input");
-  const tenancyBuildingFilter = document.getElementById("tenancy-building-filter");
-  const contactsBuildingFilter = document.getElementById("contacts-building-filter");
-  const leaseBuildingFilter = document.getElementById("lease-building-filter");
   const contactsEmptyMessage = document.getElementById("contacts-empty-message");
   const tenancyEmptyMessage = document.getElementById("tenancy-empty-message");
 
   let activeBuildingId = "";
+  let editingPropertyId = "";
+  let activeAppModule = "dashboard";
   let activeModule = "Overview";
   let tenancyFormMode = "add";
   let contactFormMode = "add";
@@ -229,7 +227,6 @@
   let documentFormCategory = "";
   let leaseSearchQuery = "";
   let leaseCategoryFilterValue = "";
-  let selectorOpen = false;
   let breadcrumbItems = [];
 
   const ACTIVE_BUILDING_KEY = "buildingManagerActiveBuildingId";
@@ -556,12 +553,39 @@
 
   function setBreadcrumbs(items) {
     breadcrumbItems = items;
+    breadcrumbNav.hidden = items.length === 0;
     breadcrumbNav.innerHTML = items
       .map(function (item, index) {
         const separator = index < items.length - 1 ? '<span class="breadcrumb-sep">&gt;</span>' : "";
         return `<button class="breadcrumb-link" type="button" data-crumb-index="${index}">${item.label}</button>${separator}`;
       })
       .join("");
+  }
+
+  // Shared application shell: one nav definition drives every module page.
+  const APP_MODULE_KEYS = ["dashboard", "Tenancy", "Contacts", "Schedule", "Documents", "settings"];
+
+  function setActiveAppModule(moduleKey) {
+    activeAppModule = APP_MODULE_KEYS.indexOf(moduleKey) === -1 ? "" : moduleKey;
+    // Any screen that claims a module is a shell page, so the shell and its Property selector must be showing.
+    setAppShellVisible(true);
+    renderAllBuildingFilterSelects();
+    if (!appModuleNav) {
+      return;
+    }
+
+    Array.prototype.forEach.call(appModuleNav.querySelectorAll(".app-module-btn"), function (button) {
+      button.classList.toggle("is-active", button.getAttribute("data-app-module") === activeAppModule);
+      button.setAttribute("aria-current", button.getAttribute("data-app-module") === activeAppModule ? "page" : "false");
+    });
+  }
+
+  // Focused workflows (setup, edit, task completion) hide the shell so Cancel/Save stay unambiguous.
+  function setAppShellVisible(isVisible) {
+    if (!appShellHeader) {
+      return;
+    }
+    appShellHeader.hidden = !isVisible;
   }
 
   function hideAllViews() {
@@ -578,47 +602,67 @@
     completeTaskView.classList.remove("is-active");
     placeholderView.classList.remove("is-active");
     editView.classList.remove("is-active");
+    if (settingsView) {
+      settingsView.classList.remove("is-active");
+    }
+    setAppShellVisible(true);
+    renderAllBuildingFilterSelects();
   }
 
   function showTemplateLibraryView() {
     hideAllViews();
     templateLibraryView.classList.add("is-active");
+    setActiveAppModule("settings");
     setBreadcrumbs([
-      { label: "Properties", onClick: goToDashboard },
-      { label: "Template Library", onClick: openTemplateLibrary },
+      { label: "Settings", onClick: openSettingsView },
+      { label: "Calendar Templates", onClick: openTemplateLibrary },
     ]);
+  }
+
+  function showSettingsView() {
+    hideAllViews();
+    settingsView.classList.add("is-active");
+    setActiveAppModule("settings");
+    setBreadcrumbs([]);
+  }
+
+  function openSettingsView() {
+    renderSettingsPropertyList();
+    showSettingsView();
   }
 
   function showDashboard() {
     hideAllViews();
     dashboardView.classList.add("is-active");
-    setSelectorOpen(false);
-    setBreadcrumbs([
-      { label: "Properties", onClick: goToDashboard },
-    ]);
+    setActiveAppModule("dashboard");
+    setBreadcrumbs([]);
   }
 
   function showForm() {
     hideAllViews();
+    setAppShellVisible(false);
     formView.classList.add("is-active");
     startSetupWorkflow();
   }
 
+  // Property Details is not currently reachable: the Dashboard now renders the per-property
+  // overview and Settings owns property administration. Retained pending a decision.
   function showOverview() {
     hideAllViews();
     overviewView.classList.add("is-active");
+    setActiveAppModule("dashboard");
     setBreadcrumbs([
-      { label: "Properties", onClick: goToDashboard },
+      { label: "Dashboard", onClick: goToDashboard },
       { label: getActiveBuildingName(), onClick: function () { openOverviewById(activeBuildingId); } },
     ]);
   }
 
   function showEditForm() {
     hideAllViews();
+    setAppShellVisible(false);
     editView.classList.add("is-active");
     setBreadcrumbs([
-      { label: "Properties", onClick: goToDashboard },
-      { label: getActiveBuildingName(), onClick: function () { openOverviewById(activeBuildingId); } },
+      { label: "Settings", onClick: openSettingsView },
       { label: "Edit Property", onClick: showEditForm },
     ]);
   }
@@ -626,44 +670,31 @@
   function showTenancyView() {
     hideAllViews();
     tenancyView.classList.add("is-active");
-    setBreadcrumbs([
-      { label: "Properties", onClick: goToDashboard },
-      { label: getActiveBuildingName(), onClick: function () { openOverviewById(activeBuildingId); } },
-      { label: "Current Tenancy", onClick: function () { openCurrentTenancyView(activeBuildingId); } },
-    ]);
+    setActiveAppModule("Tenancy");
+    setBreadcrumbs([]);
   }
 
   function showLeaseView() {
     hideAllViews();
     leaseView.classList.add("is-active");
-    const building = getActiveBuildingName();
-    const crumbs = [
-      { label: "Properties", onClick: goToDashboard },
-      { label: building, onClick: function () { openOverviewById(activeBuildingId); } },
-      { label: "Documents", onClick: function () { openLeaseView(activeBuildingId); } },
-    ];
-
-    setBreadcrumbs([
-      ...crumbs,
-    ]);
+    setActiveAppModule("Documents");
+    setBreadcrumbs([]);
   }
 
   function showContactsView() {
     hideAllViews();
     contactsView.classList.add("is-active");
-    setBreadcrumbs([
-      { label: "Properties", onClick: goToDashboard },
-      { label: getActiveBuildingName(), onClick: function () { openOverviewById(activeBuildingId); } },
-      { label: "Contacts", onClick: openContactsView },
-    ]);
+    setActiveAppModule("Contacts");
+    setBreadcrumbs([]);
   }
 
   function showCompaniesView() {
     hideAllViews();
     companiesView.classList.add("is-active");
+    setActiveAppModule("Contacts");
     setBreadcrumbs([
-      { label: "Properties", onClick: goToDashboard },
-      { label: getActiveBuildingName(), onClick: function () { openOverviewById(activeBuildingId); } },
+      { label: "Dashboard", onClick: goToDashboard },
+      { label: "Contacts", onClick: openContactsView },
       { label: "Companies", onClick: openCompaniesView },
     ]);
   }
@@ -671,29 +702,27 @@
   function showScheduleView() {
     hideAllViews();
     scheduleView.classList.add("is-active");
-    setBreadcrumbs([
-      { label: "Properties", onClick: goToDashboard },
-      { label: getActiveBuildingName(), onClick: function () { openOverviewById(activeBuildingId); } },
-      { label: "Calendar", onClick: function () { openScheduleView(activeBuildingId); } },
-    ]);
+    setActiveAppModule("Schedule");
+    setBreadcrumbs([]);
   }
 
   function showHistoryView() {
     hideAllViews();
     historyView.classList.add("is-active");
+    setActiveAppModule("Schedule");
     setBreadcrumbs([
-      { label: "Properties", onClick: goToDashboard },
-      { label: getActiveBuildingName(), onClick: function () { openOverviewById(activeBuildingId); } },
+      { label: "Dashboard", onClick: goToDashboard },
+      { label: "Calendar", onClick: function () { openScheduleView(activeBuildingId); } },
       { label: "Completed", onClick: function () { openHistoryView(activeBuildingId); } },
     ]);
   }
 
   function showCompleteTaskView() {
     hideAllViews();
+    setAppShellVisible(false);
     completeTaskView.classList.add("is-active");
     setBreadcrumbs([
-      { label: "Properties", onClick: goToDashboard },
-      { label: getActiveBuildingName(), onClick: function () { openOverviewById(activeBuildingId); } },
+      { label: "Dashboard", onClick: goToDashboard },
       { label: "Calendar", onClick: function () { openScheduleView(activeBuildingId); } },
       { label: "Complete Task", onClick: function () { openCompleteTaskView(activeScheduleItemId); } },
     ]);
@@ -1183,15 +1212,32 @@
     return activeBuildingId;
   }
 
-  function getSortedBuildings() {
+  // Properties without an archived flag predate archiving and are treated as active.
+  function isBuildingArchived(building) {
+    return Boolean(building && building.archived === true);
+  }
+
+  function getAllBuildingsIncludingArchived() {
     return window.BuildingStorage.getBuildings().slice().sort(function (left, right) {
       return String(left.buildingName || "").localeCompare(String(right.buildingName || ""), undefined, { sensitivity: "base" });
     });
   }
 
-  // Every filtered page reads its records from here, so All Buildings is a real portfolio view.
+  function getOperationalBuildings() {
+    return window.BuildingStorage.getBuildings().filter(function (building) {
+      return !isBuildingArchived(building);
+    });
+  }
+
+  function getSortedBuildings() {
+    return getOperationalBuildings().slice().sort(function (left, right) {
+      return String(left.buildingName || "").localeCompare(String(right.buildingName || ""), undefined, { sensitivity: "base" });
+    });
+  }
+
+  // Every filtered page reads its records from here, so All Properties is a real portfolio view.
   function getBuildingsForFilter() {
-    const buildings = window.BuildingStorage.getBuildings();
+    const buildings = getOperationalBuildings();
     const filterId = getBuildingFilterId();
     if (!filterId) {
       return buildings;
@@ -1219,14 +1265,15 @@
     }
   }
 
+  // The shared shell owns the only Property selector, so every module stays in sync.
   function renderAllBuildingFilterSelects() {
-    [scheduleFilterProperty, tenancyBuildingFilter, contactsBuildingFilter, leaseBuildingFilter]
-      .forEach(renderBuildingFilterOptions);
+    renderBuildingFilterOptions(appPropertySelector);
   }
 
   function applyBuildingFilterSelection(buildingId) {
     const nextId = String(buildingId || "").trim();
-    setCurrentPropertyId(findBuildingById(nextId) ? nextId : "");
+    const target = findBuildingById(nextId);
+    setCurrentPropertyId(target && !isBuildingArchived(target) ? nextId : "");
     syncScheduleFilterToCurrentProperty();
     renderAllBuildingFilterSelects();
     renderBuildings();
@@ -1236,59 +1283,8 @@
     return getBuildingFilterId() ? "this Property" : "your properties";
   }
 
-  function getBuildingStatusLevel(building) {
-    const normalized = ensureWorkflowCollections(building);
-    const scheduleItems = Array.isArray(normalized.scheduleItems) ? normalized.scheduleItems : [];
-    if (scheduleItems.length === 0) {
-      return "grey";
-    }
-
-    const overdueCount = scheduleItems.filter(function (item) {
-      return getScheduleBucket(item) === "overdue";
-    }).length;
-    const soonCount = scheduleItems.filter(function (item) {
-      const bucket = getScheduleBucket(item);
-      return bucket === "week" || bucket === "month";
-    }).length;
-
-    if (overdueCount >= 3) {
-      return "red";
-    }
-    if (overdueCount >= 1) {
-      return "orange";
-    }
-    if (soonCount >= 1) {
-      return "yellow";
-    }
-    return "green";
-  }
-
-  function getStatusDot(level) {
-    const map = {
-      green: "🟢",
-      yellow: "🟡",
-      orange: "🟠",
-      red: "🔴",
-      grey: "⚪",
-    };
-    return map[level] || "⚪";
-  }
-
-  function updateSelectedBuildingHeader(building) {
-    if (!building) {
-      selectedBuildingName.textContent = "All Properties";
-      selectedBuildingStatus.className = "building-status-indicator status-grey";
-      return;
-    }
-
-    selectedBuildingName.textContent = building.buildingName;
-    selectedBuildingStatus.className = "building-status-indicator status-" + getBuildingStatusLevel(building);
-  }
-
-  function setSelectorOpen(isOpen) {
-    selectorOpen = isOpen;
-    selectedBuildingBtn.setAttribute("aria-expanded", isOpen ? "true" : "false");
-    buildingSelectorList.classList.toggle("is-open", isOpen);
+  function updateSelectedBuildingHeader() {
+    renderAllBuildingFilterSelects();
   }
 
   function ensureActiveBuildingSelection(buildings) {
@@ -1320,49 +1316,76 @@
     setCurrentPropertyId(saved ? saved.id : buildings[0].id);
   }
 
-  function renderSelectorList(buildings) {
-    const allPropertiesSelectedClass = !activeBuildingId ? " is-selected" : "";
-    const allPropertiesRow = `
-      <button class="selector-option${allPropertiesSelectedClass}" type="button" data-building-id="">
-        <span>All Properties</span>
-        <span class="selector-dot">${getStatusDot("grey")}</span>
-      </button>
-    `;
+  function renderSettingsPropertyList() {
+    if (!settingsPropertyList) {
+      return;
+    }
 
-    const rows = buildings
-      .map(function (building) {
-        const level = getBuildingStatusLevel(building);
-        const selected = building.id === activeBuildingId;
-        const selectedClass = selected ? " is-selected" : "";
-        return `
-          <button class="selector-option${selectedClass}" type="button" data-building-id="${building.id}">
-            <span>${building.buildingName}</span>
-            <span class="selector-dot">${getStatusDot(level)}</span>
-          </button>
-        `;
-      })
-      .join("");
+    const buildings = getAllBuildingsIncludingArchived();
+    if (buildings.length === 0) {
+      settingsPropertyList.innerHTML = '<p class="module-placeholder">No properties have been added yet.</p>';
+      return;
+    }
 
-    const addRow = `
-      <button class="selector-option selector-add-new" type="button" data-selector-action="add-building">
-        <span>+ Add New Property</span>
-      </button>
-    `;
-
-    buildingSelectorList.innerHTML = allPropertiesRow + rows + addRow;
+    settingsPropertyList.innerHTML = buildings.map(function (building) {
+      const archived = isBuildingArchived(building);
+      const address = [building.streetAddress, building.city].filter(Boolean).join(", ");
+      return `
+        <article class="building-card settings-property-card${archived ? " is-archived" : ""}" data-settings-property-id="${escapeHtml(building.id)}">
+          <h3>${escapeHtml(building.buildingName || "Untitled Property")}</h3>
+          ${address ? `<p>${escapeHtml(address)}</p>` : ""}
+          <p><strong>Status:</strong> ${archived ? "Archived" : escapeHtml(building.status || "Active")}</p>
+          <div class="document-item-actions settings-property-actions">
+            <button class="btn btn-secondary lease-tile-btn" type="button" data-settings-property-action="edit">Edit Property</button>
+          </div>
+        </article>
+      `;
+    }).join("");
   }
 
+  // Dashboard counts must match the Documents module, so they read the same repository records.
+  function getDocumentRepositoryCount() {
+    return getDocumentRegisterRecords().length;
+  }
+
+  function getPortfolioSummaryCounts(buildings) {
+    return buildings.reduce(function (totals, building) {
+      const normalized = ensureWorkflowCollections(building);
+      const scheduleItems = Array.isArray(normalized.scheduleItems) ? normalized.scheduleItems : [];
+      totals.properties += 1;
+      totals.tenancies += getAllTenanciesForBuilding(normalized).length;
+      totals.overdue += scheduleItems.filter(function (item) {
+        return getScheduleBucket(item) === "overdue";
+      }).length;
+      totals.dueSoon += scheduleItems.filter(function (item) {
+        const bucket = getScheduleBucket(item);
+        return bucket === "week" || bucket === "month";
+      }).length;
+      return totals;
+    }, { properties: 0, tenancies: 0, overdue: 0, dueSoon: 0 });
+  }
+
+  // Dashboard sections read from this single summary so future panels can be added centrally.
   function renderWorkspaceSummary(building) {
     if (!building) {
-      workspaceDashboardSummary.innerHTML = '<div><dt>Property</dt><dd>All Properties</dd></div>';
+      const totals = getPortfolioSummaryCounts(getOperationalBuildings());
+      if (workspaceDashboardTitle) {
+        workspaceDashboardTitle.textContent = "Portfolio Overview";
+      }
+      workspaceDashboardSummary.innerHTML = `
+        <div><dt>Property</dt><dd>All Properties</dd></div>
+        <div><dt>Properties</dt><dd>${totals.properties}</dd></div>
+        <div><dt>Tenancies</dt><dd>${totals.tenancies}</dd></div>
+        <div><dt>Overdue Items</dt><dd>${totals.overdue}</dd></div>
+        <div><dt>Due Soon</dt><dd>${totals.dueSoon}</dd></div>
+        <div><dt>Documents</dt><dd>${getDocumentRepositoryCount()}</dd></div>
+      `;
       return;
     }
 
     const normalized = ensureWorkflowCollections(building);
     const currentTenant = normalized.tenancy ? normalized.tenancy.companyName : "None";
-    const documentsCount = normalized.tenancy && normalized.tenancy.lease && Array.isArray(normalized.tenancy.lease.documents)
-      ? normalized.tenancy.lease.documents.length
-      : 0;
+    const documentsCount = getDocumentRepositoryCount();
     const overdueCount = normalized.scheduleItems.filter(function (item) {
       return getScheduleBucket(item) === "overdue";
     }).length;
@@ -1373,6 +1396,9 @@
       })[0] || null;
     const nextItemText = nextItem ? `${nextItem.taskName} (${formatDate(nextItem.dueDate)})` : "None scheduled";
 
+    if (workspaceDashboardTitle) {
+      workspaceDashboardTitle.textContent = "Property Overview";
+    }
     workspaceDashboardSummary.innerHTML = `
       <div><dt>Property Name</dt><dd>${normalized.buildingName}</dd></div>
       <div><dt>Address</dt><dd>${normalized.streetAddress}, ${normalized.city}</dd></div>
@@ -1384,14 +1410,13 @@
   }
 
   function renderBuildings() {
-    const buildings = window.BuildingStorage.getBuildings();
+    const buildings = getOperationalBuildings();
+    renderSettingsPropertyList();
 
     if (buildings.length === 0) {
       emptyState.style.display = "block";
       workspaceDashboardCard.style.display = "none";
-      workspaceModuleNav.style.display = "none";
-      renderSelectorList([]);
-      updateSelectedBuildingHeader(null);
+      updateSelectedBuildingHeader();
       return;
     }
 
@@ -1400,9 +1425,7 @@
 
     emptyState.style.display = "none";
     workspaceDashboardCard.style.display = "block";
-    workspaceModuleNav.style.display = "grid";
-    renderSelectorList(buildings);
-    updateSelectedBuildingHeader(activeBuilding);
+    updateSelectedBuildingHeader();
     renderWorkspaceSummary(activeBuilding);
   }
 
@@ -2157,7 +2180,7 @@
 
   function handleSetupCancel() {
     setupState = createEmptySetupState();
-    showDashboard();
+    openSettingsView();
     renderBuildings();
   }
 
@@ -2253,11 +2276,12 @@
 
   function handleSetupOpenBuilding() {
     if (!setupState.createdBuildingId) {
-      showDashboard();
+      goToDashboard();
       return;
     }
 
-    openOverviewById(setupState.createdBuildingId);
+    applyBuildingFilterSelection(setupState.createdBuildingId);
+    goToDashboard();
   }
 
   function findBuildingById(buildingId) {
@@ -3722,7 +3746,7 @@
       return String(left).localeCompare(String(right), undefined, { sensitivity: "base" });
     });
 
-    renderBuildingFilterOptions(scheduleFilterProperty);
+    renderAllBuildingFilterSelects();
 
     scheduleFilterCategory.innerHTML = ['<option value="all">All Categories</option>']
       .concat(categories.map(function (category) {
@@ -4509,9 +4533,12 @@
   }
 
   function renderTenancySectionState(hasTenancy, mode) {
-    tenancyEmptyState.style.display = hasTenancy ? "none" : "block";
+    tenancyEmptyState.style.display = hasTenancy || mode === "form" ? "none" : "block";
     tenancyDetailsCard.style.display = hasTenancy && mode !== "form" ? "block" : "none";
     tenancyFormCard.style.display = mode === "form" ? "block" : "none";
+    if (addTenancyBtn instanceof HTMLButtonElement) {
+      addTenancyBtn.style.display = mode === "form" ? "none" : "";
+    }
   }
 
   function getTenancyById(building, tenancyId) {
@@ -4964,7 +4991,6 @@
     documentTitleInput.value = record ? getDocumentRegisterTitle(record) : "";
     documentDateInput.value = record ? String(record.documentDate || "").slice(0, 10) : "";
     documentExpiryInput.value = record ? String(record.expiryDate || "").slice(0, 10) : "";
-    documentTypeSelect.value = record ? String(record.documentType || "Other") : "Other";
     documentNotesInput.value = record ? String(record.notes || "") : "";
     renderDocumentFormBuildingOptions(selectedBuildingId);
     renderDocumentFormCategoryOptions(entry ? getDocumentRegisterCategory(entry) : (leaseCategoryFilterValue || DEFAULT_DOCUMENT_CATEGORY));
@@ -4973,9 +4999,11 @@
     documentFileInput.required = mode !== "edit";
     documentFileHelp.textContent = mode === "edit" ? "(leave blank to keep current file)" : "(required)";
     documentCurrentFile.textContent = record && record.fileName ? `Current file: ${record.fileName}` : "";
+    documentSaveBtn.textContent = mode === "edit" ? "Save Changes" : "Save Document";
     documentDeleteBtn.style.display = mode === "edit" ? "inline-flex" : "none";
-    leaseDashboardPanel.style.display = "none";
+    setLeaseTopLevelControlsVisible(false);
     documentFormCard.style.display = "block";
+    showLeaseView();
   }
 
   function closeDocumentForm() {
@@ -5013,7 +5041,7 @@
       title: title,
       description: title,
       category: getDocumentFormCategory(),
-      documentType: String(documentTypeSelect.value || "Other").trim() || "Other",
+      documentType: existing && existing.documentType ? existing.documentType : getDocumentFormCategory(),
       documentDate: String(documentDateInput.value || "").trim(),
       expiryDate: String(documentExpiryInput.value || "").trim(),
       tenancyId: tenancyId,
@@ -5092,9 +5120,9 @@
     closeDocumentForm();
   }
 
-  // The Documents list controls are hidden while the Add/Edit Document form is open.
+  // Adding or editing a document replaces the repository browser with a focused form.
   function setLeaseTopLevelControlsVisible(visible) {
-    [documentsAddBtn, leaseBackBtn, leaseSearchTools].forEach(function (element) {
+    [documentsAddBtn, leaseRepositoryCard].forEach(function (element) {
       if (element) {
         element.style.display = visible ? "" : "none";
       }
@@ -5102,7 +5130,7 @@
   }
 
   function renderLeasePage() {
-    renderBuildingFilterOptions(leaseBuildingFilter);
+    renderAllBuildingFilterSelects();
     if (leaseCategoryFilter) {
       leaseCategoryFilter.value = leaseCategoryFilterValue;
     }
@@ -5110,7 +5138,6 @@
     if (activeDocumentFormMode) {
       setLeaseTopLevelControlsVisible(false);
       documentFormCard.style.display = "block";
-      leaseDashboardPanel.style.display = "none";
       return;
     }
 
@@ -6126,7 +6153,7 @@
   }
 
   function handleTemplateLibraryBack() {
-    goToDashboard();
+    openSettingsView();
   }
 
   function handleCancelTemplate() {
@@ -6271,7 +6298,7 @@
 
   function openContactsView() {
     const building = findBuildingById(getBuildingFilterId());
-    renderBuildingFilterOptions(contactsBuildingFilter);
+    renderAllBuildingFilterSelects();
 
     contactsBuildingName.textContent = building ? building.buildingName : "All Properties";
     activeContactId = "";
@@ -6510,7 +6537,7 @@
   }
 
   function renderCurrentTenancyPage() {
-    renderBuildingFilterOptions(tenancyBuildingFilter);
+    renderAllBuildingFilterSelects();
 
     const filterBuilding = findBuildingById(getBuildingFilterId());
     tenancyBuildingName.textContent = filterBuilding ? filterBuilding.buildingName : "All Properties";
@@ -6999,9 +7026,12 @@
 
   function handleEditSave(event) {
     event.preventDefault();
-    const current = findBuildingById(activeBuildingId);
+    const editingId = editingPropertyId
+      || String(editBuildingForm.elements.editBuildingId.value || "").trim()
+      || activeBuildingId;
+    const current = findBuildingById(editingId);
     if (!current) {
-      showDashboard();
+      openSettingsView();
       renderBuildings();
       return;
     }
@@ -7027,8 +7057,9 @@
     };
 
     window.BuildingStorage.updateBuilding(updated);
+    editingPropertyId = "";
     renderBuildings();
-    openOverviewById(updated.id);
+    openSettingsView();
   }
 
   function handleSaveTenancy(event) {
@@ -7908,6 +7939,7 @@
     openScheduleDetailsDialog(context.buildingId, context.scheduleItemId);
   }
 
+  // Retained for the contact form and Schedule assignment return paths.
   function handleContactsBack() {
     if (contactAssignmentContext) {
       const context = contactAssignmentContext;
@@ -7928,25 +7960,17 @@
       return;
     }
 
-    goToDashboard();
+    openContactsView();
   }
 
   function handleCompaniesBack() {
-    goToDashboard();
+    openContactsView();
   }
 
   function handleCancelTenancy() {
     // Back discards unsaved form edits and returns to the canonical tenancy list.
     setCurrentPropertyId(tenancyFormFilterBuildingId);
     openCurrentTenancyView();
-  }
-
-  function handleTenancyBack() {
-    if (tenancyFormCard.style.display === "block") {
-      handleCancelTenancy();
-      return;
-    }
-    goToDashboard();
   }
 
   function handleTenancyTabCurrent() {
@@ -7962,10 +7986,6 @@
   function handleContactSearch() {
     contactsSearchQuery = String(contactsSearch.value || "");
     renderContactSectionState("list");
-  }
-
-  function handleLeaseBack() {
-    goToDashboard();
   }
 
   function handleAddDocument() {
@@ -9155,10 +9175,6 @@
     renderBuildings();
     openScheduleView(propertyId);
     showManageTemplatesSaveConfirmation();
-  }
-
-  function handleScheduleBack() {
-    goToDashboard();
   }
 
   function completeScheduleItemInline(itemId, buildingId) {
@@ -10681,7 +10697,7 @@
     if (contactsView.classList.contains("is-active")) {
       activeContactId = "";
       renderContactSectionState("list");
-      renderBuildingFilterOptions(contactsBuildingFilter);
+      renderAllBuildingFilterSelects();
       return;
     }
 
@@ -10691,7 +10707,7 @@
   }
 
   function handleHistoryBack() {
-    goToDashboard();
+    openScheduleView(activeBuildingId);
   }
 
   function handleCancelCompleteTask() {
@@ -10800,27 +10816,11 @@
     showModulePlaceholder("History", "History detail view will be added later.");
   }
 
-  function handleDeleteBuilding() {
-    if (!activeBuildingId) {
-      return;
-    }
-
-    const shouldDelete = window.confirm("Delete this property permanently?");
-    if (!shouldDelete) {
-      return;
-    }
-
-    window.BuildingStorage.deleteBuilding(activeBuildingId);
-    activeBuildingId = "";
-    showDashboard();
-    renderBuildings();
-  }
-
   function handleExportBackup() {
     const payload = window.BuildingStorage.createBackupPayload();
     const serialised = JSON.stringify(payload, null, 2);
     const blob = new Blob([serialised], { type: "application/json" });
-    const fileName = "Building-Manager-Backup-" + new Date().toISOString().slice(0, 10) + ".json";
+    const fileName = "Compliance-HQ-Backup-" + new Date().toISOString().slice(0, 10) + ".json";
     const url = window.URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.href = url;
@@ -10871,7 +10871,7 @@
           return;
         }
 
-        const shouldRestore = window.confirm("This will overwrite the current Building Manager data. Continue?");
+        const shouldRestore = window.confirm("This will overwrite the current Compliance HQ data. Continue?");
         if (!shouldRestore) {
           input.value = "";
           return;
@@ -10903,25 +10903,16 @@
   function handleOpenEdit() {
     const building = findBuildingById(activeBuildingId);
     if (!building) {
-      showDashboard();
+      openSettingsView();
       return;
     }
 
-    populateEditForm(building);
-    showEditForm();
-  }
-
-  function handleOverviewBack() {
-    goToDashboard();
+    openPropertyEditor(building);
   }
 
   function handleCancelEdit() {
-    if (!activeBuildingId) {
-      showDashboard();
-      return;
-    }
-
-    openOverviewById(activeBuildingId);
+    editingPropertyId = "";
+    openSettingsView();
   }
 
   function handleModuleNavigationClick(event) {
@@ -10957,71 +10948,159 @@
     }
   }
 
-  function handleSelectedBuildingToggle() {
-    setSelectorOpen(!selectorOpen);
+  // One handler serves the shared shell navigation on every module page.
+  function openAppModule(moduleKey) {
+    if (moduleKey === "dashboard") {
+      goToDashboard();
+      return;
+    }
+    if (moduleKey === "settings") {
+      openSettingsView();
+      return;
+    }
+    if (moduleKey === "Tenancy") {
+      openCurrentTenancyView(activeBuildingId);
+      return;
+    }
+    if (moduleKey === "Contacts") {
+      openContactsView();
+      return;
+    }
+    if (moduleKey === "Schedule") {
+      openScheduleView(activeBuildingId);
+      return;
+    }
+    if (moduleKey === "Documents") {
+      openLeaseView(activeBuildingId);
+    }
   }
 
-  function handleSelectorListClick(event) {
+  function handleAppModuleNavClick(event) {
     const target = event.target;
     if (!(target instanceof HTMLElement)) {
       return;
     }
 
-    const option = target.closest(".selector-option");
-    if (!option) {
-      return;
-    }
-
-    if (option.getAttribute("data-selector-action") === "add-building") {
-      setSelectorOpen(false);
-      showForm();
-      return;
-    }
-
-    const buildingId = option.getAttribute("data-building-id");
-    if (buildingId === null) {
-      return;
-    }
-
-    setCurrentPropertyId(buildingId);
-    setSelectorOpen(false);
-    renderBuildings();
-  }
-
-  function handleWorkspaceModuleNavigationClick(event) {
-    const target = event.target;
-    if (!(target instanceof HTMLElement)) {
-      return;
-    }
-
-    const button = target.closest(".module-nav-card");
+    const button = target.closest(".app-module-btn");
     if (!button) {
       return;
     }
 
-    const moduleName = button.getAttribute("data-workspace-module") || "";
-    const portfolioModules = ["Schedule", "Tenancy", "Contacts", "Lease", "Documents"];
-    if (!activeBuildingId && !portfolioModules.includes(moduleName)) {
-      alert("Select a property to open this module.");
+    openAppModule(button.getAttribute("data-app-module") || "");
+  }
+
+  // Changing the shared selector re-renders the current module instead of leaving it.
+  function handleAppPropertySelectorChange(event) {
+    handleBuildingFilterChange(event);
+  }
+
+  function handleSettingsPropertyListClick(event) {
+    const target = event.target;
+    if (!(target instanceof HTMLElement)) {
       return;
     }
 
-    if (moduleName === "Tenancy") {
-      openCurrentTenancyView(activeBuildingId);
+    const actionButton = target.closest("[data-settings-property-action]");
+    if (!actionButton) {
       return;
     }
-    if (moduleName === "Contacts") {
-      openContactsView();
+
+    const card = actionButton.closest("[data-settings-property-id]");
+    const propertyId = card ? card.getAttribute("data-settings-property-id") || "" : "";
+    const building = findBuildingById(propertyId);
+    if (!building) {
       return;
     }
-    if (moduleName === "Schedule") {
-      openScheduleView(activeBuildingId);
+
+    const action = actionButton.getAttribute("data-settings-property-action") || "";
+    if (action === "edit") {
+      openPropertyEditor(building);
+    }
+  }
+
+  function getEditingProperty() {
+    return findBuildingById(editingPropertyId || (editBuildingForm.elements.editBuildingId ? editBuildingForm.elements.editBuildingId.value : ""));
+  }
+
+  // Archive, restore and permanent deletion are property-specific, so they live with the editor.
+  function renderPropertyManagementSection(building) {
+    const archived = isBuildingArchived(building);
+    if (editPropertyManagementHelp) {
+      editPropertyManagementHelp.textContent = archived
+        ? "This property is archived. Restoring it makes it available again in the operational Property selector. All of its records have been preserved."
+        : "Archiving hides this property from normal operational views and the Property selector. Its tenancies, contacts, calendar items, documents and history are all preserved.";
+    }
+    if (editArchivePropertyBtn) {
+      editArchivePropertyBtn.style.display = archived ? "none" : "inline-flex";
+    }
+    if (editRestorePropertyBtn) {
+      editRestorePropertyBtn.style.display = archived ? "inline-flex" : "none";
+    }
+  }
+
+  function openPropertyEditor(building) {
+    editingPropertyId = building.id;
+    populateEditForm(building);
+    renderPropertyManagementSection(building);
+    showEditForm();
+  }
+
+  function handleArchivePropertyFromEditor() {
+    const building = getEditingProperty();
+    if (building) {
+      setBuildingArchived(building, true);
+    }
+  }
+
+  function handleRestorePropertyFromEditor() {
+    const building = getEditingProperty();
+    if (building) {
+      setBuildingArchived(building, false);
+    }
+  }
+
+  function handleDeletePropertyFromEditor() {
+    const building = getEditingProperty();
+    if (building) {
+      deletePropertyPermanently(building);
+    }
+  }
+
+  function setBuildingArchived(building, archived) {
+    if (archived && !window.confirm(`Archive "${building.buildingName}"?\n\nAll tenancies, contacts, calendar items, documents and history are kept. The property is hidden from the operational Property selector until it is restored.`)) {
       return;
     }
-    if (moduleName === "Documents") {
-      openLeaseView(activeBuildingId);
+
+    window.BuildingStorage.updateBuilding({
+      ...building,
+      archived: archived,
+      lastUpdated: new Date().toISOString(),
+    });
+
+    if (archived && activeBuildingId === building.id) {
+      setCurrentPropertyId("");
+      syncScheduleFilterToCurrentProperty();
+    }
+
+    editingPropertyId = "";
+    renderBuildings();
+    openSettingsView();
+  }
+
+  function deletePropertyPermanently(building) {
+    const confirmed = window.confirm(`Permanently delete "${building.buildingName}"?\n\nThis removes the property and all of its tenancies, calendar items, documents and history. This action cannot be undone.\n\nArchive it instead if you only want to hide it.`);
+    if (!confirmed) {
       return;
     }
+
+    window.BuildingStorage.deleteBuilding(building.id);
+    if (activeBuildingId === building.id) {
+      setCurrentPropertyId("");
+      syncScheduleFilterToCurrentProperty();
+    }
+    editingPropertyId = "";
+    renderBuildings();
+    openSettingsView();
   }
 
   function handleBreadcrumbClick(event) {
@@ -11042,10 +11121,6 @@
     }
 
     crumb.onClick();
-  }
-
-  function handlePlaceholderBack() {
-    goToDashboard();
   }
 
   cancelBtn.addEventListener("click", handleSetupCancel);
@@ -11073,31 +11148,27 @@
   setupConfigureList.addEventListener("change", handleConfigureListChange);
   setupStep5FinishBtn.addEventListener("click", handleSetupStepFiveFinish);
   setupOpenBuildingBtn.addEventListener("click", handleSetupOpenBuilding);
-  selectedBuildingBtn.addEventListener("click", handleSelectedBuildingToggle);
-  overviewBackBtn.addEventListener("click", handleOverviewBack);
-  tenancyBackBtn.addEventListener("click", handleTenancyBack);
-  leaseBackBtn.addEventListener("click", handleLeaseBack);
-  contactsBackBtn.addEventListener("click", handleContactsBack);
   companiesBackBtn.addEventListener("click", handleCompaniesBack);
-  scheduleBackBtn.addEventListener("click", handleScheduleBack);
   manageTemplatesBtn.addEventListener("click", handleManageTemplatesForProperty);
   historyBackBtn.addEventListener("click", handleHistoryBack);
   templateLibraryBackBtn.addEventListener("click", handleTemplateLibraryBack);
   editBuildingBtn.addEventListener("click", handleOpenEdit);
   cancelEditBtn.addEventListener("click", handleCancelEdit);
-  deleteBuildingBtn.addEventListener("click", handleDeleteBuilding);
+  if (editArchivePropertyBtn instanceof HTMLButtonElement) {
+    editArchivePropertyBtn.addEventListener("click", handleArchivePropertyFromEditor);
+  }
+  if (editRestorePropertyBtn instanceof HTMLButtonElement) {
+    editRestorePropertyBtn.addEventListener("click", handleRestorePropertyFromEditor);
+  }
+  if (editDeletePropertyBtn instanceof HTMLButtonElement) {
+    editDeletePropertyBtn.addEventListener("click", handleDeletePropertyFromEditor);
+  }
   backupExportBtn.addEventListener("click", handleExportBackup);
   backupRestoreBtn.addEventListener("click", handleRestoreBackupButtonClick);
   backupRestoreInput.addEventListener("change", handleRestoreBackupSelection);
   addTenancyBtn.addEventListener("click", function () {
     openTenancyForm("add");
   });
-  const addAnotherTenancyBtn = document.getElementById("add-another-tenancy-btn");
-  if (addAnotherTenancyBtn instanceof HTMLButtonElement) {
-    addAnotherTenancyBtn.addEventListener("click", function () {
-      openTenancyForm("add");
-    });
-  }
   tenancyTabCurrent.addEventListener("click", handleTenancyTabCurrent);
   tenancyTabHistory.addEventListener("click", handleTenancyTabHistory);
   if (archiveTenancyBtn instanceof HTMLButtonElement) {
@@ -11108,7 +11179,6 @@
   }
   documentsAddBtn.addEventListener("click", handleAddDocument);
   cancelTenancyBtn.addEventListener("click", handleCancelTenancy);
-  addContactBtn.addEventListener("click", handleAddContact);
   addCompanyBtn.addEventListener("click", handleAddCompany);
   addCompanyInlineBtn.addEventListener("click", handleAddCompany);
   deleteContactBtn.addEventListener("click", handleDeleteContact);
@@ -11136,7 +11206,6 @@
   }
   cancelTemplateBtn.addEventListener("click", handleCancelTemplate);
   cancelCompleteTaskBtn.addEventListener("click", handleCancelCompleteTask);
-  placeholderBackBtn.addEventListener("click", handlePlaceholderBack);
   moduleNav.addEventListener("click", handleModuleNavigationClick);
   buildingForm.addEventListener("submit", handleSetupStepOneSubmit);
   editBuildingForm.addEventListener("submit", handleEditSave);
@@ -11149,8 +11218,12 @@
   templateForm.addEventListener("submit", handleSaveTemplate);
   completeTaskForm.addEventListener("submit", handleSaveCompleteTask);
   completeTaskForm.elements.companyUsed.addEventListener("change", handleCompleteCompanyChange);
-  buildingSelectorList.addEventListener("click", handleSelectorListClick);
-  workspaceModuleNav.addEventListener("click", handleWorkspaceModuleNavigationClick);
+  appModuleNav.addEventListener("click", handleAppModuleNavClick);
+  appBrandBtn.addEventListener("click", goToDashboard);
+  appPropertySelector.addEventListener("change", handleAppPropertySelectorChange);
+  settingsPropertyList.addEventListener("click", handleSettingsPropertyListClick);
+  settingsAddPropertyBtn.addEventListener("click", showForm);
+  settingsTemplatesBtn.addEventListener("click", openTemplateLibrary);
   leaseCategoryGrid.addEventListener("click", handleLeaseCategoryGridClick);
   leaseCategoryGrid.addEventListener("keydown", handleDocumentRegisterKeydown);
   if (leaseCategoryFilter) {
@@ -11168,16 +11241,6 @@
   templateLibraryList.addEventListener("click", handleTemplateLibraryListClick);
   scheduleOpsList.addEventListener("click", handleScheduleListClick);
   scheduleOpsList.addEventListener("keydown", handleScheduleListKeydown);
-  scheduleFilterProperty.addEventListener("change", handleBuildingFilterChange);
-  if (tenancyBuildingFilter) {
-    tenancyBuildingFilter.addEventListener("change", handleBuildingFilterChange);
-  }
-  if (contactsBuildingFilter) {
-    contactsBuildingFilter.addEventListener("change", handleBuildingFilterChange);
-  }
-  if (leaseBuildingFilter) {
-    leaseBuildingFilter.addEventListener("change", handleBuildingFilterChange);
-  }
   scheduleFilterCategory.addEventListener("change", handleScheduleFilterChange);
   scheduleFilterStatus.addEventListener("change", handleScheduleFilterChange);
   scheduleFilterDuePeriod.addEventListener("change", handleScheduleFilterChange);
@@ -11186,20 +11249,6 @@
   tenancyDetailsList.addEventListener("click", handleTenancyDetailsClick);
   moduleContentBody.addEventListener("click", handleModuleContentClick);
   breadcrumbNav.addEventListener("click", handleBreadcrumbClick);
-  document.addEventListener("click", function (event) {
-    const target = event.target;
-    if (!(target instanceof HTMLElement)) {
-      return;
-    }
-
-    if (target.closest("#selected-building-btn") || target.closest("#building-selector-list")) {
-      return;
-    }
-
-    if (selectorOpen) {
-      setSelectorOpen(false);
-    }
-  });
 
   ensureMasterMigration();
   normalizeAllBuildingsForWorkflowCollections();

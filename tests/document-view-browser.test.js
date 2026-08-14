@@ -61,7 +61,7 @@ function startServer() {
       }]));
     });
     await page.goto(running.url, { waitUntil: "networkidle" });
-    await page.locator("#workspace-module-nav [data-workspace-module=\"Documents\"]").click();
+    await page.locator("#app-module-nav [data-app-module=\"Documents\"]").click();
     const documentRow = page.locator("[data-document-register-id=\"document-a\"]");
     assert.strictEqual(await documentRow.count(), 1, "Documents must list the document without drilling into a category");
 

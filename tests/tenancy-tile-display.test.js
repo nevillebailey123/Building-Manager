@@ -309,7 +309,7 @@ const tenancyDetailsList = ctx.document.getElementById("tenancy-details-list");
 const tenancyTabCurrent = ctx.document.getElementById("tenancy-tab-current");
 const tenancyFormTitle = ctx.document.getElementById("tenancy-form-title");
 const tenancyForm = ctx.document.getElementById("tenancy-form");
-const buildingSelectorList = ctx.document.getElementById("building-selector-list");
+const appPropertySelector = ctx.document.getElementById("app-property-selector");
 
 tenancyForm.elements.tenancyId = new FakeElement("tenancyId", "INPUT");
 tenancyForm.elements.companyName = new FakeElement("companyName", "INPUT");
@@ -335,12 +335,10 @@ function renderTenancyList() {
 }
 
 function selectBuilding(buildingId) {
-  const option = new FakeElement("", "BUTTON");
-  option.setAttribute("data-building-id", buildingId);
-  option.closest = function (selector) {
-    return selector === ".selector-option" ? option : null;
-  };
-  fireClick(buildingSelectorList, option);
+  appPropertySelector.value = buildingId;
+  const handlers = appPropertySelector.listeners.change || [];
+  assert.ok(handlers.length > 0, "Expected a change handler on the shared property selector");
+  handlers[0]({ target: appPropertySelector });
 }
 
 function tileFor(html, companyName) {

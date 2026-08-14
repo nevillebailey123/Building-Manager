@@ -53,38 +53,40 @@ function startServer() {
       }, selectedBuildingId);
       await page.goto(running.url, { waitUntil: "networkidle" });
 
-      const dashboardDocuments = page.locator("#workspace-module-nav [data-workspace-module=\"Documents\"]");
-      const dashboardContacts = page.locator("#workspace-module-nav [data-workspace-module=\"Contacts\"]");
-      assert.strictEqual(await dashboardDocuments.count(), 1, "Actual dashboard must contain one Documents tile");
-      assert.strictEqual(await dashboardContacts.count(), 1, "Actual dashboard must contain one Contacts tile");
+      const dashboardDocuments = page.locator("#app-module-nav [data-app-module=\"Documents\"]");
+      const dashboardContacts = page.locator("#app-module-nav [data-app-module=\"Contacts\"]");
+      const dashboardHome = page.locator("#app-module-nav [data-app-module=\"dashboard\"]");
+      assert.strictEqual(await dashboardDocuments.count(), 1, "Shared shell must contain one Documents button");
+      assert.strictEqual(await dashboardContacts.count(), 1, "Shared shell must contain one Contacts button");
       assert.strictEqual(await dashboardDocuments.evaluate(function (element) {
         return { tag: element.tagName, id: element.id, className: element.className, parentId: element.parentElement.id, pointerEvents: getComputedStyle(element).pointerEvents, disabled: element.disabled };
       }).then(function (details) {
-        return details.tag === "BUTTON" && details.id === "" && details.className === "module-nav-card" && details.parentId === "workspace-module-nav" && details.pointerEvents === "auto" && details.disabled === false;
-      }), true, "Documents tile must match the working dashboard button shape");
+        return details.tag === "BUTTON" && details.id === "" && details.className.indexOf("app-module-btn") === 0 && details.parentId === "app-module-nav" && details.pointerEvents === "auto" && details.disabled === false;
+      }), true, "Documents button must match the working shell button shape");
 
-      await dashboardContacts.locator(".module-nav-title-contacts").click();
-      assert.strictEqual(await page.locator("#contacts-view").evaluate(function (element) { return element.classList.contains("is-active"); }), true, "Contacts dashboard click must open Contacts");
-      await page.locator("#contacts-back-btn").click();
-      assert.strictEqual(await page.locator("#dashboard-view").evaluate(function (element) { return element.classList.contains("is-active"); }), true, "Contacts Back must return Home");
+      await dashboardContacts.click();
+      assert.strictEqual(await page.locator("#contacts-view").evaluate(function (element) { return element.classList.contains("is-active"); }), true, "Contacts shell click must open Contacts");
+      assert.strictEqual(await dashboardContacts.evaluate(function (element) { return element.classList.contains("is-active"); }), true, "Contacts must be highlighted while open");
+      await dashboardHome.click();
+      assert.strictEqual(await page.locator("#dashboard-view").evaluate(function (element) { return element.classList.contains("is-active"); }), true, "Dashboard button must return Home");
 
-      await dashboardDocuments.locator(".module-nav-title-documents").click();
+      await dashboardDocuments.click();
       const state = await page.evaluate(function () {
         return {
           documentsActive: document.getElementById("lease-view").classList.contains("is-active"),
           dashboardActive: document.getElementById("dashboard-view").classList.contains("is-active"),
-          filter: document.getElementById("lease-building-filter").value,
+          filter: document.getElementById("app-property-selector").value,
           title: document.getElementById("lease-title").textContent,
         };
       });
-      assert.strictEqual(state.documentsActive, true, "Actual Documents tile click must activate Documents");
+      assert.strictEqual(state.documentsActive, true, "Documents shell click must activate Documents");
       assert.strictEqual(state.dashboardActive, false, "Dashboard must close after Documents click");
-      assert.strictEqual(state.filter, selectedBuildingId, "Documents must preserve the shared Building filter");
+      assert.strictEqual(state.filter, selectedBuildingId, "Documents must preserve the shared Property selection");
       assert.strictEqual(state.title, "Documents", "Central Documents page must render");
-      assert.deepStrictEqual(pageErrors, [], "Dashboard module click must not throw a browser exception");
+      assert.deepStrictEqual(pageErrors, [], "Shell module click must not throw a browser exception");
 
-      await page.locator("#lease-back-btn").click();
-      assert.strictEqual(await page.locator("#dashboard-view").evaluate(function (element) { return element.classList.contains("is-active"); }), true, "Documents Back must return Home");
+      await dashboardHome.click();
+      assert.strictEqual(await page.locator("#dashboard-view").evaluate(function (element) { return element.classList.contains("is-active"); }), true, "Dashboard button must return Home from Documents");
       await page.close();
     }
   } finally {

@@ -6,7 +6,7 @@
     <meta name="theme-color" content="#2563eb" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="default" />
-    <meta name="apple-mobile-web-app-title" content="Building Manager" />
+    <meta name="apple-mobile-web-app-title" content="Compliance HQ" />
     <title>Compliance HQ</title>
     <link rel="manifest" href="manifest.json" />
     <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png" />
@@ -15,69 +15,77 @@
   </head>
   <body>
     <main class="app-shell">
+      <header id="app-shell-header" class="app-shell-header">
+        <div class="app-shell-top">
+          <button id="app-brand-btn" class="app-brand-btn" type="button" aria-label="Compliance HQ home">Compliance HQ</button>
+          <div class="app-shell-property">
+            <label class="app-property-label" for="app-property-selector">Property</label>
+            <select id="app-property-selector" class="schedule-filter-select app-property-select"></select>
+          </div>
+        </div>
+        <nav id="app-module-nav" class="app-module-nav" aria-label="Main navigation">
+          <button class="app-module-btn" type="button" data-app-module="dashboard">Dashboard</button>
+          <button class="app-module-btn" type="button" data-app-module="Tenancy">Tenancies</button>
+          <button class="app-module-btn" type="button" data-app-module="Contacts">Contacts</button>
+          <button class="app-module-btn" type="button" data-app-module="Schedule">Calendar</button>
+          <button class="app-module-btn" type="button" data-app-module="Documents">Documents</button>
+          <button class="app-module-btn app-module-btn-settings" type="button" data-app-module="settings">Settings</button>
+        </nav>
+      </header>
+
       <nav id="breadcrumb-nav" class="breadcrumb-nav" aria-label="Breadcrumb"></nav>
 
       <section id="dashboard-view" class="view is-active" aria-labelledby="app-title">
         <header class="view-header">
-          <h1 id="app-title">COMPLIANCE HQ</h1>
+          <h1 id="app-title">Dashboard</h1>
           <p class="tagline">Know what's due. Know what was done.</p>
         </header>
 
-        <section class="module-content-card building-selector-card">
-          <p class="selector-label">Selected Property</p>
-          <button id="selected-building-btn" class="building-selector-trigger" type="button" aria-expanded="false" aria-controls="building-selector-list">
-            <span id="selected-building-name">Select a property</span>
-            <span id="selected-building-status" class="building-status-indicator status-grey" aria-hidden="true"></span>
-            <span class="selector-chevron">▼</span>
-          </button>
+        <p id="empty-state" class="empty-state">No properties have been added yet. Add your first property in Settings.</p>
 
-          <section id="building-selector-list" class="building-selector-list" aria-live="polite"></section>
+        <section id="workspace-dashboard-card" class="module-content-card" aria-live="polite">
+          <h3 id="workspace-dashboard-title">Portfolio Overview</h3>
+          <dl id="workspace-dashboard-summary" class="snapshot-list"></dl>
+        </section>
+      </section>
+
+      <section id="settings-view" class="view" aria-labelledby="settings-title">
+        <header class="view-header">
+          <h1 id="settings-title">Settings</h1>
+          <p class="tagline">Administer properties, calendar templates and your data.</p>
+        </header>
+
+        <section class="module-content-card" aria-labelledby="settings-properties-title">
+          <div class="contacts-list-header">
+            <h3 id="settings-properties-title">Properties</h3>
+            <button id="settings-add-property-btn" class="btn btn-primary" type="button">+ Add Property</button>
+          </div>
+          <p class="module-placeholder">Select a property to edit, archive or permanently delete it. Archiving keeps every record and only hides the property from the operational selector.</p>
+          <section id="settings-property-list" class="building-list" aria-live="polite"></section>
         </section>
 
-        <section class="module-content-card backup-section" aria-label="Data backup">
-          <h3>Data Backup</h3>
-          <p class="module-placeholder">Export your Building Manager data locally, or restore it from a previously saved backup file.</p>
+        <section class="module-content-card" aria-labelledby="settings-templates-title">
+          <h3 id="settings-templates-title">Calendar Templates</h3>
+          <p class="module-placeholder">Maintain the reusable master templates that calendar items are created from.</p>
+          <div class="actions-row actions-row-tight">
+            <button id="settings-templates-btn" class="btn btn-secondary" type="button">Open Calendar Templates</button>
+          </div>
+        </section>
+
+        <section class="module-content-card backup-section" aria-labelledby="settings-data-title">
+          <h3 id="settings-data-title">Data / Backup &amp; Restore</h3>
+          <p class="module-placeholder">Export your Compliance HQ data locally, or restore it from a previously saved backup file.</p>
           <div class="actions-row actions-row-tight">
             <button id="backup-export-btn" class="btn btn-primary" type="button">Export Backup</button>
             <button id="backup-restore-btn" class="btn btn-secondary" type="button">Restore Backup</button>
           </div>
           <input id="backup-restore-input" class="visually-hidden" type="file" accept="application/json,.json" />
         </section>
-
-        <p id="empty-state" class="empty-state">No properties have been added yet.</p>
-
-        <section id="workspace-dashboard-card" class="module-content-card" aria-live="polite">
-          <h3>Property Dashboard</h3>
-          <dl id="workspace-dashboard-summary" class="snapshot-list"></dl>
-        </section>
-
-        <section id="workspace-module-nav" class="overview-grid" aria-label="Workspace modules">
-          <button class="module-nav-card" type="button" data-workspace-module="Tenancy">
-            <span class="module-nav-title module-nav-title-tenancy">Tenancy</span>
-            <span class="module-nav-desc">Current and historical tenancy information.</span>
-            <span class="chevron">&gt;</span>
-          </button>
-          <button class="module-nav-card" type="button" data-workspace-module="Contacts">
-            <span class="module-nav-title module-nav-title-contacts">Contacts</span>
-            <span class="module-nav-desc">All contacts linked to this property.</span>
-            <span class="chevron">&gt;</span>
-          </button>
-          <button class="module-nav-card" type="button" data-workspace-module="Schedule">
-            <span class="module-nav-title module-nav-title-schedule">Calendar</span>
-            <span class="module-nav-desc">Upcoming and completed calendar items.</span>
-            <span class="chevron">&gt;</span>
-          </button>
-          <button class="module-nav-card" type="button" data-workspace-module="Documents">
-            <span class="module-nav-title module-nav-title-documents">Documents</span>
-            <span class="module-nav-desc">Lease agreements, versions and supporting records.</span>
-            <span class="chevron">&gt;</span>
-          </button>
-        </section>
       </section>
 
       <section id="template-library-view" class="view" aria-labelledby="template-library-title">
         <div class="view-nav-row">
-          <button id="template-library-back-btn" class="btn btn-secondary view-nav-btn" type="button">← Dashboard</button>
+          <button id="template-library-back-btn" class="btn btn-secondary view-nav-btn" type="button">← Settings</button>
         </div>
         <header class="view-header overview-header">
           <div>
@@ -344,9 +352,6 @@
       </section>
 
       <section id="overview-view" class="view" aria-labelledby="overview-title">
-        <div class="view-nav-row">
-          <button id="overview-back-btn" class="btn btn-secondary view-nav-btn" type="button">← Dashboard</button>
-        </div>
         <header class="view-header overview-header">
           <div>
             <h1 id="overview-title">Property Details</h1>
@@ -391,24 +396,18 @@
       </section>
 
       <section id="tenancy-view" class="view" aria-labelledby="tenancy-title">
-        <div class="view-nav-row">
-          <button id="tenancy-back-btn" class="btn btn-secondary view-nav-btn" type="button">← Dashboard</button>
-        </div>
         <header class="view-header overview-header">
           <div>
             <h1 id="tenancy-title">Tenancies</h1>
             <p class="tagline">Current tenancies and tenancy history.</p>
             <p id="tenancy-building-name" class="overview-building-name visually-hidden"></p>
           </div>
+          <div class="top-right-actions">
+            <button id="add-tenancy-btn" class="btn btn-primary" type="button">+ Add Tenancy</button>
+          </div>
         </header>
 
         <section class="module-content-card">
-          <div class="building-filter-row" aria-label="Property filter">
-            <label>
-              <span class="schedule-filter-label">Property</span>
-              <select id="tenancy-building-filter" class="schedule-filter-select building-filter-select"></select>
-            </label>
-          </div>
           <div class="tab-row" role="tablist" aria-label="Tenancy tabs">
             <button id="tenancy-tab-current" class="tab-btn is-active" type="button" role="tab" aria-selected="true">Current</button>
             <button id="tenancy-tab-history" class="tab-btn" type="button" role="tab" aria-selected="false">History</button>
@@ -418,17 +417,11 @@
         <section id="tenancy-current-panel" class="tab-panel is-active">
           <section id="tenancy-empty-state" class="module-content-card">
             <p id="tenancy-empty-message" class="module-placeholder">No current tenancy has been entered.</p>
-            <div class="actions-row actions-row-tight">
-              <button id="add-tenancy-btn" class="btn btn-primary" type="button">+ Add Tenancy</button>
-            </div>
           </section>
 
           <section id="tenancy-details-card" class="module-content-card">
             <h3>Current Tenancies</h3>
             <section id="tenancy-details-list" class="tenancy-list" aria-live="polite"></section>
-            <div class="actions-row actions-row-tight">
-              <button id="add-another-tenancy-btn" class="btn btn-secondary btn-small" type="button">+ Add Tenancy</button>
-            </div>
           </section>
 
           <section id="tenancy-form-card" class="module-content-card">
@@ -509,9 +502,6 @@
       </section>
 
       <section id="lease-view" class="view" aria-labelledby="lease-title">
-        <div class="view-nav-row">
-          <button id="lease-back-btn" class="btn btn-secondary view-nav-btn" type="button">← Dashboard</button>
-        </div>
         <header class="view-header overview-header">
           <div>
             <h1 id="lease-title">Documents</h1>
@@ -522,12 +512,8 @@
           </div>
         </header>
 
-        <section class="module-content-card lease-documents-card">
+        <section id="lease-repository-card" class="module-content-card lease-documents-card">
           <div class="building-filter-row documents-filter-row" aria-label="Document filters">
-            <label>
-              <span class="schedule-filter-label">Property</span>
-              <select id="lease-building-filter" class="schedule-filter-select building-filter-select"></select>
-            </label>
             <label>
               <span class="schedule-filter-label">Category</span>
               <select id="lease-category-filter" class="schedule-filter-select">
@@ -552,67 +538,51 @@
           <section id="lease-dashboard-panel">
             <section id="lease-category-grid" class="lease-category-grid" aria-live="polite"></section>
           </section>
+        </section>
 
-          <section id="document-form-card" class="module-content-card document-form-card">
-            <h3 id="document-form-title">Add Document</h3>
-            <form id="document-form" class="building-form">
-              <label for="document-title-input">Document Title</label>
-              <input id="document-title-input" name="title" type="text" required />
+        <section id="document-form-card" class="module-content-card document-form-card">
+          <h3 id="document-form-title">Add Document</h3>
+          <form id="document-form" class="building-form">
+            <label for="document-title-input">Document Title</label>
+            <input id="document-title-input" name="title" type="text" required />
 
-              <label for="document-building-select">Property</label>
-              <select id="document-building-select" name="buildingId" required></select>
+            <label for="document-building-select">Property</label>
+            <select id="document-building-select" name="buildingId" required></select>
 
-              <label for="document-type-select">Document Type</label>
-              <select id="document-type-select" name="documentType">
-                <option value="">Other</option>
-                <option>Lease</option>
-                <option>Insurance</option>
-                <option>Certificate</option>
-                <option>Invoice</option>
-                <option>Quote</option>
-                <option>Report</option>
-                <option>Valuation</option>
-                <option>Correspondence</option>
-                <option>Compliance</option>
-                <option>Other</option>
-              </select>
+            <label for="document-category-select">Category</label>
+            <select id="document-category-select" name="category" required></select>
 
-              <label for="document-category-select">Category</label>
-              <select id="document-category-select" name="category" required></select>
+            <label for="document-date-input">Document Date</label>
+            <input id="document-date-input" name="documentDate" type="date" />
 
-              <label for="document-date-input">Document Date</label>
-              <input id="document-date-input" name="documentDate" type="date" />
+            <label for="document-expiry-input">Expiry Date (optional)</label>
+            <input id="document-expiry-input" name="expiryDate" type="date" />
 
-              <label for="document-expiry-input">Expiry Date (optional)</label>
-              <input id="document-expiry-input" name="expiryDate" type="date" />
+            <label for="document-tenancy-select">Related Tenancy (optional)</label>
+            <select id="document-tenancy-select" name="tenancyId"></select>
 
-              <label for="document-tenancy-select">Related Tenancy (optional)</label>
-              <select id="document-tenancy-select" name="tenancyId"></select>
+            <label for="document-schedule-select">Related Calendar Item (optional)</label>
+            <select id="document-schedule-select" name="scheduleItemId"></select>
 
-              <label for="document-schedule-select">Related Calendar Item (optional)</label>
-              <select id="document-schedule-select" name="scheduleItemId"></select>
+            <label for="document-file-input">File <span id="document-file-help">(required)</span></label>
+            <input id="document-file-input" name="file" type="file" accept=".pdf,.doc,.docx,image/*" />
+            <p id="document-current-file" class="lease-helper-text"></p>
 
-              <label for="document-file-input">File <span id="document-file-help">(required)</span></label>
-              <input id="document-file-input" name="file" type="file" accept=".pdf,.doc,.docx,image/*" />
-              <p id="document-current-file" class="lease-helper-text"></p>
+            <label for="document-notes-input">Notes (optional)</label>
+            <textarea id="document-notes-input" name="notes" rows="4"></textarea>
 
-              <label for="document-notes-input">Notes (optional)</label>
-              <textarea id="document-notes-input" name="notes" rows="4"></textarea>
-
-              <div class="form-actions">
-                <button id="document-save-btn" class="btn btn-primary" type="submit">Save Document</button>
-                <button id="document-delete-btn" class="btn template-delete-btn" type="button" style="display: none;">Delete Document</button>
-                <button id="document-cancel-btn" class="btn btn-secondary" type="button">← Documents</button>
-              </div>
-            </form>
-          </section>
+            <div class="form-actions">
+              <button id="document-cancel-btn" class="btn btn-secondary" type="button">Cancel</button>
+              <button id="document-save-btn" class="btn btn-primary" type="submit">Save Document</button>
+            </div>
+            <div class="form-actions form-actions-danger">
+              <button id="document-delete-btn" class="btn btn-quiet-danger" type="button" style="display: none;">Delete Document</button>
+            </div>
+          </form>
         </section>
       </section>
 
       <section id="contacts-view" class="view" aria-labelledby="contacts-title">
-        <div class="view-nav-row">
-          <button id="contacts-back-btn" class="btn btn-secondary view-nav-btn" type="button">← Dashboard</button>
-        </div>
         <header class="view-header overview-header">
           <div>
             <h1 id="contacts-title">Contacts</h1>
@@ -620,24 +590,12 @@
             <p id="contacts-building-name" class="overview-building-name visually-hidden"></p>
           </div>
           <div class="top-right-actions">
-            <button id="contacts-create-btn" class="btn btn-primary" type="button">+ Create New Contact</button>
+            <button id="contacts-create-btn" class="btn btn-primary" type="button">+ Add Contact</button>
           </div>
         </header>
 
-        <section class="module-content-card">
-          <div class="building-filter-row" aria-label="Property filter">
-            <label>
-              <span class="schedule-filter-label">Property</span>
-              <select id="contacts-building-filter" class="schedule-filter-select building-filter-select"></select>
-            </label>
-          </div>
-        </section>
-
         <section id="contacts-empty-state" class="module-content-card">
           <p id="contacts-empty-message" class="module-placeholder">No contacts have been added.</p>
-          <div class="actions-row actions-row-tight">
-            <button id="add-contact-btn" class="btn btn-primary" type="button">+ Create New Contact</button>
-          </div>
         </section>
 
         <section id="contacts-list-card" class="module-content-card">
@@ -709,7 +667,7 @@
 
       <section id="companies-view" class="view" aria-labelledby="companies-title">
         <div class="view-nav-row">
-          <button id="companies-back-btn" class="btn btn-secondary view-nav-btn" type="button">← Dashboard</button>
+          <button id="companies-back-btn" class="btn btn-secondary view-nav-btn" type="button">← Contacts</button>
         </div>
         <header class="view-header overview-header">
           <div>
@@ -769,9 +727,6 @@
       </section>
 
       <section id="placeholder-view" class="view" aria-labelledby="placeholder-title">
-        <div class="view-nav-row">
-          <button id="placeholder-back-btn" class="btn btn-secondary view-nav-btn" type="button">← Dashboard</button>
-        </div>
         <header class="view-header overview-header">
           <div>
             <h1 id="placeholder-title"></h1>
@@ -786,9 +741,6 @@
       </section>
 
       <section id="schedule-view" class="view" aria-labelledby="schedule-title">
-        <div class="view-nav-row">
-          <button id="schedule-back-btn" class="btn btn-secondary view-nav-btn" type="button">← Dashboard</button>
-        </div>
         <header class="view-header overview-header">
           <div>
             <h1 id="schedule-title">Calendar</h1>
@@ -796,17 +748,11 @@
             <p id="schedule-building-name" class="overview-building-name visually-hidden"></p>
           </div>
           <div class="top-right-actions schedule-header-actions">
-            <button id="manage-templates-btn" class="btn btn-secondary btn-small" type="button">Manage Templates</button>
+            <button id="manage-templates-btn" class="btn btn-secondary btn-small" type="button">+ Add From Templates</button>
           </div>
         </header>
 
         <section class="module-content-card schedule-operations-card">
-          <div class="building-filter-row" aria-label="Property filter">
-            <label>
-              <span class="schedule-filter-label">Property</span>
-              <select id="schedule-filter-property" class="schedule-filter-select building-filter-select"></select>
-            </label>
-          </div>
           <div class="schedule-filter-row" aria-label="Calendar filters">
             <label>
               <span class="schedule-filter-label">Category</span>
@@ -840,7 +786,7 @@
 
       <section id="history-view" class="view" aria-labelledby="history-title">
         <div class="view-nav-row">
-          <button id="history-back-btn" class="btn btn-secondary view-nav-btn" type="button">← Dashboard</button>
+          <button id="history-back-btn" class="btn btn-secondary view-nav-btn" type="button">← Calendar</button>
         </div>
         <header class="view-header overview-header">
           <div>
@@ -931,11 +877,27 @@
           <textarea id="editNotes" name="notes" rows="4"></textarea>
 
           <div class="form-actions">
-            <button class="btn btn-primary" type="submit">Save</button>
             <button id="cancel-edit-btn" class="btn btn-secondary" type="button">Cancel</button>
-            <button id="delete-building-btn" class="btn btn-danger" type="button">Delete Property</button>
+            <button id="save-edit-btn" class="btn btn-primary" type="submit">Save Changes</button>
           </div>
         </form>
+
+        <section id="edit-property-management" class="module-content-card property-management-section" aria-labelledby="edit-property-management-title">
+          <h3 id="edit-property-management-title">Property Management</h3>
+          <p id="edit-property-management-help" class="module-placeholder"></p>
+          <div class="actions-row actions-row-tight">
+            <button id="edit-archive-property-btn" class="btn btn-secondary" type="button">Archive Property</button>
+            <button id="edit-restore-property-btn" class="btn btn-secondary" type="button">Restore Property</button>
+          </div>
+        </section>
+
+        <section id="edit-property-danger" class="module-content-card property-danger-section" aria-labelledby="edit-property-danger-title">
+          <h3 id="edit-property-danger-title">Delete Property</h3>
+          <p class="module-placeholder">Permanent deletion cannot be undone. It removes this property and its stored tenancies, calendar items, documents and history. Archive the property instead if you only need to hide it.</p>
+          <div class="actions-row actions-row-tight">
+            <button id="edit-delete-property-btn" class="btn btn-danger-subtle" type="button">Delete Property Permanently</button>
+          </div>
+        </section>
       </section>
     </main>
 

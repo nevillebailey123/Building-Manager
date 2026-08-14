@@ -117,13 +117,13 @@ function isVisible(page, selector) {
     }, seededBuildings);
     await page.goto(running.url, { waitUntil: "networkidle" });
 
-    await page.locator("#workspace-module-nav [data-workspace-module=\"Documents\"]").click();
+    await page.locator("#app-module-nav [data-app-module=\"Documents\"]").click();
 
     // The Documents screen is a single repository view with its own controls.
     assert.strictEqual(await isVisible(page, "#documents-add-btn"), true, "Documents must keep Add Document");
-    assert.strictEqual(await isVisible(page, "#lease-back-btn"), true, "Documents must keep Back");
+    assert.strictEqual(await page.locator("#lease-back-btn").count(), 0, "Documents must rely on the shared shell navigation");
     assert.strictEqual(await isVisible(page, "#lease-search"), true, "Documents must keep the repository search");
-    assert.strictEqual(await isVisible(page, "#lease-building-filter"), true, "Documents must keep the Property filter");
+    assert.strictEqual(await isVisible(page, "#app-property-selector"), true, "Documents must keep the Property filter");
     assert.strictEqual(await isVisible(page, "#lease-category-filter"), true, "Documents must expose the category filter");
     assert.strictEqual(await page.locator("#documents-add-category-btn").count(), 0, "Add Category must be gone");
     assert.strictEqual(await page.locator("#lease-category-detail").count(), 0, "The category drill-down screen must be gone");
@@ -153,15 +153,15 @@ function isVisible(page, selector) {
     assert.strictEqual(await page.locator("[data-document-register-id]").count(), 2, "Insurance must show both Insurance documents");
 
     // Property and category filters combine.
-    await page.locator("#lease-building-filter").selectOption("building-a");
+    await page.locator("#app-property-selector").selectOption("building-a");
     assert.strictEqual(await page.locator("[data-document-register-id]").count(), 1, "Building A + Insurance must show one document");
     assert.strictEqual(await page.locator("[data-document-register-id=\"document-a\"]").count(), 1, "Building A + Insurance must show Building A's document");
 
-    await page.locator("#lease-building-filter").selectOption("building-b");
+    await page.locator("#app-property-selector").selectOption("building-b");
     assert.strictEqual(await page.locator("[data-document-register-id=\"document-b\"]").count(), 1, "Building B + Insurance must show Building B's document");
 
     // Search runs across the repository and combines with the filters.
-    await page.locator("#lease-building-filter").selectOption("");
+    await page.locator("#app-property-selector").selectOption("");
     await page.locator("#lease-category-filter").selectOption("");
     await page.locator("#lease-search").fill("lease deed");
     assert.strictEqual(await page.locator("[data-document-register-id]").count(), 1, "Search must match a document title");
@@ -177,7 +177,7 @@ function isVisible(page, selector) {
     await page.locator("#lease-category-filter").selectOption("");
 
     // Add Document preselects the filtered Building and category.
-    await page.locator("#lease-building-filter").selectOption("building-a");
+    await page.locator("#app-property-selector").selectOption("building-a");
     await page.locator("#lease-category-filter").selectOption("Insurance");
     await page.locator("#documents-add-btn").click();
     assert.strictEqual(await isVisible(page, "#document-form-card"), true, "Add Document must open the form");
@@ -190,11 +190,11 @@ function isVisible(page, selector) {
     );
     await page.locator("#document-cancel-btn").click();
     assert.strictEqual(await isVisible(page, "#lease-dashboard-panel"), true, "Cancelling must return to the Documents list");
-    assert.strictEqual(await page.locator("#lease-building-filter").inputValue(), "building-a", "Building filter must survive the form");
+    assert.strictEqual(await page.locator("#app-property-selector").inputValue(), "building-a", "Building filter must survive the form");
     assert.strictEqual(await page.locator("#lease-category-filter").inputValue(), "Insurance", "Category filter must survive the form");
 
     // All Buildings still requires an explicit Building choice, and defaults to Miscellaneous.
-    await page.locator("#lease-building-filter").selectOption("");
+    await page.locator("#app-property-selector").selectOption("");
     await page.locator("#lease-category-filter").selectOption("");
     await page.locator("#documents-add-btn").click();
     assert.strictEqual(await page.locator("#document-building-select").inputValue(), "", "All Buildings must not auto-select a Building");
@@ -217,8 +217,8 @@ function isVisible(page, selector) {
     await page.locator("#document-cancel-btn").click();
     assert.strictEqual(await isVisible(page, "#lease-dashboard-panel"), true, "Back from Edit must return to the Documents list");
 
-    await page.locator("#lease-back-btn").click();
-    assert.strictEqual(await page.locator("#dashboard-view").evaluate(function (element) { return element.classList.contains("is-active"); }), true, "Documents Back must return Home");
+    await page.locator("#app-module-nav [data-app-module=\"dashboard\"]").click();
+    assert.strictEqual(await page.locator("#dashboard-view").evaluate(function (element) { return element.classList.contains("is-active"); }), true, "Shared Dashboard button must return Home");
 
     // Browsing and filtering must never mutate business data.
     const businessDataAfter = await page.evaluate(function () {

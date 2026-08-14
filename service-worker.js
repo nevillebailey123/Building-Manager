@@ -1,5 +1,5 @@
-const APP_SHELL_CACHE = "building-manager-shell-v2";
-const RUNTIME_CACHE = "building-manager-runtime-v2";
+const APP_SHELL_CACHE = "building-manager-shell-v3";
+const RUNTIME_CACHE = "building-manager-runtime-v3";
 
 const APP_SHELL_ASSETS = [
   "./",
@@ -58,12 +58,13 @@ self.addEventListener("fetch", (event) => {
   }
 
   const destination = event.request.destination;
-  if (
-    destination === "script" ||
-    destination === "style" ||
-    destination === "image" ||
-    destination === "font"
-  ) {
+  // index.html, app.js and style.css must never diverge, so scripts and styles are network-first too.
+  if (destination === "script" || destination === "style") {
+    event.respondWith(networkFirst(event.request, RUNTIME_CACHE));
+    return;
+  }
+
+  if (destination === "image" || destination === "font") {
     event.respondWith(staleWhileRevalidate(event.request, RUNTIME_CACHE));
     return;
   }
