@@ -118,6 +118,90 @@ pageEntryExpectations.forEach(function (entry) {
 });
 
 const scheduleViewSource = sourceFor("openScheduleView", "openHistoryView");
-assert.strictEqual(scheduleViewSource.includes("updateBuilding"), false, "Opening Schedule must not save normalized Buildings");
+assert.strictEqual(scheduleViewSource.includes("updateBuilding"), false, "Opening Calendar must not save normalized Properties");
+
+// Every module page exposes exactly one top-left Dashboard control that goes straight Home.
+[
+  ["handleOverviewBack", "handleCancelEdit"],
+  ["handleCompaniesBack", "handleCancelTenancy"],
+  ["handleHistoryBack", "handleCancelCompleteTask"],
+  ["handleTemplateLibraryBack", "handleAddTemplateInline"],
+  ["handlePlaceholderBack", "setupBackBtn"],
+].forEach(function (entry) {
+  const source = sourceFor(entry[0], entry[1]);
+  assert.ok(source.includes("goToDashboard()"), `${entry[0]} must return directly to the Dashboard`);
+});
+
+const indexSource = fs.readFileSync("./index.html", "utf8");
+const navRowIds = [
+  "template-library-back-btn",
+  "overview-back-btn",
+  "tenancy-back-btn",
+  "lease-back-btn",
+  "contacts-back-btn",
+  "companies-back-btn",
+  "placeholder-back-btn",
+  "schedule-back-btn",
+  "history-back-btn",
+];
+navRowIds.forEach(function (id) {
+  const index = indexSource.indexOf(`id="${id}"`);
+  assert.ok(index >= 0, `${id} must exist`);
+  const line = indexSource.slice(indexSource.lastIndexOf("\n", index) + 1, indexSource.indexOf("\n", index));
+  assert.ok(line.includes("view-nav-btn"), `${id} must be the top-left navigation control`);
+  assert.ok(line.includes(">← Dashboard<"), `${id} must be labelled Dashboard`);
+  const rowStart = indexSource.lastIndexOf('<div class="view-nav-row">', index);
+  assert.ok(rowStart >= 0 && rowStart < index, `${id} must live in a view-nav-row`);
+});
+
+// No screen may keep an ambiguous "Back" label.
+[indexSource, appSource].forEach(function (source, sourceIndex) {
+  const ambiguous = source.match(/>\s*(←\s*)?Back\s*</g) || [];
+  assert.deepStrictEqual(ambiguous, [], `${sourceIndex === 0 ? "index.html" : "app.js"} must not label a button simply "Back"`);
+});
+
+// Destination-specific navigation inside detail/edit screens.
+assert.ok(indexSource.includes('id="cancel-tenancy-btn" class="btn btn-secondary" type="button">← Tenancies<'), "Tenancy form must return to Tenancies");
+assert.ok(indexSource.includes('id="document-cancel-btn" class="btn btn-secondary" type="button">← Documents<'), "Document form must return to Documents");
+assert.ok(appSource.includes('data-contact-details-action="close">Contacts<'), "Contact details must return to Contacts");
+assert.ok(appSource.includes('data-schedule-details-action="close">Calendar<'), "Calendar details must return to Calendar");
+assert.ok(indexSource.includes('id="setup-back-btn" class="btn btn-secondary" type="button">Previous Step<'), "Setup must use a step-specific label");
+
+// User-facing terminology.
+[
+  "Selected Property",
+  "Select a property",
+  "No properties have been added yet.",
+  "Property Dashboard",
+  ">Property Details<",
+  "Edit Property",
+  "Delete Property",
+  "Property Name",
+  "Property Type",
+  ">Calendar<",
+  "Calendar Item Template Library",
+  "Step 4: Calendar Items",
+].forEach(function (text) {
+  assert.ok(indexSource.includes(text), `index.html must use "${text}"`);
+});
+[
+  "Building Dashboard",
+  "Edit Building",
+  "Delete Building",
+  ">Building Name<",
+  "Building Type",
+  "Selected Building",
+].forEach(function (text) {
+  assert.strictEqual(indexSource.includes(text), false, `index.html must not use "${text}"`);
+});
+assert.ok(appSource.includes('{ label: "Properties", onClick: goToDashboard }'), "Breadcrumbs must start at Properties");
+assert.strictEqual(appSource.includes('label: "Buildings"'), false, "Breadcrumbs must not say Buildings");
+assert.ok(appSource.includes('<option value="">All Properties</option>'), "Filters must offer All Properties");
+
+// Internal identifiers and storage keys must be untouched.
+assert.ok(appSource.includes("buildingManagerBuildings") || fs.readFileSync("./storage.js", "utf8").includes("buildingManagerBuildings"), "localStorage key must be unchanged");
+assert.ok(appSource.includes("scheduleItems"), "scheduleItems data structure must be unchanged");
+assert.ok(indexSource.includes('name="buildingName"'), "Form field names must be unchanged");
+assert.ok(indexSource.includes('data-workspace-module="Schedule"'), "Module routing keys must be unchanged");
 
 console.log("navigation regression test passed");

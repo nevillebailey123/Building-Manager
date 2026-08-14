@@ -1086,6 +1086,16 @@ body {
   gap: 1rem;
 }
 
+.view-nav-row {
+  display: flex;
+  justify-content: flex-start;
+  margin-bottom: 0.85rem;
+}
+
+.view-nav-btn {
+  min-width: 150px;
+}
+
 .top-right-actions {
   display: grid;
   gap: 0.65rem;

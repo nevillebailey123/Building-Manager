@@ -231,7 +231,6 @@
   let leaseCategoryFilterValue = "";
   let selectorOpen = false;
   let breadcrumbItems = [];
-  let placeholderBackHandler = null;
 
   const ACTIVE_BUILDING_KEY = "buildingManagerActiveBuildingId";
   const CURRENT_PROPERTY_KEY = "buildingManagerCurrentPropertyId";
@@ -545,7 +544,7 @@
   function getActiveBuildingName() {
     const building = getActiveBuilding();
     if (!building) {
-      return "Building";
+      return "Property";
     }
     return building.buildingName;
   }
@@ -585,7 +584,7 @@
     hideAllViews();
     templateLibraryView.classList.add("is-active");
     setBreadcrumbs([
-      { label: "Buildings", onClick: goToDashboard },
+      { label: "Properties", onClick: goToDashboard },
       { label: "Template Library", onClick: openTemplateLibrary },
     ]);
   }
@@ -595,7 +594,7 @@
     dashboardView.classList.add("is-active");
     setSelectorOpen(false);
     setBreadcrumbs([
-      { label: "Buildings", onClick: goToDashboard },
+      { label: "Properties", onClick: goToDashboard },
     ]);
   }
 
@@ -609,7 +608,7 @@
     hideAllViews();
     overviewView.classList.add("is-active");
     setBreadcrumbs([
-      { label: "Buildings", onClick: goToDashboard },
+      { label: "Properties", onClick: goToDashboard },
       { label: getActiveBuildingName(), onClick: function () { openOverviewById(activeBuildingId); } },
     ]);
   }
@@ -618,9 +617,9 @@
     hideAllViews();
     editView.classList.add("is-active");
     setBreadcrumbs([
-      { label: "Buildings", onClick: goToDashboard },
+      { label: "Properties", onClick: goToDashboard },
       { label: getActiveBuildingName(), onClick: function () { openOverviewById(activeBuildingId); } },
-      { label: "Edit Building", onClick: showEditForm },
+      { label: "Edit Property", onClick: showEditForm },
     ]);
   }
 
@@ -628,7 +627,7 @@
     hideAllViews();
     tenancyView.classList.add("is-active");
     setBreadcrumbs([
-      { label: "Buildings", onClick: goToDashboard },
+      { label: "Properties", onClick: goToDashboard },
       { label: getActiveBuildingName(), onClick: function () { openOverviewById(activeBuildingId); } },
       { label: "Current Tenancy", onClick: function () { openCurrentTenancyView(activeBuildingId); } },
     ]);
@@ -639,7 +638,7 @@
     leaseView.classList.add("is-active");
     const building = getActiveBuildingName();
     const crumbs = [
-      { label: "Buildings", onClick: goToDashboard },
+      { label: "Properties", onClick: goToDashboard },
       { label: building, onClick: function () { openOverviewById(activeBuildingId); } },
       { label: "Documents", onClick: function () { openLeaseView(activeBuildingId); } },
     ];
@@ -653,7 +652,7 @@
     hideAllViews();
     contactsView.classList.add("is-active");
     setBreadcrumbs([
-      { label: "Buildings", onClick: goToDashboard },
+      { label: "Properties", onClick: goToDashboard },
       { label: getActiveBuildingName(), onClick: function () { openOverviewById(activeBuildingId); } },
       { label: "Contacts", onClick: openContactsView },
     ]);
@@ -663,7 +662,7 @@
     hideAllViews();
     companiesView.classList.add("is-active");
     setBreadcrumbs([
-      { label: "Buildings", onClick: goToDashboard },
+      { label: "Properties", onClick: goToDashboard },
       { label: getActiveBuildingName(), onClick: function () { openOverviewById(activeBuildingId); } },
       { label: "Companies", onClick: openCompaniesView },
     ]);
@@ -673,9 +672,9 @@
     hideAllViews();
     scheduleView.classList.add("is-active");
     setBreadcrumbs([
-      { label: "Buildings", onClick: goToDashboard },
+      { label: "Properties", onClick: goToDashboard },
       { label: getActiveBuildingName(), onClick: function () { openOverviewById(activeBuildingId); } },
-      { label: "Schedule", onClick: function () { openScheduleView(activeBuildingId); } },
+      { label: "Calendar", onClick: function () { openScheduleView(activeBuildingId); } },
     ]);
   }
 
@@ -683,7 +682,7 @@
     hideAllViews();
     historyView.classList.add("is-active");
     setBreadcrumbs([
-      { label: "Buildings", onClick: goToDashboard },
+      { label: "Properties", onClick: goToDashboard },
       { label: getActiveBuildingName(), onClick: function () { openOverviewById(activeBuildingId); } },
       { label: "Completed", onClick: function () { openHistoryView(activeBuildingId); } },
     ]);
@@ -693,9 +692,9 @@
     hideAllViews();
     completeTaskView.classList.add("is-active");
     setBreadcrumbs([
-      { label: "Buildings", onClick: goToDashboard },
+      { label: "Properties", onClick: goToDashboard },
       { label: getActiveBuildingName(), onClick: function () { openOverviewById(activeBuildingId); } },
-      { label: "Schedule", onClick: function () { openScheduleView(activeBuildingId); } },
+      { label: "Calendar", onClick: function () { openScheduleView(activeBuildingId); } },
       { label: "Complete Task", onClick: function () { openCompleteTaskView(activeScheduleItemId); } },
     ]);
   }
@@ -720,10 +719,10 @@
         <h3>${building.buildingName}</h3>
         <p>${address}</p>
         <p><strong>Status:</strong> ${building.status}</p>
-        <p><strong>Building Health:</strong> ${health}</p>
+        <p><strong>Property Health:</strong> ${health}</p>
         <div class="card-meta">
           <span class="status-pill">${building.status}</span>
-          <button class="btn btn-secondary open-building-btn" type="button">Open Building</button>
+          <button class="btn btn-secondary open-building-btn" type="button">Open Property</button>
         </div>
         <span class="card-chevron">&gt;</span>
       </article>
@@ -1209,7 +1208,7 @@
     }
 
     const filterId = getBuildingFilterId();
-    selectElement.innerHTML = ['<option value="">All Buildings</option>']
+    selectElement.innerHTML = ['<option value="">All Properties</option>']
       .concat(getSortedBuildings().map(function (building) {
         return `<option value="${escapeHtml(building.id)}">${escapeHtml(building.buildingName)}</option>`;
       }))
@@ -1234,7 +1233,7 @@
   }
 
   function getBuildingFilterEmptySuffix() {
-    return getBuildingFilterId() ? "this Building" : "your buildings";
+    return getBuildingFilterId() ? "this Property" : "your properties";
   }
 
   function getBuildingStatusLevel(building) {
@@ -1346,7 +1345,7 @@
 
     const addRow = `
       <button class="selector-option selector-add-new" type="button" data-selector-action="add-building">
-        <span>+ Add New Building</span>
+        <span>+ Add New Property</span>
       </button>
     `;
 
@@ -1355,7 +1354,7 @@
 
   function renderWorkspaceSummary(building) {
     if (!building) {
-      workspaceDashboardSummary.innerHTML = '<div><dt>Building</dt><dd>All Properties</dd></div>';
+      workspaceDashboardSummary.innerHTML = '<div><dt>Property</dt><dd>All Properties</dd></div>';
       return;
     }
 
@@ -1375,10 +1374,10 @@
     const nextItemText = nextItem ? `${nextItem.taskName} (${formatDate(nextItem.dueDate)})` : "None scheduled";
 
     workspaceDashboardSummary.innerHTML = `
-      <div><dt>Building Name</dt><dd>${normalized.buildingName}</dd></div>
+      <div><dt>Property Name</dt><dd>${normalized.buildingName}</dd></div>
       <div><dt>Address</dt><dd>${normalized.streetAddress}, ${normalized.city}</dd></div>
       <div><dt>Current Tenant</dt><dd>${currentTenant}</dd></div>
-      <div><dt>Next Scheduled Item</dt><dd>${nextItemText}</dd></div>
+      <div><dt>Next Calendar Item</dt><dd>${nextItemText}</dd></div>
       <div><dt>Overdue Items</dt><dd>${overdueCount}</dd></div>
       <div><dt>Documents</dt><dd>${documentsCount}</dd></div>
     `;
@@ -1512,8 +1511,8 @@
     setupNewContactCompanyWrap.style.display = "none";
     setupLinkedContactsList.innerHTML = '<p class="module-placeholder">No contacts linked yet.</p>';
     setBreadcrumbs([
-      { label: "Buildings", onClick: goToDashboard },
-      { label: "New Building Setup", onClick: showForm },
+      { label: "Properties", onClick: goToDashboard },
+      { label: "New Property Setup", onClick: showForm },
     ]);
     renderSetupRelationshipOptions(setupExistingContactRelationship, "Other");
     renderSetupRelationshipOptions(setupNewContactRelationship, "Other");
@@ -1861,7 +1860,7 @@
 
   function renderConfigureSelectedItems() {
     if (setupState.configuredScheduleItems.length === 0) {
-      setupConfigureList.innerHTML = '<p class="module-placeholder">No schedule items selected. You can finish setup now.</p>';
+      setupConfigureList.innerHTML = '<p class="module-placeholder">No calendar items selected. You can finish setup now.</p>';
       return;
     }
 
@@ -1970,7 +1969,7 @@
 
   function finalizeSetupAndCreateBuilding() {
     if (!setupState.buildingDetails) {
-      alert("Building details are incomplete.");
+      alert("Property details are incomplete.");
       return;
     }
 
@@ -2143,10 +2142,10 @@
     }
 
     setupFinishSummary.innerHTML = `
-      <p>✔ Building Created</p>
+      <p>✔ Property Created</p>
       <p>${setupState.finishSummary.tenancyAdded ? "✔ Current Tenancy Added" : "✔ Current Tenancy Skipped"}</p>
       <p>✔ ${setupState.finishSummary.linkedContactsCount} Contacts Linked</p>
-      <p>✔ ${setupState.finishSummary.createdScheduleCount} Scheduled Items Created</p>
+      <p>✔ ${setupState.finishSummary.createdScheduleCount} Calendar Items Created</p>
     `;
   }
 
@@ -2718,7 +2717,7 @@
 
   function createScheduleItemFromPropertyTemplate(template, propertyId, now) {
     const createdAt = now || new Date().toISOString();
-    const taskName = String(template.name || "Scheduled Item").trim() || "Scheduled Item";
+    const taskName = String(template.name || "Calendar Item").trim() || "Calendar Item";
     const normalizedPropertyId = String(propertyId || template.propertyId || "").trim();
     const scheduleItem = {
       id: window.BuildingStorage.createId(),
@@ -2778,7 +2777,7 @@
 
       const created = createPropertyTemplateFromMaster(master, {
         id: linkedPropertyTemplateId || window.BuildingStorage.createId(),
-        name: fromItemName || (master ? master.name : "Scheduled Item"),
+        name: fromItemName || (master ? master.name : "Calendar Item"),
         category: item.category || (master ? master.category : "General"),
         defaultFrequency: item.frequency || (master ? master.defaultFrequency : "Annual"),
         nextDueDate: String(item.dueDate || master && master.nextDueDate || "").trim(),
@@ -2819,7 +2818,7 @@
           templateId: template.id,
           propertyTemplateId: template.id,
           propertyId: String(existing.propertyId || "").trim(),
-          taskName: String(existing.taskName || template.name || "").trim() || template.name || "Scheduled Item",
+          taskName: String(existing.taskName || template.name || "").trim() || template.name || "Calendar Item",
           category: String(existing.category || template.category || "General").trim() || "General",
           dueDate: String(existing.dueDate || template.nextDueDate || "").trim(),
           frequency: String(existing.frequency || template.defaultFrequency || "Annual").trim() || "Annual",
@@ -4181,7 +4180,7 @@
     const sortedRows = sortScheduleRows(rows);
     scheduleOpsList.innerHTML = `
       <section class="schedule-ops-group schedule-ops-group-scheduled">
-        <h3 class="schedule-ops-group-title">Scheduled Items</h3>
+        <h3 class="schedule-ops-group-title">Calendar Items</h3>
         <div class="schedule-ops-group-list">
           ${sortedRows.map(renderScheduleRow).join("")}
         </div>
@@ -4191,7 +4190,7 @@
 
   function renderCompletedRecords(container, records) {
     if (!records || records.length === 0) {
-      container.innerHTML = '<p class="module-placeholder">No completed scheduled work.</p>';
+      container.innerHTML = '<p class="module-placeholder">No completed calendar work.</p>';
       return;
     }
 
@@ -4221,7 +4220,7 @@
 
   function renderSchedulePage() {
     const buildings = getNormalizedScheduleBuildings();
-    scheduleBuildingName.textContent = activeBuildingId ? getActiveBuildingName() : "All Buildings";
+    scheduleBuildingName.textContent = activeBuildingId ? getActiveBuildingName() : "All Properties";
 
     const rows = buildings.flatMap(function (building) {
       return decorateScheduleRows(building, building.scheduleItems || []);
@@ -4556,7 +4555,7 @@
         return `
           <article class="building-card">
             <h3>${escapeHtml(entry.companyName || "Previous Tenant")}</h3>
-            <p><strong>Building:</strong> ${escapeHtml(row.building.buildingName || "Not set")}</p>
+            <p><strong>Property:</strong> ${escapeHtml(row.building.buildingName || "Not set")}</p>
             <p><strong>Lease Dates:</strong> ${formatDate(entry.leaseStart)} - ${formatDate(entry.leaseEnd)}</p>
             <p><strong>Historic documents:</strong> ${getDocumentSummaryText(entry.documents || [])}</p>
             <p><strong>Historic contacts:</strong> ${getContactCountLabel(entry.contactRefs || [])}</p>
@@ -4858,9 +4857,9 @@
       return "No documents match your search.";
     }
     if (leaseCategoryFilterValue) {
-      return `No ${leaseCategoryFilterValue} documents${getBuildingFilterId() ? " for this Building" : ""}.`;
+      return `No ${leaseCategoryFilterValue} documents${getBuildingFilterId() ? " for this Property" : ""}.`;
     }
-    return getBuildingFilterId() ? "No documents for this Building." : "No documents have been added yet.";
+    return getBuildingFilterId() ? "No documents for this Property." : "No documents have been added yet.";
   }
 
   function renderDocumentRegister() {
@@ -4881,9 +4880,9 @@
         <article class="building-card document-register-row" data-document-register-id="${escapeHtml(record.id)}" data-document-register-building-id="${escapeHtml(entry.building.id)}" data-document-register-source="${entry.source}" role="button" tabindex="0" aria-label="Open document ${escapeHtml(getDocumentRegisterTitle(record))}">
           <h3>${escapeHtml(getDocumentRegisterTitle(record))}</h3>
           <p class="document-item-meta">Category: ${escapeHtml(getDocumentRegisterCategory(entry))}</p>
-          <p class="document-item-meta">Building: ${escapeHtml(entry.building.buildingName || "Not set")}</p>
+          <p class="document-item-meta">Property: ${escapeHtml(entry.building.buildingName || "Not set")}</p>
           ${tenancy ? `<p class="document-item-meta">Related Tenancy: ${escapeHtml(tenancy.tradingName || tenancy.companyName || "Tenancy")}</p>` : ""}
-          ${scheduleItem ? `<p class="document-item-meta">Related Schedule Item: ${escapeHtml(scheduleItem.taskName || "Schedule Item")}</p>` : ""}
+          ${scheduleItem ? `<p class="document-item-meta">Related Calendar Item: ${escapeHtml(scheduleItem.taskName || "Calendar Item")}</p>` : ""}
           ${record.documentDate ? `<p class="document-item-meta">Date: ${escapeHtml(formatDate(record.documentDate))}</p>` : ""}
           ${record.expiryDate ? `<p class="document-item-meta">Expiry: ${escapeHtml(formatDate(record.expiryDate))}</p>` : ""}
           ${record.fileName ? `<p class="document-item-meta">File: ${escapeHtml(record.fileName)}</p>` : ""}
@@ -4919,7 +4918,7 @@
     }
     const options = selectedId
       ? []
-      : ['<option value="">Select a Building</option>'];
+      : ['<option value="">Select a Property</option>'];
     documentBuildingSelect.innerHTML = options.concat(getSortedBuildings().map(function (building) {
       return `<option value="${escapeHtml(building.id)}">${escapeHtml(building.buildingName)}</option>`;
     })).join("");
@@ -4938,9 +4937,9 @@
       documentTenancySelect.value = tenancies.some(function (tenancy) { return String(tenancy.id) === String(selectedTenancyId || ""); }) ? selectedTenancyId : "";
     }
     if (documentScheduleSelect) {
-      documentScheduleSelect.innerHTML = ['<option value="">No related schedule item</option>']
+      documentScheduleSelect.innerHTML = ['<option value="">No related calendar item</option>']
         .concat(scheduleItems.map(function (item) {
-          return `<option value="${escapeHtml(item.id)}">${escapeHtml(item.taskName || "Schedule Item")}</option>`;
+          return `<option value="${escapeHtml(item.id)}">${escapeHtml(item.taskName || "Calendar Item")}</option>`;
         })).join("");
       documentScheduleSelect.value = scheduleItems.some(function (item) { return String(item.id) === String(selectedScheduleItemId || ""); }) ? selectedScheduleItemId : "";
     }
@@ -5404,7 +5403,7 @@
           <div class="contact-card-layout">
             <div class="contact-card-column contact-card-column-left">
               <p><strong>Company:</strong> <button class="inline-link company-open-link" type="button" data-company-id="${contact.companyId}">${entry.companyName}</button></p>
-              ${entry.relatedBuildings.length > 0 ? `<p><strong>Building${entry.relatedBuildings.length === 1 ? "" : "s"}:</strong> ${escapeHtml(entry.relatedBuildings.join(", "))}</p>` : ""}
+              ${entry.relatedBuildings.length > 0 ? `<p><strong>Propert${entry.relatedBuildings.length === 1 ? "y" : "ies"}:</strong> ${escapeHtml(entry.relatedBuildings.join(", "))}</p>` : ""}
               <p><strong>Role:</strong> ${renderContactRoleBadge(entry.relationship)}</p>
               <p><strong>Linked Items:</strong> ${escapeHtml(entry.linkedItemsSummary)}${entry.linkedItemsMoreCount > 0 ? ` (+${entry.linkedItemsMoreCount} more)` : ""}</p>
             </div>
@@ -5423,20 +5422,16 @@
   function showModulePlaceholder(moduleName, message) {
     const descriptions = {
       "Tenancy History": "Previous tenancy records and notes.",
-      Documents: "Building records, certificates and supporting files.",
+      Documents: "Property records, certificates and supporting files.",
       History: "Completed work and permanent records.",
     };
 
     placeholderTitle.textContent = moduleName;
-    placeholderDescription.textContent = descriptions[moduleName] || "Module information for this building.";
+    placeholderDescription.textContent = descriptions[moduleName] || "Module information for this property.";
     placeholderBuildingName.textContent = getActiveBuildingName();
     placeholderMessage.textContent = message;
-    placeholderBackHandler = function () {
-      openOverviewById(activeBuildingId);
-    };
-
     setBreadcrumbs([
-      { label: "Buildings", onClick: goToDashboard },
+      { label: "Properties", onClick: goToDashboard },
       { label: getActiveBuildingName(), onClick: function () { openOverviewById(activeBuildingId); } },
       { label: moduleName, onClick: function () { showModulePlaceholder(moduleName, message); } },
     ]);
@@ -5464,7 +5459,7 @@
     if (contacts.length === 0) {
       if (contactsEmptyMessage) {
         contactsEmptyMessage.textContent = getBuildingFilterId()
-          ? "No contacts associated with this Building."
+          ? "No contacts associated with this Property."
           : "No contacts have been added.";
       }
       contactsEmptyState.style.display = "block";
@@ -5570,7 +5565,7 @@
     const companyName = getCompanyNameById(contact.companyId, "Not set");
     const linkedItems = getScheduleItemsLinkedToContactForFilter(contact.id);
     const linkedItemsMarkup = linkedItems.length === 0
-      ? '<p class="module-placeholder">No linked schedule items.</p>'
+      ? '<p class="module-placeholder">No linked calendar items.</p>'
       : `
         <section class="building-list" aria-live="polite">
           ${linkedItems.map(function (item) {
@@ -5608,7 +5603,7 @@
       <div class="schedule-details-modal" role="dialog" aria-modal="true" aria-labelledby="contact-details-title">
         <header class="schedule-details-header">
           <h3 id="contact-details-title">${escapeHtml(contact.name || "Contact")}</h3>
-          <button class="btn btn-secondary btn-small" type="button" data-contact-details-action="close">Back</button>
+          <button class="btn btn-secondary btn-small" type="button" data-contact-details-action="close">Contacts</button>
         </header>
 
         <section class="schedule-details-section">
@@ -5620,13 +5615,13 @@
             <div><dt>Office Phone</dt><dd>${escapeHtml(contact.officePhone || "Not provided")}</dd></div>
             <div><dt>Email</dt><dd>${escapeHtml(contact.email || "Not provided")}</dd></div>
             <div><dt>Notes</dt><dd>${escapeHtml(contact.notes || "Not provided")}</dd></div>
-            <div><dt>Linked Schedule Items</dt><dd>${linkedItems.length}</dd></div>
+            <div><dt>Linked Calendar Items</dt><dd>${linkedItems.length}</dd></div>
             <div><dt>Linked Tenancies</dt><dd>${tenancyLinks.length}</dd></div>
           </dl>
         </section>
 
         <section class="schedule-details-section">
-          <h4>Linked Schedule Items</h4>
+          <h4>Linked Calendar Items</h4>
           ${linkedItemsMarkup}
         </section>
 
@@ -5637,7 +5632,7 @@
 
         <section class="schedule-details-bottom-actions" aria-label="Contact actions">
           <button class="btn btn-secondary" type="button" data-contact-details-action="edit">Edit Contact</button>
-          <button class="btn btn-primary" type="button" data-contact-details-action="close">Back</button>
+          <button class="btn btn-primary" type="button" data-contact-details-action="close">Contacts</button>
         </section>
       </div>
     `;
@@ -5972,7 +5967,7 @@
         <h3 id="template-delete-modal-title">Delete Master Template</h3>
         <p>Are you sure you want to permanently delete this Master Template?</p>
         ${warningMessage ? `<p>${warningMessage}</p>` : ""}
-        <p>Historical Property schedule and completion records are retained.</p>
+        <p>Historical Property calendar and completion records are retained.</p>
         <div class="template-delete-modal-actions">
           <button class="btn btn-secondary" type="button" data-template-delete-confirm="cancel">Cancel</button>
           <button class="btn template-delete-btn" type="button" data-template-delete-confirm="delete">Delete</button>
@@ -6100,7 +6095,7 @@
     renderTemplateLibrarySectionState("form");
     showTemplateLibraryView();
     setBreadcrumbs([
-      { label: "Buildings", onClick: goToDashboard },
+      { label: "Properties", onClick: goToDashboard },
       { label: "Template Library", onClick: openTemplateLibrary },
       { label: mode === "edit" ? "Edit Master Template" : "Add Master Template", onClick: function () { openTemplateForm(mode, template); } },
     ]);
@@ -6131,13 +6126,7 @@
   }
 
   function handleTemplateLibraryBack() {
-    if (activeBuildingId) {
-      openScheduleView(activeBuildingId);
-      return;
-    }
-
-    showDashboard();
-    renderBuildings();
+    goToDashboard();
   }
 
   function handleCancelTemplate() {
@@ -6284,7 +6273,7 @@
     const building = findBuildingById(getBuildingFilterId());
     renderBuildingFilterOptions(contactsBuildingFilter);
 
-    contactsBuildingName.textContent = building ? building.buildingName : "All Buildings";
+    contactsBuildingName.textContent = building ? building.buildingName : "All Properties";
     activeContactId = "";
     contactsSearchQuery = "";
     populateContactCompanySelect("");
@@ -6400,7 +6389,7 @@
     renderContactSectionState("form");
     showContactsView();
     setBreadcrumbs([
-      { label: "Buildings", onClick: goToDashboard },
+      { label: "Properties", onClick: goToDashboard },
       { label: getActiveBuildingName(), onClick: function () { openOverviewById(activeBuildingId); } },
       { label: "Contacts", onClick: openContactsView },
       { label: mode === "edit" ? "Edit Contact" : "New Contact", onClick: function () { openContactForm(mode, contact); } },
@@ -6524,7 +6513,7 @@
     renderBuildingFilterOptions(tenancyBuildingFilter);
 
     const filterBuilding = findBuildingById(getBuildingFilterId());
-    tenancyBuildingName.textContent = filterBuilding ? filterBuilding.buildingName : "All Buildings";
+    tenancyBuildingName.textContent = filterBuilding ? filterBuilding.buildingName : "All Properties";
     renderTenancyHistory();
 
     // Canonical tenancy list renderer: always driven by building.tenancies[].
@@ -6558,7 +6547,7 @@
         <article class="tenancy-list-card clickable-card" role="button" tabindex="0" data-tenancy-list-action="edit" data-tenancy-id="${tenancyId}" aria-label="Edit tenancy ${escapeHtml(companyName)}">
           <h4>${escapeHtml(companyName)}</h4>
           ${tradingName && tradingName !== companyName ? `<p><strong>Trading Name:</strong> ${escapeHtml(tradingName)}</p>` : ""}
-          <p><strong>Building:</strong> ${escapeHtml(ownerBuildingName)}</p>
+          <p><strong>Property:</strong> ${escapeHtml(ownerBuildingName)}</p>
           <p><strong>Lease Start:</strong> ${formatDate(tenancy.leaseStart)}</p>
           <p><strong>Lease End:</strong> ${formatDate(tenancy.leaseEnd)}</p>
           <p><strong>Status:</strong> ${escapeHtml(tenancyStatus)}</p>
@@ -6634,7 +6623,7 @@
 
     const building = getTenancyEditBuilding();
     if (!building) {
-      alert("Select a building before adding a tenancy.");
+      alert("Select a property before adding a tenancy.");
       return;
     }
 
@@ -6952,11 +6941,11 @@
     moduleContentTitle.textContent = "Dashboard Summary";
     moduleContentBody.innerHTML = `
       <dl class="snapshot-list dashboard-snapshot-list">
-        <div><dt>Building Name</dt><dd>${normalized.buildingName}</dd></div>
+        <div><dt>Property Name</dt><dd>${normalized.buildingName}</dd></div>
         <div><dt>Address</dt><dd>${address}</dd></div>
-        <div><dt>Building Health</dt><dd>${getHealthLabel(normalized)}</dd></div>
+        <div><dt>Property Health</dt><dd>${getHealthLabel(normalized)}</dd></div>
         <div><dt>Current Tenant</dt><dd>${currentTenantDisplay}</dd></div>
-        <div><dt>Next Scheduled Item</dt><dd>${nextScheduledItem}</dd></div>
+        <div><dt>Next Calendar Item</dt><dd>${nextScheduledItem}</dd></div>
         <div><dt>Overdue Items</dt><dd>${overdueCount}</dd></div>
         <div><dt>Document Count</dt><dd>${documentsCount}</dd></div>
         <div><dt>Last Activity</dt><dd>${lastActivity}</dd></div>
@@ -7124,7 +7113,7 @@
 
     if (!contact || !contact.id) {
       contactLinkedScheduleSection.style.display = "block";
-      contactLinkedScheduleList.innerHTML = '<p class="module-placeholder">Save this contact before linking schedule items.</p>';
+      contactLinkedScheduleList.innerHTML = '<p class="module-placeholder">Save this contact before linking calendar items.</p>';
       if (contactAddScheduleLinkBtn instanceof HTMLButtonElement) {
         contactAddScheduleLinkBtn.style.display = "none";
         contactAddScheduleLinkBtn.disabled = true;
@@ -7149,7 +7138,7 @@
     }
     const linkedItems = getScheduleItemsLinkedToContactForFilter(contact.id);
     if (linkedItems.length === 0) {
-      contactLinkedScheduleList.innerHTML = '<p class="module-placeholder">No linked schedule items.</p>';
+      contactLinkedScheduleList.innerHTML = '<p class="module-placeholder">No linked calendar items.</p>';
       if (contactRemoveScheduleLinkBtn instanceof HTMLButtonElement) {
         contactRemoveScheduleLinkBtn.disabled = true;
       }
@@ -7188,12 +7177,12 @@
       backdrop.className = "template-delete-modal-backdrop";
       backdrop.innerHTML = `
         <div class="template-delete-modal" role="dialog" aria-modal="true" aria-labelledby="contact-link-schedule-title">
-          <h3 id="contact-link-schedule-title">Link Schedule Item</h3>
-          <p>Select a schedule item to link to ${escapeHtml(contact.name)}.</p>
+          <h3 id="contact-link-schedule-title">Link Calendar Item</h3>
+          <p>Select a calendar item to link to ${escapeHtml(contact.name)}.</p>
           <label>
-            <span class="visually-hidden">Schedule item</span>
+            <span class="visually-hidden">Calendar item</span>
             <select id="contact-link-schedule-select" class="schedule-filter-select">
-              <option value="">Select schedule item</option>
+              <option value="">Select calendar item</option>
               ${items.map(function (item) {
                 const current = String(item.preferredContactId || "").trim();
                 const linkedSuffix = current && current !== String(contact.id) ? " (reassigns current primary contact)" : "";
@@ -7283,12 +7272,12 @@
       backdrop.className = "template-delete-modal-backdrop";
       backdrop.innerHTML = `
         <div class="template-delete-modal" role="dialog" aria-modal="true" aria-labelledby="contact-unlink-schedule-title">
-          <h3 id="contact-unlink-schedule-title">Remove Schedule Link</h3>
-          <p>Select a linked schedule item to unlink from ${escapeHtml(contact.name)}.</p>
+          <h3 id="contact-unlink-schedule-title">Remove Calendar Link</h3>
+          <p>Select a linked calendar item to unlink from ${escapeHtml(contact.name)}.</p>
           <label>
-            <span class="visually-hidden">Linked schedule item</span>
+            <span class="visually-hidden">Linked calendar item</span>
             <select id="contact-unlink-schedule-select" class="schedule-filter-select">
-              <option value="">Select linked schedule item</option>
+              <option value="">Select linked calendar item</option>
               ${linkedItems.map(function (item) {
                 return `<option value="${item.id}">${escapeHtml(item.taskName)} - ${escapeHtml(formatDate(item.dueDate))}</option>`;
               }).join("")}
@@ -7546,7 +7535,7 @@
       });
 
     if (availableTenancies.length === 0) {
-      alert("There are no further tenancies available to link for this building.");
+      alert("There are no further tenancies available to link for this property.");
       return;
     }
 
@@ -7943,7 +7932,7 @@
   }
 
   function handleCompaniesBack() {
-    openOverviewById(activeBuildingId);
+    goToDashboard();
   }
 
   function handleCancelTenancy() {
@@ -8626,23 +8615,23 @@
         : [];
       const listMarkup = scheduleItemNames.length > 0
         ? `
-          <p>You are about to remove the following schedule items from ${escapeHtml(buildingName || "this property")}:</p>
+          <p>You are about to remove the following calendar items from ${escapeHtml(buildingName || "this property")}:</p>
           <ul class="template-unassign-list">
             ${scheduleItemNames.map(function (name) {
               return `<li>${escapeHtml(name)}</li>`;
             }).join("")}
           </ul>
         `
-        : '<p>You are about to remove one or more schedule items from this property.</p>';
+        : '<p>You are about to remove one or more calendar items from this property.</p>';
 
       dialog.innerHTML = `
-        <h3 id="template-unassign-modal-title">Remove Schedule Items?</h3>
+        <h3 id="template-unassign-modal-title">Remove Calendar Items?</h3>
         ${listMarkup}
         <p>Their historical completion records and associated history will be retained.</p>
         <p>Do you wish to proceed?</p>
         <div class="template-delete-modal-actions">
           <button class="btn btn-secondary" type="button" data-template-unassign-action="cancel">Cancel</button>
-          <button class="btn template-delete-btn" type="button" data-template-unassign-action="remove">Remove Schedule Items</button>
+          <button class="btn template-delete-btn" type="button" data-template-unassign-action="remove">Remove Calendar Items</button>
         </div>
       `;
 
@@ -8754,7 +8743,7 @@
       dialog.setAttribute("aria-labelledby", "property-template-editor-title");
 
       dialog.innerHTML = `
-        <h3 id="property-template-editor-title">Add Templates To Schedule</h3>
+        <h3 id="property-template-editor-title">Add Templates To Calendar</h3>
         <p>Choose how each selected template should be scheduled for this property.</p>
         <form class="template-property-editor-form">
           <div class="template-property-editor-list">
@@ -8770,14 +8759,14 @@
                     return `<option value="${option}"${option === template.defaultFrequency ? " selected" : ""}>${option}</option>`;
                   }).join("")}</select></label>
                   <label data-start-date-wrap>Start Date<input type="date" data-field="initialDueDate" value="${escapeHtml(initialDueDate)}" /></label>
-                  <label data-custom-date-wrap style="display: ${template.defaultFrequency === "Custom" ? "grid" : "none"};">Custom Schedule Date<input type="date" data-field="customDueDate" value="${escapeHtml(customDueDate)}" /></label>
+                  <label data-custom-date-wrap style="display: ${template.defaultFrequency === "Custom" ? "grid" : "none"};">Custom Calendar Date<input type="date" data-field="customDueDate" value="${escapeHtml(customDueDate)}" /></label>
                 </article>
               `;
             }).join("")}
           </div>
           <div class="template-delete-modal-actions">
             <button class="btn btn-secondary" type="button" data-property-template-editor-action="cancel">Cancel</button>
-            <button class="btn btn-primary" type="submit">Add to Schedule</button>
+            <button class="btn btn-primary" type="submit">Add to Calendar</button>
           </div>
         </form>
       `;
@@ -9091,7 +9080,7 @@
 
   async function handleManageTemplatesForProperty() {
     if (!activeBuildingId) {
-      alert("Select a property before managing templates for a property schedule.");
+      alert("Select a property before managing templates for a property calendar.");
       return;
     }
 
@@ -9956,10 +9945,10 @@
         <div class="schedule-details-modal" role="dialog" aria-modal="true" aria-labelledby="schedule-details-title">
           <header class="schedule-details-header">
             <h3 id="schedule-details-title">${escapeHtml(titleValue)}</h3>
-            <button class="btn btn-secondary btn-small" type="button" data-schedule-details-action="close">Back</button>
+            <button class="btn btn-secondary btn-small" type="button" data-schedule-details-action="close">Calendar</button>
           </header>
           <section class="schedule-details-section">
-            <h4>Schedule Details</h4>
+            <h4>Calendar Details</h4>
             <dl class="schedule-details-grid">
               <div><dt>Property</dt><dd>${escapeHtml(getBuildingNameById(propertyValue) || "Property not assigned")}</dd></div>
               <div><dt>Tenancy</dt><dd>${escapeHtml(tenancyCompanyName)}</dd></div>
@@ -9976,7 +9965,7 @@
             <h4>Completion History</h4>
             ${renderScheduleHistoryTable(detailsData.records)}
           </section>
-          <section class="schedule-details-bottom-actions" data-schedule-details-confirmation-anchor aria-label="Schedule actions">
+          <section class="schedule-details-bottom-actions" data-schedule-details-confirmation-anchor aria-label="Calendar actions">
             <div class="schedule-details-bottom-actions-left">
               <button class="btn btn-secondary" type="button" data-schedule-details-action="open-tenancy">Open Tenancy</button>
             </div>
@@ -9993,7 +9982,7 @@
     const customDates = isCustomFrequency ? getRecurringDatesFromTemplate(template) : [];
     const frequencyDisplay = isCustomFrequency ? "Custom Dates" : frequencyValue;
     const scheduledDatesMarkup = customDates.length > 0
-      ? `<div class="schedule-details-row-span"><dt>Scheduled Dates</dt><dd>${customDates.map(function (entry) {
+      ? `<div class="schedule-details-row-span"><dt>Calendar Dates</dt><dd>${customDates.map(function (entry) {
         return `<span>${escapeHtml(formatRecurringDateEntry(entry))}</span>`;
       }).join("")}</dd></div>`
       : "";
@@ -10002,8 +9991,8 @@
       return `
         <div class="schedule-details-modal" role="dialog" aria-modal="true" aria-labelledby="schedule-details-title">
           <header class="schedule-details-header">
-            <h3 id="schedule-details-title">Edit Schedule Item</h3>
-            <button class="btn btn-secondary btn-small" type="button" data-schedule-details-action="close">Back</button>
+            <h3 id="schedule-details-title">Edit Calendar Item</h3>
+            <button class="btn btn-secondary btn-small" type="button" data-schedule-details-action="close">Calendar</button>
           </header>
 
           <section class="schedule-details-section">
@@ -10054,12 +10043,12 @@
       <div class="schedule-details-modal" role="dialog" aria-modal="true" aria-labelledby="schedule-details-title">
         <header class="schedule-details-header">
           <h3 id="schedule-details-title">${escapeHtml(titleValue)}</h3>
-          <button class="btn btn-secondary btn-small" type="button" data-schedule-details-action="close">Back</button>
+          <button class="btn btn-secondary btn-small" type="button" data-schedule-details-action="close">Calendar</button>
         </header>
 
         <section class="schedule-details-section">
           <div class="schedule-details-section-header">
-            <h4>Schedule Details</h4>
+            <h4>Calendar Details</h4>
           </div>
           <dl class="schedule-details-grid" data-schedule-details-display>
             <div><dt>Property</dt><dd>${escapeHtml(getBuildingNameById(propertyValue) || "Property not assigned")}</dd></div>
@@ -10090,7 +10079,7 @@
           ${renderScheduleHistoryTable(detailsData.records)}
         </section>
 
-        <section class="schedule-details-bottom-actions" data-schedule-details-confirmation-anchor aria-label="Schedule actions">
+        <section class="schedule-details-bottom-actions" data-schedule-details-confirmation-anchor aria-label="Calendar actions">
           <div class="schedule-details-bottom-actions-left">
             ${canRevert
               ? '<button class="btn schedule-revert-action-btn" type="button" data-schedule-details-action="revert">Revert</button>'
@@ -10702,7 +10691,7 @@
   }
 
   function handleHistoryBack() {
-    openOverviewById(activeBuildingId);
+    goToDashboard();
   }
 
   function handleCancelCompleteTask() {
@@ -10790,9 +10779,6 @@
     }
 
     showModulePlaceholder("History", "History detail view will be added later.");
-    placeholderBackHandler = function () {
-      openHistoryView(activeBuildingId);
-    };
   }
 
   function handleHistoryListKeydown(event) {
@@ -10812,9 +10798,6 @@
 
     event.preventDefault();
     showModulePlaceholder("History", "History detail view will be added later.");
-    placeholderBackHandler = function () {
-      openHistoryView(activeBuildingId);
-    };
   }
 
   function handleDeleteBuilding() {
@@ -10822,7 +10805,7 @@
       return;
     }
 
-    const shouldDelete = window.confirm("Are you sure?");
+    const shouldDelete = window.confirm("Delete this property permanently?");
     if (!shouldDelete) {
       return;
     }
@@ -10929,8 +10912,7 @@
   }
 
   function handleOverviewBack() {
-    showDashboard();
-    renderBuildings();
+    goToDashboard();
   }
 
   function handleCancelEdit() {
@@ -11020,7 +11002,7 @@
     const moduleName = button.getAttribute("data-workspace-module") || "";
     const portfolioModules = ["Schedule", "Tenancy", "Contacts", "Lease", "Documents"];
     if (!activeBuildingId && !portfolioModules.includes(moduleName)) {
-      alert("Select a building to open this module.");
+      alert("Select a property to open this module.");
       return;
     }
 
@@ -11063,12 +11045,7 @@
   }
 
   function handlePlaceholderBack() {
-    if (typeof placeholderBackHandler === "function") {
-      placeholderBackHandler();
-      return;
-    }
-
-    openOverviewById(activeBuildingId);
+    goToDashboard();
   }
 
   cancelBtn.addEventListener("click", handleSetupCancel);

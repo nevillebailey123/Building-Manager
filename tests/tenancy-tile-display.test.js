@@ -358,8 +358,8 @@ const buildingOneHtml = renderTenancyList();
 const tileA = tileFor(buildingOneHtml, "EIT");
 const tileB = tileFor(buildingOneHtml, "Pan Pac Forestry");
 
-assert.ok(tileA.includes("<strong>Building:</strong> Ford Onekawa"), "Tenancy A must show Building 1");
-assert.ok(tileB.includes("<strong>Building:</strong> Ford Onekawa"), "Tenancy B must show Building 1");
+assert.ok(tileA.includes("<strong>Property:</strong> Ford Onekawa"), "Tenancy A must show Property 1");
+assert.ok(tileB.includes("<strong>Property:</strong> Ford Onekawa"), "Tenancy B must show Property 1");
 assert.strictEqual(
   buildingOneHtml.includes("Taradale Chambers"),
   false,
@@ -418,7 +418,7 @@ assert.ok(
 selectBuilding("bld-2");
 const buildingTwoHtml = renderTenancyList();
 const tileC = tileFor(buildingTwoHtml, "Acme Legal");
-assert.ok(tileC.includes("<strong>Building:</strong> Taradale Chambers"), "Tenancy C must show Building 2");
+assert.ok(tileC.includes("<strong>Property:</strong> Taradale Chambers"), "Tenancy C must show Property 2");
 assert.ok(
   tileC.includes('class="tenancy-card-contacts-heading">Contact<'),
   "Tenancy without contacts still shows the Contact heading"
@@ -498,7 +498,7 @@ const reloadedList = reloaded.document.getElementById("tenancy-details-list");
 const reloadedTab = reloaded.document.getElementById("tenancy-tab-current");
 (reloadedTab.listeners.click || [])[0]({ target: reloadedTab });
 const reloadedHtml = String(reloadedList.innerHTML || "");
-assert.ok(reloadedHtml.includes("<strong>Building:</strong> Ford Onekawa"), "Building must still render after reload");
+assert.ok(reloadedHtml.includes("<strong>Property:</strong> Ford Onekawa"), "Property must still render after reload");
 assert.ok(reloadedHtml.includes('href="tel:0278333030"'), "Contact phone link must still render after reload");
 assert.ok(reloadedHtml.includes('href="mailto:admin@jimslocksmithnz.com"'), "Contact email link must still render after reload");
 assert.strictEqual(

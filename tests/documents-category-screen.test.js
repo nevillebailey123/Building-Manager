@@ -123,7 +123,7 @@ function isVisible(page, selector) {
     assert.strictEqual(await isVisible(page, "#documents-add-btn"), true, "Documents must keep Add Document");
     assert.strictEqual(await isVisible(page, "#lease-back-btn"), true, "Documents must keep Back");
     assert.strictEqual(await isVisible(page, "#lease-search"), true, "Documents must keep the repository search");
-    assert.strictEqual(await isVisible(page, "#lease-building-filter"), true, "Documents must keep the Building filter");
+    assert.strictEqual(await isVisible(page, "#lease-building-filter"), true, "Documents must keep the Property filter");
     assert.strictEqual(await isVisible(page, "#lease-category-filter"), true, "Documents must expose the category filter");
     assert.strictEqual(await page.locator("#documents-add-category-btn").count(), 0, "Add Category must be gone");
     assert.strictEqual(await page.locator("#lease-category-detail").count(), 0, "The category drill-down screen must be gone");
@@ -144,8 +144,8 @@ function isVisible(page, selector) {
     const categoryLabels = await page.locator("[data-document-register-id] .document-item-meta").allTextContents();
     assert.ok(categoryLabels.includes("Category: Insurance"), "Rows must show their fixed category");
     assert.ok(categoryLabels.includes("Category: Legal"), "Legacy Legal documents must keep their mapped category");
-    assert.ok(categoryLabels.includes("Building: Ford Onekawa"), "Rows must name their owning Building");
-    assert.ok(categoryLabels.includes("Building: Building B"), "Rows must name their owning Building");
+    assert.ok(categoryLabels.includes("Property: Ford Onekawa"), "Rows must name their owning Property");
+    assert.ok(categoryLabels.includes("Property: Building B"), "Rows must name their owning Property");
     assert.strictEqual(categoryLabels.some(function (text) { return /:\s*$/.test(text); }), false, "Rows must not render empty metadata labels");
 
     // Category filter alone.
