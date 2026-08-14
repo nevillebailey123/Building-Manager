@@ -62,9 +62,8 @@ function startServer() {
     });
     await page.goto(running.url, { waitUntil: "networkidle" });
     await page.locator("#workspace-module-nav [data-workspace-module=\"Documents\"]").click();
-    await page.locator("[data-document-register-category-key=\"insurance\"]").click();
     const documentRow = page.locator("[data-document-register-id=\"document-a\"]");
-    assert.strictEqual(await documentRow.count(), 1, "Category must show the document row");
+    assert.strictEqual(await documentRow.count(), 1, "Documents must list the document without drilling into a category");
 
     await documentRow.locator("h3").click();
     const openedUrls = await page.evaluate(function () { return window.__openedDocumentUrls; });

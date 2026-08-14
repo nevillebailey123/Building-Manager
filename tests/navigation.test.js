@@ -30,13 +30,9 @@ assert.ok(contactsBackSource.includes("openContactsView()"), "Contact Back must 
 assert.ok(contactsBackSource.includes("goToDashboard()"), "Contacts top-level Back must return Home");
 assert.strictEqual(contactsBackSource.includes("handleSaveContact"), false, "Contact Back must not save changes");
 
-const documentsBackStart = appSource.indexOf("function handleLeaseCategoryDetailBack");
-const documentsBackEnd = appSource.indexOf("\n\n  async function handleLeaseCategoryDetailClick", documentsBackStart);
-const documentsBackSource = appSource.slice(documentsBackStart, documentsBackEnd);
-assert.ok(documentsBackSource.includes("renderLeasePage()"), "Documents detail Back must return to the Documents list");
-assert.strictEqual(documentsBackSource.includes("updateBuilding"), false, "Documents Back must not save business data");
-const leaseBackSource = sourceFor("handleLeaseBack", "openLeaseCategoryDetail");
+const leaseBackSource = sourceFor("handleLeaseBack", "handleAddDocument");
 assert.ok(leaseBackSource.includes("goToDashboard()"), "Documents top-level Back must return Home");
+assert.strictEqual(appSource.includes("function handleLeaseCategoryDetailBack"), false, "The Documents category drill-down screen must be removed");
 
 function assertTopLevelBackGoesHome(functionName, nextFunctionName, extraContext) {
   const calls = [];
@@ -65,7 +61,7 @@ assertTopLevelBackGoesHome("handleContactsBack", "handleCompaniesBack", {
   contactAssignmentContext: null,
   contactFormCard: { style: { display: "none" } },
 });
-assertTopLevelBackGoesHome("handleLeaseBack", "openLeaseCategoryDetail");
+assertTopLevelBackGoesHome("handleLeaseBack", "handleAddDocument");
 
 const scheduleModalSource = sourceFor("openScheduleDetailsDialog", "handleScheduleFilterChange");
 const cancelEditStart = scheduleModalSource.indexOf('action === "cancel-edit"');

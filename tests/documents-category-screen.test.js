@@ -60,15 +60,28 @@ const seededBuildings = [
   {
     id: "building-b",
     buildingName: "Building B",
-    documents: [{
-      id: "document-b",
-      title: "Insurance Renewal",
-      categoryId: "category-insurance-b",
-      documentType: "Insurance",
-      fileName: "insurance-renewal.pdf",
-      storage: { kind: "data-url", dataUrl: "data:application/pdf;base64,JVBERi0xLjQK", previewStatus: "not-generated", ocrStatus: "not-indexed" },
-    }],
-    documentCategories: [{ id: "category-insurance-b", key: "insurance", name: "Insurance", source: "building", sortOrder: 0 }],
+    documents: [
+      {
+        id: "document-b",
+        title: "Insurance Renewal",
+        categoryId: "category-insurance-b",
+        documentType: "Insurance",
+        fileName: "insurance-renewal.pdf",
+        storage: { kind: "data-url", dataUrl: "data:application/pdf;base64,JVBERi0xLjQK", previewStatus: "not-generated", ocrStatus: "not-indexed" },
+      },
+      {
+        id: "document-c",
+        title: "Lease Deed",
+        categoryId: "category-legal-b",
+        documentType: "Other",
+        fileName: "lease-deed.pdf",
+        storage: { kind: "data-url", dataUrl: "data:application/pdf;base64,JVBERi0xLjQK", previewStatus: "not-generated", ocrStatus: "not-indexed" },
+      },
+    ],
+    documentCategories: [
+      { id: "category-insurance-b", key: "insurance", name: "Insurance", source: "building", sortOrder: 0 },
+      { id: "category-legal-b", key: "legal", name: "Legal", source: "building", sortOrder: 1 },
+    ],
     tenancy: null,
     tenancies: [],
     scheduleItems: [],
@@ -79,12 +92,6 @@ const seededBuildings = [
 
 function isVisible(page, selector) {
   return page.locator(selector).isVisible();
-}
-
-function categoryDetailActive(page) {
-  return page.locator("#lease-category-detail").evaluate(function (element) {
-    return element.classList.contains("is-active");
-  });
 }
 
 (async function () {
@@ -112,120 +119,115 @@ function categoryDetailActive(page) {
 
     await page.locator("#workspace-module-nav [data-workspace-module=\"Documents\"]").click();
 
-    // Top-level Documents screen keeps its own controls (16).
-    assert.strictEqual(await isVisible(page, "#documents-add-btn"), true, "Top-level Documents must keep Add Document");
-    assert.strictEqual(await isVisible(page, "#documents-add-category-btn"), true, "Top-level Documents must keep Add Category");
-    assert.strictEqual(await isVisible(page, "#lease-back-btn"), true, "Top-level Documents must keep Back");
-    assert.strictEqual(await isVisible(page, "#lease-search"), true, "Top-level Documents must keep the global search");
+    // The Documents screen is a single repository view with its own controls.
+    assert.strictEqual(await isVisible(page, "#documents-add-btn"), true, "Documents must keep Add Document");
+    assert.strictEqual(await isVisible(page, "#lease-back-btn"), true, "Documents must keep Back");
+    assert.strictEqual(await isVisible(page, "#lease-search"), true, "Documents must keep the repository search");
+    assert.strictEqual(await isVisible(page, "#lease-building-filter"), true, "Documents must keep the Building filter");
+    assert.strictEqual(await isVisible(page, "#lease-category-filter"), true, "Documents must expose the category filter");
+    assert.strictEqual(await page.locator("#documents-add-category-btn").count(), 0, "Add Category must be gone");
+    assert.strictEqual(await page.locator("#lease-category-detail").count(), 0, "The category drill-down screen must be gone");
+    assert.strictEqual(await page.locator("#lease-view input[type=\"search\"]:visible").count(), 1, "Documents must show exactly one search field");
+
+    assert.strictEqual(
+      await page.locator("#lease-category-filter option").allTextContents().then(function (texts) { return texts.join(","); }),
+      "All Documents,Tenancy,Insurance,Compliance,Maintenance,Financial,Legal,Valuations,Sales,Miscellaneous",
+      "Category filter must offer All Documents plus the nine fixed categories"
+    );
 
     const businessDataBefore = await page.evaluate(function () {
       return localStorage.getItem("buildingManagerBuildings");
     });
 
-    // 1 + 2: open Insurance and confirm it becomes the primary heading.
-    await page.locator("[data-document-register-category-key=\"insurance\"]").click();
-    assert.strictEqual(await categoryDetailActive(page), true, "Insurance category screen must open");
-    assert.strictEqual(await page.locator("#lease-category-detail-title").textContent(), "Insurance", "Category heading must be the category name");
-    assert.strictEqual(await page.locator("#lease-category-breadcrumb").textContent(), "Documents > Insurance", "Category breadcrumb must show Documents > Insurance");
+    // All Buildings, All Documents lists the whole repository once.
+    assert.strictEqual(await page.locator("[data-document-register-id]").count(), 3, "All Documents must list every document exactly once");
+    const categoryLabels = await page.locator("[data-document-register-id] .document-item-meta").allTextContents();
+    assert.ok(categoryLabels.includes("Category: Insurance"), "Rows must show their fixed category");
+    assert.ok(categoryLabels.includes("Category: Legal"), "Legacy Legal documents must keep their mapped category");
+    assert.ok(categoryLabels.includes("Building: Ford Onekawa"), "Rows must name their owning Building");
+    assert.ok(categoryLabels.includes("Building: Building B"), "Rows must name their owning Building");
+    assert.strictEqual(categoryLabels.some(function (text) { return /:\s*$/.test(text); }), false, "Rows must not render empty metadata labels");
 
-    // 3-6 + 11: exactly one of each Category control.
-    assert.strictEqual(await page.locator("#lease-category-detail .btn:visible", { hasText: "+ Upload Document" }).count(), 1, "Category must show exactly one Upload Document button");
-    assert.strictEqual(await page.locator("#lease-category-detail .btn:visible", { hasText: "Manage Category" }).count(), 1, "Category must show exactly one Manage Category button");
-    assert.strictEqual(await page.locator("#lease-category-detail .btn:visible", { hasText: "Back" }).count(), 1, "Category must show exactly one Back button");
-    assert.strictEqual(await page.locator("#lease-view input[type=\"search\"]:visible").count(), 1, "Category must show exactly one search field");
-    assert.strictEqual(await page.locator("#lease-view select.building-filter-select:visible").count(), 1, "Category must keep exactly one Building selector");
-    assert.strictEqual(
-      await page.locator("#lease-category-search").getAttribute("placeholder"),
-      "Search within Insurance...",
-      "Category search must be scoped to the open category"
-    );
+    // Category filter alone.
+    await page.locator("#lease-category-filter").selectOption("Insurance");
+    assert.strictEqual(await page.locator("[data-document-register-id]").count(), 2, "Insurance must show both Insurance documents");
 
-    // 7-10: top-level controls hidden while a Category is open.
-    assert.strictEqual(await isVisible(page, "#lease-search"), false, "Global Documents search must be hidden inside a Category");
-    assert.strictEqual(await isVisible(page, "#documents-add-btn"), false, "Global Add Document must be hidden inside a Category");
-    assert.strictEqual(await isVisible(page, "#documents-add-category-btn"), false, "Global Add Category must be hidden inside a Category");
-    assert.strictEqual(await isVisible(page, "#lease-back-btn"), false, "Top-level Documents Back must be hidden inside a Category");
-
-    // 13 + 15: All Buildings shows every Insurance document with its owning Building.
-    assert.strictEqual(await page.locator("[data-document-register-id]").count(), 2, "All Buildings must list Insurance documents from both Buildings");
-    assert.strictEqual(await page.locator("#lease-category-detail-meta").textContent(), "2 documents", "Category count must be plural for two documents");
-    const buildingLabels = await page.locator("[data-document-register-id] .document-item-meta").allTextContents();
-    assert.ok(buildingLabels.includes("Building: Ford Onekawa"), "Cards must name their owning Building");
-    assert.ok(buildingLabels.includes("Building: Building B"), "Cards must name their owning Building");
-
-    // 27: the open Category is not repeated on every card, and empty metadata labels are not rendered.
-    assert.strictEqual(buildingLabels.some(function (text) { return text.startsWith("Category:"); }), false, "Cards must not repeat the open Category");
-    assert.strictEqual(buildingLabels.some(function (text) { return /:\s*$/.test(text); }), false, "Cards must not render empty metadata labels");
-    assert.strictEqual(
-      await page.locator("[data-document-register-id=\"document-b\"] .document-item-meta").allTextContents().then(function (texts) {
-        return texts.some(function (text) { return text.startsWith("Expiry:"); });
-      }),
-      false,
-      "Cards must omit metadata that is not present"
-    );
-
-    // 12 + 14: changing Building stays inside Insurance and filters the documents.
+    // Property and category filters combine.
     await page.locator("#lease-building-filter").selectOption("building-a");
-    assert.strictEqual(await categoryDetailActive(page), true, "Changing Building must not leave the Category");
-    assert.strictEqual(await page.locator("#lease-category-detail-title").textContent(), "Insurance", "Category heading must stay Insurance");
-    assert.strictEqual(await page.locator("[data-document-register-id]").count(), 1, "Specific Building must only show its own documents");
-    assert.strictEqual(await page.locator("#lease-category-detail-meta").textContent(), "1 document", "Category count must be singular for one document");
+    assert.strictEqual(await page.locator("[data-document-register-id]").count(), 1, "Building A + Insurance must show one document");
+    assert.strictEqual(await page.locator("[data-document-register-id=\"document-a\"]").count(), 1, "Building A + Insurance must show Building A's document");
 
-    // 16 + 17: Upload preselects Category and the selected Building.
-    await page.locator("#lease-category-upload-btn").click();
-    assert.strictEqual(await isVisible(page, "#document-form-card"), true, "Upload Document must open the Add Document form");
-    assert.strictEqual(await page.locator("#document-category-select").inputValue(), "insurance", "Upload must preselect the open Category");
-    assert.strictEqual(await page.locator("#document-building-select").inputValue(), "building-a", "Upload must preselect the filtered Building");
-    await page.locator("#document-cancel-btn").click();
-    assert.strictEqual(await categoryDetailActive(page), true, "Cancelling upload must return to the Category");
-    assert.strictEqual(await page.locator("#lease-building-filter").inputValue(), "building-a", "Building filter must survive the upload form");
+    await page.locator("#lease-building-filter").selectOption("building-b");
+    assert.strictEqual(await page.locator("[data-document-register-id=\"document-b\"]").count(), 1, "Building B + Insurance must show Building B's document");
 
-    // 18: All Buildings requires an explicit Building choice.
+    // Search runs across the repository and combines with the filters.
     await page.locator("#lease-building-filter").selectOption("");
-    assert.strictEqual(await categoryDetailActive(page), true, "All Buildings must remain inside the Category");
-    await page.locator("#lease-category-upload-btn").click();
+    await page.locator("#lease-category-filter").selectOption("");
+    await page.locator("#lease-search").fill("lease deed");
+    assert.strictEqual(await page.locator("[data-document-register-id]").count(), 1, "Search must match a document title");
+    assert.strictEqual(await page.locator("[data-document-register-id=\"document-c\"]").count(), 1, "Search must find the Legal document");
+
+    await page.locator("#lease-search").fill("building b");
+    assert.strictEqual(await page.locator("[data-document-register-id=\"document-b\"]").count(), 1, "Search must match the Building name");
+
+    await page.locator("#lease-search").fill("insurance");
+    await page.locator("#lease-category-filter").selectOption("Legal");
+    assert.strictEqual(await page.locator("[data-document-register-id]").count(), 0, "Search must combine with the category filter");
+    await page.locator("#lease-search").fill("");
+    await page.locator("#lease-category-filter").selectOption("");
+
+    // Add Document preselects the filtered Building and category.
+    await page.locator("#lease-building-filter").selectOption("building-a");
+    await page.locator("#lease-category-filter").selectOption("Insurance");
+    await page.locator("#documents-add-btn").click();
+    assert.strictEqual(await isVisible(page, "#document-form-card"), true, "Add Document must open the form");
+    assert.strictEqual(await page.locator("#document-category-select").inputValue(), "Insurance", "Add Document must preselect the filtered category");
+    assert.strictEqual(await page.locator("#document-building-select").inputValue(), "building-a", "Add Document must preselect the filtered Building");
+    assert.strictEqual(
+      await page.locator("#document-category-select option").allTextContents().then(function (texts) { return texts.join(","); }),
+      "Tenancy,Insurance,Compliance,Maintenance,Financial,Legal,Valuations,Sales,Miscellaneous",
+      "Add Document must only offer the nine fixed categories"
+    );
+    await page.locator("#document-cancel-btn").click();
+    assert.strictEqual(await isVisible(page, "#lease-dashboard-panel"), true, "Cancelling must return to the Documents list");
+    assert.strictEqual(await page.locator("#lease-building-filter").inputValue(), "building-a", "Building filter must survive the form");
+    assert.strictEqual(await page.locator("#lease-category-filter").inputValue(), "Insurance", "Category filter must survive the form");
+
+    // All Buildings still requires an explicit Building choice, and defaults to Miscellaneous.
+    await page.locator("#lease-building-filter").selectOption("");
+    await page.locator("#lease-category-filter").selectOption("");
+    await page.locator("#documents-add-btn").click();
     assert.strictEqual(await page.locator("#document-building-select").inputValue(), "", "All Buildings must not auto-select a Building");
     assert.strictEqual(await page.locator("#document-building-select").evaluate(function (element) { return element.required; }), true, "Building must remain required");
-    assert.strictEqual(await page.locator("#document-category-select").inputValue(), "insurance", "Upload must preselect the open Category in All Buildings");
-    // 23: Edit/Add form Back returns to the Category.
+    assert.strictEqual(await page.locator("#document-category-select").inputValue(), "Miscellaneous", "Add Document must default to Miscellaneous");
     await page.locator("#document-cancel-btn").click();
-    assert.strictEqual(await categoryDetailActive(page), true, "Back from the form must return to the Category");
 
-    // 19-22: card body views the document, Edit only edits.
+    // Row body views the document; Edit only edits.
     const documentRow = page.locator("[data-document-register-id=\"document-a\"]");
     await documentRow.locator("h3").click();
     const openedUrls = await page.evaluate(function () { return window.__openedDocumentUrls; });
-    assert.ok(openedUrls.some(function (url) { return url.startsWith("data:application/pdf"); }), "Card body click must view the stored document");
+    assert.ok(openedUrls.some(function (url) { return url.startsWith("data:application/pdf"); }), "Row body click must view the stored document");
     assert.strictEqual(await isVisible(page, "#document-form-card"), false, "Viewing must not open Edit");
-    assert.strictEqual(await categoryDetailActive(page), true, "Viewing must keep the user inside the Category");
 
     await documentRow.locator("[data-document-register-edit=\"true\"]").click();
     assert.strictEqual(await isVisible(page, "#document-form-card"), true, "Edit must open the Document Edit form");
+    assert.strictEqual(await page.locator("#document-category-select").inputValue(), "Insurance", "Edit must show the document's mapped category");
     const urlsAfterEdit = await page.evaluate(function () { return window.__openedDocumentUrls; });
     assert.strictEqual(urlsAfterEdit.length, openedUrls.length, "Edit must not also trigger View");
     await page.locator("#document-cancel-btn").click();
-    assert.strictEqual(await categoryDetailActive(page), true, "Back from Edit must return to the Category");
-
-    // 24-26: Category Back -> Documents -> Home, preserving the Building filter.
-    await page.locator("#lease-category-detail-back-btn").click();
-    assert.strictEqual(await categoryDetailActive(page), false, "Category Back must return to the Documents category list");
-    assert.strictEqual(await isVisible(page, "#lease-dashboard-panel"), true, "Documents category list must reappear");
-    assert.strictEqual(await isVisible(page, "#documents-add-btn"), true, "Top-level controls must reappear on Documents");
-    assert.strictEqual(await isVisible(page, "#documents-add-category-btn"), true, "Top-level controls must reappear on Documents");
-    assert.strictEqual(await isVisible(page, "#lease-search"), true, "Global search must reappear on Documents");
-    assert.strictEqual(await page.locator("#lease-building-filter").inputValue(), "", "Building filter must survive Category Back");
+    assert.strictEqual(await isVisible(page, "#lease-dashboard-panel"), true, "Back from Edit must return to the Documents list");
 
     await page.locator("#lease-back-btn").click();
     assert.strictEqual(await page.locator("#dashboard-view").evaluate(function (element) { return element.classList.contains("is-active"); }), true, "Documents Back must return Home");
 
-    // 28: the whole navigation path is read-only.
+    // Browsing and filtering must never mutate business data.
     const businessDataAfter = await page.evaluate(function () {
       return localStorage.getItem("buildingManagerBuildings");
     });
     assert.strictEqual(businessDataAfter, businessDataBefore, "Navigating and filtering must not modify business data");
-    assert.deepStrictEqual(pageErrors, [], "Category navigation must not throw a browser exception");
+    assert.deepStrictEqual(pageErrors, [], "Documents navigation must not throw a browser exception");
 
-    console.log("documents category screen regression test passed");
+    console.log("documents repository screen regression test passed");
   } finally {
     await browser.close();
     running.server.close();

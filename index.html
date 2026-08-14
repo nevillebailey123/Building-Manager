@@ -514,21 +514,35 @@
           </div>
           <div class="top-right-actions">
             <button id="documents-add-btn" class="btn btn-primary btn-small" type="button">+ Add Document</button>
-            <button id="documents-add-category-btn" class="btn btn-primary btn-small" type="button">+ Add Category</button>
             <button id="lease-back-btn" class="btn btn-secondary" type="button">← Back</button>
           </div>
         </header>
 
         <section class="module-content-card lease-documents-card">
-          <div class="building-filter-row" aria-label="Building filter">
+          <div class="building-filter-row documents-filter-row" aria-label="Document filters">
             <label>
               <span class="schedule-filter-label">Building</span>
               <select id="lease-building-filter" class="schedule-filter-select building-filter-select"></select>
             </label>
+            <label>
+              <span class="schedule-filter-label">Category</span>
+              <select id="lease-category-filter" class="schedule-filter-select">
+                <option value="">All Documents</option>
+                <option>Tenancy</option>
+                <option>Insurance</option>
+                <option>Compliance</option>
+                <option>Maintenance</option>
+                <option>Financial</option>
+                <option>Legal</option>
+                <option>Valuations</option>
+                <option>Sales</option>
+                <option>Miscellaneous</option>
+              </select>
+            </label>
           </div>
           <div id="lease-search-tools" class="lease-dashboard-tools">
-            <label class="visually-hidden" for="lease-search">Search lease documents</label>
-            <input id="lease-search" class="search-input lease-search-input" type="search" placeholder="Search documents and categories..." />
+            <label class="visually-hidden" for="lease-search">Search documents</label>
+            <input id="lease-search" class="search-input lease-search-input" type="search" placeholder="Search documents" />
           </div>
 
           <section id="lease-dashboard-panel">
@@ -560,7 +574,7 @@
               </select>
 
               <label for="document-category-select">Category</label>
-              <select id="document-category-select" name="categoryId" required></select>
+              <select id="document-category-select" name="category" required></select>
 
               <label for="document-date-input">Document Date</label>
               <input id="document-date-input" name="documentDate" type="date" />
@@ -587,28 +601,6 @@
                 <button id="document-cancel-btn" class="btn btn-secondary" type="button">← Back to Documents</button>
               </div>
             </form>
-          </section>
-
-          <section id="lease-category-detail" class="lease-category-detail" aria-live="polite">
-            <div class="lease-detail-header">
-              <div>
-                <p id="lease-category-breadcrumb" class="lease-category-breadcrumb">Documents</p>
-                <h3 id="lease-category-detail-title">Category Documents</h3>
-                <p id="lease-category-detail-meta" class="lease-helper-text">Newest documents appear first.</p>
-              </div>
-            </div>
-
-            <div class="lease-category-toolbar">
-              <label class="visually-hidden" for="lease-category-search">Search this category</label>
-              <input id="lease-category-search" class="search-input lease-search-input" type="search" placeholder="Search within this category..." />
-              <div class="lease-detail-actions">
-                <button id="lease-category-upload-btn" class="btn btn-primary btn-small" type="button">+ Upload Document</button>
-                <button id="lease-category-detail-manage-btn" class="btn btn-secondary btn-small" type="button">Manage Category</button>
-                <button id="lease-category-detail-back-btn" class="btn btn-secondary btn-small" type="button">← Back</button>
-              </div>
-            </div>
-
-            <section id="lease-category-list" class="lease-category-list"></section>
           </section>
         </section>
       </section>
