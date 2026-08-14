@@ -2304,6 +2304,12 @@ body {
   margin-bottom: 0.75rem;
 }
 
+.lease-category-breadcrumb {
+  margin: 0;
+  font-size: 0.85rem;
+  color: var(--text-muted);
+}
+
 .lease-category-list {
   display: grid;
   gap: 0.55rem;
@@ -2606,7 +2612,8 @@ body {
   }
 
   .lease-detail-actions {
-    grid-template-columns: repeat(2, auto);
+    grid-auto-flow: column;
+    grid-auto-columns: auto;
     justify-content: end;
   }
 

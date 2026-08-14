@@ -62,10 +62,12 @@
   const documentsAddBtn = document.getElementById("documents-add-btn");
   const documentsAddCategoryBtn = document.getElementById("documents-add-category-btn");
   const leaseSearch = document.getElementById("lease-search");
+  const leaseSearchTools = document.getElementById("lease-search-tools");
   const leaseDashboardPanel = document.getElementById("lease-dashboard-panel");
   const leaseCategoryGrid = document.getElementById("lease-category-grid");
   const leaseCategoryDetail = document.getElementById("lease-category-detail");
   const leaseCategoryDetailTitle = document.getElementById("lease-category-detail-title");
+  const leaseCategoryBreadcrumb = document.getElementById("lease-category-breadcrumb");
   const leaseCategoryDetailMeta = document.getElementById("lease-category-detail-meta");
   const leaseCategoryDetailManageBtn = document.getElementById("lease-category-detail-manage-btn");
   const leaseCategoryDetailBackBtn = document.getElementById("lease-category-detail-back-btn");
@@ -234,6 +236,7 @@
   let activeDocumentFormMode = "";
   let activeDocumentContext = null;
   let documentFormFilterBuildingId = "";
+  let documentFormCategoryKey = "";
   let leaseSearchQuery = "";
   let leaseCategorySearchQuery = "";
   let selectorOpen = false;
@@ -5086,7 +5089,7 @@
     });
     if (!group) {
       activeLeaseManagedCategoryKey = "";
-      renderDocumentRegister();
+      renderLeasePage();
       return;
     }
 
@@ -5101,9 +5104,13 @@
     leaseDashboardPanel.style.display = "none";
     leaseCategoryDetail.classList.add("is-active");
     leaseCategoryDetailTitle.textContent = group.name;
-    leaseCategoryDetailMeta.textContent = `${group.entries.length} document${group.entries.length === 1 ? "" : "s"}`;
+    leaseCategoryDetailMeta.textContent = `${entries.length} document${entries.length === 1 ? "" : "s"}`;
+    if (leaseCategoryBreadcrumb) {
+      leaseCategoryBreadcrumb.textContent = `Documents > ${group.name}`;
+    }
     if (leaseCategorySearch) {
       leaseCategorySearch.value = leaseCategorySearchQuery;
+      leaseCategorySearch.placeholder = `Search within ${group.name}...`;
     }
     leaseCategoryList.innerHTML = entries.length === 0
       ? `<p class="module-placeholder">No documents in ${escapeHtml(group.name)}.</p>`
@@ -5115,9 +5122,8 @@
           <article class="building-card document-register-row" data-document-register-id="${escapeHtml(record.id)}" data-document-register-building-id="${escapeHtml(entry.building.id)}" data-document-register-source="${entry.source}" role="button" tabindex="0" aria-label="Open document ${escapeHtml(getDocumentRegisterTitle(record))}">
             <h3>${escapeHtml(getDocumentRegisterTitle(record))}</h3>
             <p class="document-item-meta">Building: ${escapeHtml(entry.building.buildingName || "Not set")}</p>
-            ${record.documentType ? `<p class="document-item-meta">Category: ${escapeHtml(getDocumentRegisterCategory(record, entry.building))}</p>` : ""}
-            ${tenancy ? `<p class="document-item-meta">Tenancy: ${escapeHtml(tenancy.tradingName || tenancy.companyName || "Tenancy")}</p>` : ""}
-            ${scheduleItem ? `<p class="document-item-meta">Schedule Item: ${escapeHtml(scheduleItem.taskName || "Schedule Item")}</p>` : ""}
+            ${tenancy ? `<p class="document-item-meta">Related Tenancy: ${escapeHtml(tenancy.tradingName || tenancy.companyName || "Tenancy")}</p>` : ""}
+            ${scheduleItem ? `<p class="document-item-meta">Related Schedule Item: ${escapeHtml(scheduleItem.taskName || "Schedule Item")}</p>` : ""}
             ${record.documentDate ? `<p class="document-item-meta">Date: ${escapeHtml(formatDate(record.documentDate))}</p>` : ""}
             ${record.expiryDate ? `<p class="document-item-meta">Expiry: ${escapeHtml(formatDate(record.expiryDate))}</p>` : ""}
             ${record.fileName ? `<p class="document-item-meta">File: ${escapeHtml(record.fileName)}</p>` : ""}
@@ -5208,6 +5214,7 @@
     activeDocumentFormMode = mode;
     activeDocumentContext = entry || null;
     documentFormFilterBuildingId = getBuildingFilterId();
+    documentFormCategoryKey = activeLeaseManagedCategoryKey;
     const record = entry ? entry.record : null;
     const selectedBuildingId = entry ? entry.building.id : getBuildingFilterId();
     documentFormTitle.textContent = mode === "edit" ? "Edit Document" : "Add Document";
@@ -5235,7 +5242,9 @@
     activeDocumentContext = null;
     documentFormCard.style.display = "none";
     setCurrentPropertyId(filterId);
-    openLeaseView();
+    activeLeaseManagedCategoryKey = documentFormCategoryKey;
+    renderLeasePage();
+    showLeaseView();
   }
 
   async function handleSaveDocument(event) {
@@ -5341,10 +5350,20 @@
     closeDocumentForm();
   }
 
+  // The top-level Documents controls belong to the register screen only, not to an open Category.
+  function setLeaseTopLevelControlsVisible(visible) {
+    [documentsAddBtn, documentsAddCategoryBtn, leaseBackBtn, leaseSearchTools].forEach(function (element) {
+      if (element) {
+        element.style.display = visible ? "" : "none";
+      }
+    });
+  }
+
   function renderLeasePage() {
     renderBuildingFilterOptions(leaseBuildingFilter);
 
     if (activeDocumentFormMode) {
+      setLeaseTopLevelControlsVisible(false);
       documentFormCard.style.display = "block";
       leaseDashboardPanel.style.display = "none";
       leaseCategoryDetail.classList.remove("is-active");
@@ -5352,10 +5371,12 @@
     }
 
     if (activeLeaseManagedCategoryKey) {
+      setLeaseTopLevelControlsVisible(false);
       renderDocumentRegisterCategoryDetail();
       showLeaseView();
       return;
     }
+    setLeaseTopLevelControlsVisible(true);
     documentFormCard.style.display = "none";
     leaseDashboardPanel.style.display = "block";
     leaseCategoryDetail.classList.remove("is-active");
@@ -11832,7 +11853,6 @@
     }
 
     if (leaseView.classList.contains("is-active")) {
-      activeLeaseManagedCategoryKey = "";
       renderLeasePage();
     }
   }

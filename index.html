@@ -526,7 +526,7 @@
               <select id="lease-building-filter" class="schedule-filter-select building-filter-select"></select>
             </label>
           </div>
-          <div class="lease-dashboard-tools">
+          <div id="lease-search-tools" class="lease-dashboard-tools">
             <label class="visually-hidden" for="lease-search">Search lease documents</label>
             <input id="lease-search" class="search-input lease-search-input" type="search" placeholder="Search documents and categories..." />
           </div>
@@ -592,19 +592,20 @@
           <section id="lease-category-detail" class="lease-category-detail" aria-live="polite">
             <div class="lease-detail-header">
               <div>
+                <p id="lease-category-breadcrumb" class="lease-category-breadcrumb">Documents</p>
                 <h3 id="lease-category-detail-title">Category Documents</h3>
                 <p id="lease-category-detail-meta" class="lease-helper-text">Newest documents appear first.</p>
-              </div>
-              <div class="lease-detail-actions">
-                <button id="lease-category-detail-manage-btn" class="btn btn-secondary btn-small" type="button">Manage Category</button>
-                <button id="lease-category-detail-back-btn" class="btn btn-secondary btn-small" type="button">← Back to Documents</button>
               </div>
             </div>
 
             <div class="lease-category-toolbar">
               <label class="visually-hidden" for="lease-category-search">Search this category</label>
               <input id="lease-category-search" class="search-input lease-search-input" type="search" placeholder="Search within this category..." />
-              <button id="lease-category-upload-btn" class="btn btn-primary btn-small" type="button">+ Upload Document</button>
+              <div class="lease-detail-actions">
+                <button id="lease-category-upload-btn" class="btn btn-primary btn-small" type="button">+ Upload Document</button>
+                <button id="lease-category-detail-manage-btn" class="btn btn-secondary btn-small" type="button">Manage Category</button>
+                <button id="lease-category-detail-back-btn" class="btn btn-secondary btn-small" type="button">← Back</button>
+              </div>
             </div>
 
             <section id="lease-category-list" class="lease-category-list"></section>
