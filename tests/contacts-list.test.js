@@ -23,7 +23,13 @@ const context = {
   getBuildingRelationshipForContact(building, contact) {
     return contact.relationship || "Other";
   },
+  getRelationshipForContactInFilter(contact) {
+    return contact.relationship || "Other";
+  },
   getScheduleItemsLinkedToContact() {
+    return [];
+  },
+  getScheduleItemsLinkedToContactForFilter() {
     return [];
   },
   dedupeContacts(contacts) {
@@ -61,3 +67,75 @@ assert.ok(rendered.includes("Locksmith"), "Contacts cards should still show the 
 assert.ok(rendered.indexOf("Amy Example") < rendered.indexOf("Zed Example"), "Contacts should be alphabetically ordered by name");
 
 console.log("contacts list regression test passed");
+
+const filterStart = appSource.indexOf("function getContactIdsRelatedToBuilding");
+const filterEnd = appSource.indexOf("\n\n  function getScheduleItemsLinkedToContactForFilter", filterStart);
+const contactFilterSource = appSource.slice(filterStart, filterEnd);
+const filterContacts = [
+  { id: "contact-a", name: "Contact A" },
+  { id: "contact-b", name: "Contact B" },
+  { id: "contact-c", name: "Contact C" },
+];
+const filterBuildings = [
+  { id: "building-a", buildingContactIds: ["contact-a"] },
+  { id: "building-b", buildingContactIds: ["contact-b"] },
+];
+let selectedFilterBuildingId = "";
+const filterContext = {
+  getContacts() {
+    return filterContacts;
+  },
+  dedupeContacts(contactsToDedupe) {
+    return contactsToDedupe;
+  },
+  getBuildingFilterId() {
+    return selectedFilterBuildingId;
+  },
+  getBuildingsForFilter() {
+    return selectedFilterBuildingId
+      ? filterBuildings.filter((building) => building.id === selectedFilterBuildingId)
+      : filterBuildings;
+  },
+  getContactsForBuilding(building) {
+    return (building.buildingContactIds || [])
+      .map((contactId) => filterContacts.find((contact) => contact.id === contactId))
+      .filter(Boolean);
+  },
+  getAllTenanciesForBuilding() {
+    return [];
+  },
+  getTenancyContactRefs() {
+    return [];
+  },
+  ensureWorkflowCollections(building) {
+    return building;
+  },
+};
+
+vm.createContext(filterContext);
+vm.runInContext(contactFilterSource, filterContext);
+
+vm.runInContext("allBuildingContacts = getContactsForDisplayInActiveBuilding();", filterContext);
+assert.deepStrictEqual(
+  filterContext.allBuildingContacts.map((contact) => contact.id),
+  ["contact-a", "contact-b", "contact-c"],
+  "All Buildings must show every master Contact, including unassociated Contacts"
+);
+
+selectedFilterBuildingId = "building-a";
+vm.runInContext("buildingAContacts = getContactsForDisplayInActiveBuilding();", filterContext);
+assert.deepStrictEqual(
+  filterContext.buildingAContacts.map((contact) => contact.id),
+  ["contact-a"],
+  "A specific Building must show only related Contacts"
+);
+
+selectedFilterBuildingId = "building-b";
+vm.runInContext("buildingBContacts = getContactsForDisplayInActiveBuilding();", filterContext);
+assert.deepStrictEqual(
+  filterContext.buildingBContacts.map((contact) => contact.id),
+  ["contact-b"],
+  "A different specific Building must show only its related Contacts"
+);
+
+console.log("contact building filter regression test passed");

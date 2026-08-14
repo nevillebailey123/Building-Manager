@@ -386,10 +386,25 @@ assert.ok(
   tileA.includes('href="mailto:admin@jimslocksmithnz.com"'),
   "Email must be a mailto: link"
 );
-assert.ok(tileA.includes("<strong>Contact</strong>"), "Single contact should use the singular heading");
+assert.ok(
+  tileA.includes('class="tenancy-card-contacts-heading">Contact<'),
+  "Single contact should use the singular heading"
+);
+assert.strictEqual(
+  tileA.includes("<strong>Phone:</strong>") || tileA.includes("<strong>Email:</strong>"),
+  false,
+  "Phone and email should not carry redundant labels"
+);
+assert.ok(
+  (tileA.match(/class="contact-link /g) || []).length === 2,
+  "Phone and email must use the shared readable contact-link style"
+);
 
 // 13: multiple linked contacts render compactly, in relationship order.
-assert.ok(tileB.includes("<strong>Contacts</strong>"), "Multiple contacts should use the plural heading");
+assert.ok(
+  tileB.includes('class="tenancy-card-contacts-heading">Contacts<'),
+  "Multiple contacts should use the plural heading"
+);
 assert.ok(tileB.includes("Jim Beveridge"), "Tenancy B should list its first linked contact");
 assert.ok(tileB.includes("Jane Smith"), "Tenancy B should list its second linked contact");
 assert.ok(tileB.includes('href="tel:0211234567"'), "Second contact should have its own tel: link");
@@ -404,13 +419,29 @@ selectBuilding("bld-2");
 const buildingTwoHtml = renderTenancyList();
 const tileC = tileFor(buildingTwoHtml, "Acme Legal");
 assert.ok(tileC.includes("<strong>Building:</strong> Taradale Chambers"), "Tenancy C must show Building 2");
-assert.ok(tileC.includes("<strong>Contact:</strong> Not set"), "Tenancy without contacts shows Contact: Not set");
+assert.ok(
+  tileC.includes('class="tenancy-card-contacts-heading">Contact<'),
+  "Tenancy without contacts still shows the Contact heading"
+);
+assert.ok(tileC.includes("<p>Not set</p>"), "Tenancy without contacts shows Not set");
 assert.strictEqual(tileC.includes("href=\"tel:"), false, "No blank phone row when there is no contact");
 assert.strictEqual(tileC.includes("href=\"mailto:"), false, "No blank email row when there is no contact");
 assert.strictEqual(
   buildingTwoHtml.includes("Ford Onekawa"),
   false,
   "Building 2 tiles must not show Building 1"
+);
+
+// 14: the Archive action is gone from the tenancy list.
+assert.strictEqual(
+  buildingOneHtml.includes('data-tenancy-list-action="archive"') || buildingTwoHtml.includes('data-tenancy-list-action="archive"'),
+  false,
+  "Archive must no longer appear on tenancy tiles"
+);
+assert.strictEqual(
+  buildingOneHtml.includes(">Archive<"),
+  false,
+  "Archive button markup must be removed from tenancy tiles"
 );
 
 // 9-11: tile click opens Edit Tenancy, phone/email clicks do not.
@@ -477,3 +508,32 @@ assert.strictEqual(
 );
 
 console.log("tenancy tile display regression test passed");
+
+// 3-5, 8: shared contact link styling is readable and never falls back to browser defaults.
+const cssSource = fs.readFileSync("./style.css", "utf8");
+assert.ok(/--link-contact:\s*#[0-9a-f]{6};/i.test(cssSource), "Missing --link-contact design token");
+assert.ok(/--link-contact-hover:\s*#[0-9a-f]{6};/i.test(cssSource), "Missing --link-contact-hover design token");
+
+const sharedLinkRule = cssSource.match(/\.contact-link,[\s\S]*?\{[\s\S]*?\}/);
+assert.ok(sharedLinkRule, "Missing shared .contact-link rule");
+assert.ok(sharedLinkRule[0].includes("color: var(--link-contact)"), "Contact links must use the shared token");
+
+assert.ok(
+  /\.contact-link:visited,[\s\S]*?color:\s*var\(--link-contact\);/.test(cssSource),
+  "Visited contact links must keep the readable colour"
+);
+assert.ok(
+  /\.contact-link:focus-visible,[\s\S]*?outline:/.test(cssSource),
+  "Contact links need a visible keyboard focus state"
+);
+assert.ok(
+  cssSource.includes(".schedule-details-contact-link"),
+  "Schedule Details contact links must share the same style"
+);
+assert.strictEqual(
+  /\.schedule-details-contact-link\s*\{\s*color:\s*#b4cdf6;/.test(cssSource),
+  false,
+  "The one-off Schedule Details link colour should be replaced by the shared token"
+);
+
+console.log("contact link style regression test passed");

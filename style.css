@@ -32,6 +32,47 @@
   --layer-modal: 2000;
   --layer-modal-nested: 2200;
   --layer-modal-confirm: 2400;
+  /* Contact links on dark surfaces: readable, never default blue/purple. */
+  --link-contact: #9dc4f5;
+  --link-contact-hover: #d9e9ff;
+}
+
+/* Shared contact link style. Used anywhere a tel:/mailto: link sits on a dark card. */
+.contact-link,
+.contact-phone-link,
+.contact-email-link,
+.schedule-details-contact-link {
+  color: var(--link-contact);
+  text-decoration: underline;
+  text-underline-offset: 0.12rem;
+  word-break: break-word;
+}
+
+.contact-link:visited,
+.contact-phone-link:visited,
+.contact-email-link:visited,
+.schedule-details-contact-link:visited {
+  color: var(--link-contact);
+}
+
+.contact-link:hover,
+.contact-phone-link:hover,
+.contact-email-link:hover,
+.schedule-details-contact-link:hover,
+.contact-link:focus-visible,
+.contact-phone-link:focus-visible,
+.contact-email-link:focus-visible,
+.schedule-details-contact-link:focus-visible {
+  color: var(--link-contact-hover);
+}
+
+.contact-link:focus-visible,
+.contact-phone-link:focus-visible,
+.contact-email-link:focus-visible,
+.schedule-details-contact-link:focus-visible {
+  outline: 2px solid var(--link-contact-hover);
+  outline-offset: 2px;
+  border-radius: 0.2rem;
 }
 
 /* Shared backdrop layer. All backdrops are appended to <body> so they share one stacking context. */
@@ -1653,10 +1694,6 @@ body {
   font-weight: 700;
 }
 
-.schedule-details-contact-link {
-  color: #b4cdf6;
-}
-
 .schedule-details-notes {
   margin: 0;
   white-space: pre-wrap;
@@ -1775,6 +1812,11 @@ body {
   gap: 0.6rem;
 }
 
+.tenancy-list {
+  display: grid;
+  gap: 0.6rem;
+}
+
 .tenancy-list-card {
   border: 1px solid var(--border);
   border-radius: 0.65rem;
@@ -1797,18 +1839,21 @@ body {
 
 .tenancy-card-contacts {
   display: grid;
-  gap: 0.35rem;
-  margin-top: 0.35rem;
-  padding-top: 0.4rem;
+  justify-items: start;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+  padding-top: 0.5rem;
   border-top: 1px solid var(--border);
 }
 
 .tenancy-list-card .tenancy-card-contacts-heading {
   color: var(--text-main);
+  font-weight: 600;
 }
 
 .tenancy-card-contact {
   display: grid;
+  justify-items: start;
   gap: 0.1rem;
 }
 
@@ -2386,11 +2431,6 @@ body {
   color: #8bc7d3;
 }
 
-.contact-phone-link,
-.contact-email-link {
-  word-break: break-word;
-}
-
 .contact-linked-schedule-section {
   margin-top: 1rem;
   display: grid;
@@ -2599,7 +2639,11 @@ body {
   }
 
   .schedule-filter-row {
-    grid-template-columns: minmax(0, 1.35fr) minmax(0, 1.35fr) minmax(0, 0.95fr) minmax(0, 0.95fr);
+    grid-template-columns: minmax(0, 1.35fr) minmax(0, 0.95fr) minmax(0, 0.95fr);
+  }
+
+  .building-filter-row {
+    max-width: 420px;
   }
 
   .schedule-ops-row {

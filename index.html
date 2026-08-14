@@ -391,8 +391,8 @@
       <section id="tenancy-view" class="view" aria-labelledby="tenancy-title">
         <header class="view-header overview-header">
           <div>
-            <h1 id="tenancy-title">Tenancy</h1>
-            <p class="tagline">Current tenancy and tenancy history.</p>
+            <h1 id="tenancy-title">Tenancies</h1>
+            <p class="tagline">Current tenancies and tenancy history.</p>
             <p id="tenancy-building-name" class="overview-building-name visually-hidden"></p>
           </div>
           <div class="top-right-actions">
@@ -401,6 +401,12 @@
         </header>
 
         <section class="module-content-card">
+          <div class="building-filter-row" aria-label="Building filter">
+            <label>
+              <span class="schedule-filter-label">Building</span>
+              <select id="tenancy-building-filter" class="schedule-filter-select building-filter-select"></select>
+            </label>
+          </div>
           <div class="tab-row" role="tablist" aria-label="Tenancy tabs">
             <button id="tenancy-tab-current" class="tab-btn is-active" type="button" role="tab" aria-selected="true">Current</button>
             <button id="tenancy-tab-history" class="tab-btn" type="button" role="tab" aria-selected="false">History</button>
@@ -409,7 +415,7 @@
 
         <section id="tenancy-current-panel" class="tab-panel is-active">
           <section id="tenancy-empty-state" class="module-content-card">
-            <p class="module-placeholder">No current tenancy has been entered.</p>
+            <p id="tenancy-empty-message" class="module-placeholder">No current tenancy has been entered.</p>
             <div class="actions-row actions-row-tight">
               <button id="add-tenancy-btn" class="btn btn-primary" type="button">+ Add Tenancy</button>
             </div>
@@ -417,7 +423,7 @@
 
           <section id="tenancy-details-card" class="module-content-card">
             <h3>Current Tenancies</h3>
-            <dl id="tenancy-details-list" class="snapshot-list"></dl>
+            <section id="tenancy-details-list" class="tenancy-list" aria-live="polite"></section>
             <div class="actions-row actions-row-tight">
               <button id="add-another-tenancy-btn" class="btn btn-secondary btn-small" type="button">+ Add Tenancy</button>
             </div>
@@ -519,6 +525,12 @@
         </header>
 
         <section class="module-content-card lease-documents-card">
+          <div class="building-filter-row" aria-label="Building filter">
+            <label>
+              <span class="schedule-filter-label">Building</span>
+              <select id="lease-building-filter" class="schedule-filter-select building-filter-select"></select>
+            </label>
+          </div>
           <div class="lease-dashboard-tools">
             <label class="visually-hidden" for="lease-search">Search lease documents</label>
             <input id="lease-search" class="search-input lease-search-input" type="search" placeholder="Search documents and categories..." />
@@ -564,8 +576,17 @@
           </div>
         </header>
 
+        <section class="module-content-card">
+          <div class="building-filter-row" aria-label="Building filter">
+            <label>
+              <span class="schedule-filter-label">Building</span>
+              <select id="contacts-building-filter" class="schedule-filter-select building-filter-select"></select>
+            </label>
+          </div>
+        </section>
+
         <section id="contacts-empty-state" class="module-content-card">
-          <p class="module-placeholder">No contacts have been added.</p>
+          <p id="contacts-empty-message" class="module-placeholder">No contacts have been added.</p>
           <div class="actions-row actions-row-tight">
             <button id="add-contact-btn" class="btn btn-primary" type="button">+ Create New Contact</button>
           </div>
@@ -730,11 +751,13 @@
         </header>
 
         <section class="module-content-card schedule-operations-card">
-          <div class="schedule-filter-row" aria-label="Schedule filters">
+          <div class="building-filter-row" aria-label="Building filter">
             <label>
-              <span class="schedule-filter-label">Property</span>
-              <select id="schedule-filter-property" class="schedule-filter-select"></select>
+              <span class="schedule-filter-label">Building</span>
+              <select id="schedule-filter-property" class="schedule-filter-select building-filter-select"></select>
             </label>
+          </div>
+          <div class="schedule-filter-row" aria-label="Schedule filters">
             <label>
               <span class="schedule-filter-label">Category</span>
               <select id="schedule-filter-category" class="schedule-filter-select"></select>

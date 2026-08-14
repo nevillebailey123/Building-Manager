@@ -180,12 +180,19 @@
   const backupExportBtn = document.getElementById("backup-export-btn");
   const backupRestoreBtn = document.getElementById("backup-restore-btn");
   const backupRestoreInput = document.getElementById("backup-restore-input");
+  const tenancyBuildingFilter = document.getElementById("tenancy-building-filter");
+  const contactsBuildingFilter = document.getElementById("contacts-building-filter");
+  const leaseBuildingFilter = document.getElementById("lease-building-filter");
+  const contactsEmptyMessage = document.getElementById("contacts-empty-message");
+  const tenancyEmptyMessage = document.getElementById("tenancy-empty-message");
 
   let activeBuildingId = "";
   let activeModule = "Overview";
   let tenancyFormMode = "add";
   let contactFormMode = "add";
   let contactAssignmentContext = null;
+  let contactReturnContext = null;
+  let contactFormFilterBuildingId = "";
   let activeContactId = "";
   let contactsSearchQuery = "";
   let companyFormMode = "add";
@@ -195,13 +202,16 @@
   let activeScheduleItemId = "";
   let activeTenancyTab = "current";
   let activeTenancyDetailsId = "";
+  let tenancyFormFilterBuildingId = "";
   let activeScheduleTab = "upcoming";
+  // "" means All Buildings, matching activeBuildingId.
   let scheduleFilters = {
-    property: "all",
+    property: "",
     category: "all",
     status: "all",
     duePeriod: "all",
   };
+  let tenancyEditBuildingId = "";
   let activeLeaseManagedCategoryKey = "";
   let leaseSearchQuery = "";
   let leaseCategorySearchQuery = "";
@@ -1062,8 +1072,67 @@
   function syncScheduleFilterToCurrentProperty() {
     scheduleFilters = {
       ...scheduleFilters,
-      property: activeBuildingId || "all",
+      property: activeBuildingId,
     };
+  }
+
+  // Shared Building filter for Schedule, Tenancies, Contacts and Documents.
+  // activeBuildingId is the single source of truth; "" means All Buildings.
+  function getBuildingFilterId() {
+    return activeBuildingId;
+  }
+
+  function getSortedBuildings() {
+    return window.BuildingStorage.getBuildings().slice().sort(function (left, right) {
+      return String(left.buildingName || "").localeCompare(String(right.buildingName || ""), undefined, { sensitivity: "base" });
+    });
+  }
+
+  // Every filtered page reads its records from here, so All Buildings is a real portfolio view.
+  function getBuildingsForFilter() {
+    const buildings = window.BuildingStorage.getBuildings();
+    const filterId = getBuildingFilterId();
+    if (!filterId) {
+      return buildings;
+    }
+
+    return buildings.filter(function (building) {
+      return String(building.id || "") === filterId;
+    });
+  }
+
+  function renderBuildingFilterOptions(selectElement) {
+    if (!selectElement) {
+      return;
+    }
+
+    const filterId = getBuildingFilterId();
+    selectElement.innerHTML = ['<option value="">All Buildings</option>']
+      .concat(getSortedBuildings().map(function (building) {
+        return `<option value="${escapeHtml(building.id)}">${escapeHtml(building.buildingName)}</option>`;
+      }))
+      .join("");
+    selectElement.value = filterId;
+    if (selectElement.value !== filterId) {
+      selectElement.value = "";
+    }
+  }
+
+  function renderAllBuildingFilterSelects() {
+    [scheduleFilterProperty, tenancyBuildingFilter, contactsBuildingFilter, leaseBuildingFilter]
+      .forEach(renderBuildingFilterOptions);
+  }
+
+  function applyBuildingFilterSelection(buildingId) {
+    const nextId = String(buildingId || "").trim();
+    setCurrentPropertyId(findBuildingById(nextId) ? nextId : "");
+    syncScheduleFilterToCurrentProperty();
+    renderAllBuildingFilterSelects();
+    renderBuildings();
+  }
+
+  function getBuildingFilterEmptySuffix() {
+    return getBuildingFilterId() ? "this Building" : "your buildings";
   }
 
   function getBuildingStatusLevel(building) {
@@ -3550,15 +3619,7 @@
       return String(left).localeCompare(String(right), undefined, { sensitivity: "base" });
     });
 
-    const sortedBuildings = (buildings || []).slice().sort(function (left, right) {
-      return String(left.buildingName || "").localeCompare(String(right.buildingName || ""), undefined, { sensitivity: "base" });
-    });
-
-    scheduleFilterProperty.innerHTML = [
-      '<option value="all">All Properties</option>',
-    ].concat(sortedBuildings.map(function (entry) {
-      return `<option value="${entry.id}">${escapeHtml(entry.buildingName)}</option>`;
-    })).join("");
+    renderBuildingFilterOptions(scheduleFilterProperty);
 
     scheduleFilterCategory.innerHTML = ['<option value="all">All Categories</option>']
       .concat(categories.map(function (category) {
@@ -3566,7 +3627,6 @@
       }))
       .join("");
 
-    ensureScheduleFilterValue(scheduleFilterProperty, scheduleFilters.property);
     ensureScheduleFilterValue(scheduleFilterCategory, scheduleFilters.category);
     ensureScheduleFilterValue(scheduleFilterStatus, scheduleFilters.status);
     ensureScheduleFilterValue(scheduleFilterDuePeriod, scheduleFilters.duePeriod);
@@ -3599,7 +3659,7 @@
 
   function filterScheduleRows(rows) {
     return rows.filter(function (row) {
-      if (scheduleFilters.property !== "all" && row.propertyId !== scheduleFilters.property) {
+      if (scheduleFilters.property && row.propertyId !== scheduleFilters.property) {
         return false;
       }
       if (scheduleFilters.category !== "all" && row.category !== scheduleFilters.category) {
@@ -3693,17 +3753,7 @@
   function getNormalizedScheduleBuildings() {
     const buildings = window.BuildingStorage.getBuildings();
     return buildings.map(function (building) {
-      const normalized = ensureWorkflowCollections(building);
-      if (normalized !== building) {
-        window.BuildingStorage.updateBuilding({
-          ...building,
-          propertyTemplates: normalized.propertyTemplates,
-          scheduleItems: normalized.scheduleItems,
-          historyRecords: normalized.historyRecords,
-        });
-      }
-
-      return normalized;
+      return ensureWorkflowCollections(building);
     });
   }
 
@@ -4020,7 +4070,7 @@
 
   function renderScheduleOperationsList(rows) {
     if (rows.length === 0) {
-      scheduleOpsList.innerHTML = '<p class="module-placeholder schedule-ops-empty">No scheduled items.</p>';
+      scheduleOpsList.innerHTML = `<p class="module-placeholder schedule-ops-empty">No scheduled items for ${getBuildingFilterEmptySuffix()}.</p>`;
       return;
     }
 
@@ -4067,7 +4117,7 @@
 
   function renderSchedulePage() {
     const buildings = getNormalizedScheduleBuildings();
-    scheduleBuildingName.textContent = activeBuildingId ? getActiveBuildingName() : "All Properties";
+    scheduleBuildingName.textContent = activeBuildingId ? getActiveBuildingName() : "All Buildings";
 
     const rows = buildings.flatMap(function (building) {
       return decorateScheduleRows(building, building.scheduleItems || []);
@@ -4091,24 +4141,11 @@
       return;
     }
 
-    if (buildingId && findBuildingById(buildingId)) {
-      setCurrentPropertyId(buildingId);
-    } else {
-      ensureActiveBuildingSelection(buildings);
+    if (arguments.length > 0) {
+      setCurrentPropertyId(buildingId && findBuildingById(buildingId) ? buildingId : "");
     }
 
     syncScheduleFilterToCurrentProperty();
-
-    const activeBuilding = findBuildingById(activeBuildingId);
-    if (activeBuilding) {
-      const normalized = ensureWorkflowCollections(activeBuilding);
-      window.BuildingStorage.updateBuilding({
-        ...activeBuilding,
-        propertyTemplates: normalized.propertyTemplates,
-        scheduleItems: normalized.scheduleItems,
-        historyRecords: normalized.historyRecords,
-      });
-    }
 
     renderSchedulePage();
     showScheduleView();
@@ -4396,18 +4433,26 @@
     tenancyHistoryPanel.classList.toggle("is-active", !isCurrent);
   }
 
-  function renderTenancyHistory(building) {
-    const tenancyHistory = Array.isArray(building.tenancyHistory) ? building.tenancyHistory : [];
-    if (tenancyHistory.length === 0) {
-      tenancyHistoryList.innerHTML = '<p class="module-placeholder">No previous tenants recorded.</p>';
+  function renderTenancyHistory() {
+    const entries = [];
+    getBuildingsForFilter().forEach(function (building) {
+      (Array.isArray(building.tenancyHistory) ? building.tenancyHistory : []).forEach(function (entry) {
+        entries.push({ building: building, entry: entry });
+      });
+    });
+
+    if (entries.length === 0) {
+      tenancyHistoryList.innerHTML = `<p class="module-placeholder">No previous tenants recorded for ${getBuildingFilterEmptySuffix()}.</p>`;
       return;
     }
 
-    tenancyHistoryList.innerHTML = tenancyHistory
-      .map(function (entry) {
+    tenancyHistoryList.innerHTML = entries
+      .map(function (row) {
+        const entry = row.entry;
         return `
           <article class="building-card">
-            <h3>${entry.companyName || "Previous Tenant"}</h3>
+            <h3>${escapeHtml(entry.companyName || "Previous Tenant")}</h3>
+            <p><strong>Building:</strong> ${escapeHtml(row.building.buildingName || "Not set")}</p>
             <p><strong>Lease Dates:</strong> ${formatDate(entry.leaseStart)} - ${formatDate(entry.leaseEnd)}</p>
             <p><strong>Historic documents:</strong> ${getDocumentSummaryText(entry.documents || [])}</p>
             <p><strong>Historic contacts:</strong> ${getContactCountLabel(entry.contactRefs || [])}</p>
@@ -4590,6 +4635,25 @@
     return getDocumentsForCategoryContainer(building, category)[0] || null;
   }
 
+  // Locates a document anywhere in a building's categories, for read-only portfolio actions.
+  function findAnyDocumentRecordInBuilding(building, documentId) {
+    const targetId = String(documentId || "").trim();
+    if (!building || !targetId) {
+      return null;
+    }
+
+    const normalized = ensureWorkflowCollections(building);
+    let found = null;
+    getDocumentsModuleCategories(normalized).some(function (category) {
+      found = getDocumentsForCategoryContainer(normalized, category).find(function (documentRecord) {
+        return String(documentRecord.id || "") === targetId;
+      }) || null;
+      return Boolean(found);
+    });
+
+    return found;
+  }
+
   function matchesDocumentsModuleSearch(category, documents) {
     const query = normalizeText(leaseSearchQuery);
     if (!query) {
@@ -4737,8 +4801,145 @@
     leaseCategoryList.innerHTML = renderCategoryDocumentsList(normalized, category, documents);
   }
 
-  function renderLeasePage(building) {
-    const data = getLeaseData(building);
+  // All Buildings mode groups per-building categories by their shared key, since category ids are per-building.
+  function getDocumentCategoryGroupsForFilter() {
+    const groups = new Map();
+    getBuildingsForFilter().forEach(function (building) {
+      const normalized = ensureWorkflowCollections(building);
+      getDocumentsModuleCategories(normalized).forEach(function (category) {
+        const key = String(category.key || category.id || "").trim() || category.id;
+        if (!groups.has(key)) {
+          groups.set(key, {
+            key: key,
+            name: category.name,
+            description: category.description,
+            source: category.source,
+            sortOrder: category.sortOrder,
+            documents: [],
+          });
+        }
+
+        const group = groups.get(key);
+        getDocumentsForCategoryContainer(normalized, category).forEach(function (documentRecord) {
+          group.documents.push({ building: normalized, documentRecord: documentRecord });
+        });
+      });
+    });
+
+    return Array.from(groups.values()).sort(function (left, right) {
+      return left.sortOrder - right.sortOrder;
+    });
+  }
+
+  function renderAllBuildingsCategoryTiles() {
+    const groups = getDocumentCategoryGroupsForFilter().filter(function (group) {
+      return matchesDocumentsModuleSearch(group, group.documents.map(function (entry) {
+        return entry.documentRecord;
+      }));
+    });
+
+    leaseCategoryGrid.innerHTML = groups.map(function (group) {
+      const count = group.documents.length;
+      return `
+        <article class="document-category-card${group.source === "lease" ? " is-primary" : ""}" data-document-category-key="${escapeHtml(group.key)}" role="button" tabindex="0" aria-label="Open ${escapeHtml(group.name)}">
+          <div class="document-category-header">
+            <div class="document-category-summary">
+              <div class="document-category-text">
+                <h3 class="document-category-title">${escapeHtml(group.name)}</h3>
+                <p class="document-category-meta">${escapeHtml(formatLeaseDocumentCount(count))} across all buildings</p>
+              </div>
+            </div>
+            <div class="document-category-actions">
+              <button class="btn btn-secondary lease-tile-btn" type="button" data-document-module-action="open-all" data-document-category-key="${escapeHtml(group.key)}">Open</button>
+            </div>
+          </div>
+        </article>
+      `;
+    }).join("") || `<p class="module-placeholder">No documents for ${getBuildingFilterEmptySuffix()}.</p>`;
+  }
+
+  function renderAllBuildingsCategoryDetail() {
+    if (!leaseCategoryDetail || !leaseDashboardPanel) {
+      return;
+    }
+
+    if (!activeLeaseManagedCategoryKey) {
+      leaseDashboardPanel.style.display = "block";
+      leaseCategoryDetail.classList.remove("is-active");
+      return;
+    }
+
+    const group = getDocumentCategoryGroupsForFilter().find(function (entry) {
+      return entry.key === activeLeaseManagedCategoryKey;
+    });
+    if (!group) {
+      activeLeaseManagedCategoryKey = "";
+      leaseDashboardPanel.style.display = "block";
+      leaseCategoryDetail.classList.remove("is-active");
+      return;
+    }
+
+    const documents = group.documents.filter(function (entry) {
+      return matchesCategoryDocumentSearch(entry.documentRecord);
+    });
+
+    leaseDashboardPanel.style.display = "none";
+    leaseCategoryDetail.classList.add("is-active");
+    leaseCategoryDetailTitle.textContent = group.name;
+    leaseCategoryDetailMeta.textContent = `${formatLeaseDocumentCount(group.documents.length)} across all buildings. Select a single Building to upload or edit.`;
+
+    if (leaseCategorySearch) {
+      leaseCategorySearch.value = leaseCategorySearchQuery;
+    }
+
+    if (documents.length === 0) {
+      leaseCategoryList.innerHTML = `<p class="module-placeholder">No documents for ${getBuildingFilterEmptySuffix()}.</p>`;
+      return;
+    }
+
+    leaseCategoryList.innerHTML = documents.map(function (entry) {
+      const documentRecord = entry.documentRecord;
+      return `
+        <article class="document-item-row">
+          <div class="document-item-main">
+            <h4 class="document-item-title">${escapeHtml(documentRecord.fileName || "Untitled")}</h4>
+            <p class="document-item-meta">Building: ${escapeHtml(entry.building.buildingName || "Not set")}</p>
+            <p class="document-item-meta">Document Date: ${escapeHtml(formatDate(documentRecord.documentDate || documentRecord.uploadedAt))}</p>
+            <p class="document-item-meta">Uploaded By: ${escapeHtml(documentRecord.uploadedBy || "Not recorded")}</p>
+          </div>
+          <div class="document-item-actions">
+            <button class="btn btn-secondary lease-tile-btn" type="button" data-document-module-action="view-all" data-document-building-id="${escapeHtml(entry.building.id)}" data-document-id="${escapeHtml(documentRecord.id)}">View</button>
+            <button class="btn btn-secondary lease-tile-btn" type="button" data-document-module-action="download-all" data-document-building-id="${escapeHtml(entry.building.id)}" data-document-id="${escapeHtml(documentRecord.id)}">Download</button>
+          </div>
+        </article>
+      `;
+    }).join("");
+  }
+
+  function renderLeasePage() {
+    renderBuildingFilterOptions(leaseBuildingFilter);
+
+    const filterBuilding = findBuildingById(getBuildingFilterId());
+    if (!filterBuilding) {
+      leaseTenantName.textContent = "All Buildings";
+      leasePropertyName.textContent = "All Buildings";
+      leaseStatus.textContent = "Portfolio view";
+      leaseCommencementDate.textContent = "Not applicable";
+      leaseExpiryDate.textContent = "Not applicable";
+      if (documentsAddCategoryBtn instanceof HTMLButtonElement) {
+        documentsAddCategoryBtn.style.display = "none";
+      }
+      renderAllBuildingsCategoryTiles();
+      renderAllBuildingsCategoryDetail();
+      showLeaseView();
+      return;
+    }
+
+    if (documentsAddCategoryBtn instanceof HTMLButtonElement) {
+      documentsAddCategoryBtn.style.display = "inline-flex";
+    }
+
+    const data = getLeaseData(filterBuilding);
     const tenancy = data.tenancy;
 
     leaseTenantName.textContent = tenancy ? tenancy.companyName : "No current tenancy";
@@ -4753,19 +4954,17 @@
   }
 
   function openLeaseView(buildingId) {
-    const building = findBuildingById(buildingId);
-    if (!building) {
-      showDashboard();
-      return;
+    if (arguments.length > 0) {
+      setCurrentPropertyId(buildingId && findBuildingById(buildingId) ? buildingId : "");
+      syncScheduleFilterToCurrentProperty();
     }
 
-    setCurrentPropertyId(building.id);
     activeLeaseManagedCategoryKey = "";
     leaseSearchQuery = "";
     if (leaseSearch) {
       leaseSearch.value = "";
     }
-    renderLeasePage(building);
+    renderLeasePage();
     showLeaseView();
   }
 
@@ -5116,7 +5315,7 @@
     }
 
     renderBuildings();
-    renderLeasePage(updated);
+    renderLeasePage();
   }
 
   function toggleDocumentCategory(categoryId) {
@@ -5138,7 +5337,7 @@
       return;
     }
 
-    renderLeasePage(updated);
+    renderLeasePage();
   }
 
   async function handleManageDocumentCategory(categoryId) {
@@ -5181,7 +5380,7 @@
       });
       if (updatedByName) {
         renderBuildings();
-        renderLeasePage(updatedByName);
+        renderLeasePage();
       }
       return;
     }
@@ -5198,7 +5397,7 @@
         return draft;
       });
       if (updatedByIcon) {
-        renderLeasePage(updatedByIcon);
+        renderLeasePage();
       }
       return;
     }
@@ -5222,7 +5421,7 @@
         return draft;
       });
       if (updatedByMove) {
-        renderLeasePage(updatedByMove);
+        renderLeasePage();
       }
       return;
     }
@@ -5259,7 +5458,7 @@
       });
       if (updatedByDelete) {
         renderBuildings();
-        renderLeasePage(updatedByDelete);
+        renderLeasePage();
       }
     }
   }
@@ -5340,7 +5539,7 @@
     }
 
     renderBuildings();
-    renderLeasePage(updated);
+    renderLeasePage();
   }
 
   async function handleLeaseDocumentReplace(categoryId, documentId) {
@@ -5462,7 +5661,7 @@
     }
 
     renderBuildings();
-    renderLeasePage(updated);
+    renderLeasePage();
   }
 
   function readFileAsDataUrl(file) {
@@ -5572,13 +5771,15 @@
   }
 
   function renderContactList(contacts) {
-    const building = findBuildingById(activeBuildingId);
     const query = normalizeText(contactsSearchQuery);
     const enriched = dedupeContacts(contacts)
       .map(function (contact) {
         const companyName = getCompanyNameById(contact.companyId, "Not set");
-        const relationship = getBuildingRelationshipForContact(building, contact);
-        const linkedItems = getScheduleItemsLinkedToContact(building, contact.id);
+        const relationship = getRelationshipForContactInFilter(contact);
+        const linkedItems = getScheduleItemsLinkedToContactForFilter(contact.id);
+        const relatedBuildings = typeof getRelatedBuildingNamesForContact === "function"
+          ? getRelatedBuildingNamesForContact(contact.id)
+          : [];
         const linkedItemsSummary = linkedItems.length === 0
           ? "None"
           : linkedItems.slice(0, 3).map(function (item) {
@@ -5589,6 +5790,7 @@
           contact: contact,
           companyName: companyName,
           relationship: relationship,
+          relatedBuildings: relatedBuildings,
           linkedItemsSummary: linkedItemsSummary,
           linkedItemsCount: linkedItems.length,
           linkedItemsMoreCount: linkedItemsMoreCount,
@@ -5639,6 +5841,7 @@
           <div class="contact-card-layout">
             <div class="contact-card-column contact-card-column-left">
               <p><strong>Company:</strong> <button class="inline-link company-open-link" type="button" data-company-id="${contact.companyId}">${entry.companyName}</button></p>
+              ${entry.relatedBuildings.length > 0 ? `<p><strong>Building${entry.relatedBuildings.length === 1 ? "" : "s"}:</strong> ${escapeHtml(entry.relatedBuildings.join(", "))}</p>` : ""}
               <p><strong>Role:</strong> ${renderContactRoleBadge(entry.relationship)}</p>
               <p><strong>Linked Items:</strong> ${escapeHtml(entry.linkedItemsSummary)}${entry.linkedItemsMoreCount > 0 ? ` (+${entry.linkedItemsMoreCount} more)` : ""}</p>
             </div>
@@ -5696,6 +5899,11 @@
     contactFormCard.style.display = "none";
 
     if (contacts.length === 0) {
+      if (contactsEmptyMessage) {
+        contactsEmptyMessage.textContent = getBuildingFilterId()
+          ? "No contacts associated with this Building."
+          : "No contacts have been added.";
+      }
       contactsEmptyState.style.display = "block";
       contactsListCard.style.display = "none";
       return;
@@ -5706,34 +5914,87 @@
     renderContactList(contacts);
   }
 
-  function getContactsForDisplayInActiveBuilding() {
-    const linkedContacts = dedupeContacts(getContactsForActiveBuilding());
-    if (linkedContacts.length > 0) {
-      return linkedContacts;
-    }
-
-    const building = findBuildingById(activeBuildingId);
+  // Read-only derivation of which master contacts relate to a building, via existing relationship ids.
+  function getContactIdsRelatedToBuilding(building) {
+    const ids = new Set();
     if (!building) {
-      return [];
+      return ids;
     }
 
-    const companyIds = getCompanyIdsForBuilding(building);
-    const allContacts = dedupeContacts(getContacts());
+    getContactsForBuilding(building).forEach(function (contact) {
+      if (contact && contact.id) {
+        ids.add(String(contact.id));
+      }
+    });
 
-    if (companyIds.length === 0) {
+    getAllTenanciesForBuilding(building).forEach(function (tenancy) {
+      getTenancyContactRefs(tenancy).forEach(function (contactId) {
+        ids.add(contactId);
+      });
+    });
+
+    (ensureWorkflowCollections(building).scheduleItems || []).forEach(function (item) {
+      const contactId = String(item.preferredContactId || "").trim();
+      if (contactId) {
+        ids.add(contactId);
+      }
+    });
+
+    return ids;
+  }
+
+  function getContactsForDisplayInActiveBuilding() {
+    const allContacts = dedupeContacts(getContacts());
+    if (!getBuildingFilterId()) {
       return allContacts;
     }
 
-    const filtered = allContacts.filter(function (contact) {
-      return contact && companyIds.includes(contact.companyId);
+    const relatedIds = new Set();
+    getBuildingsForFilter().forEach(function (building) {
+      getContactIdsRelatedToBuilding(building).forEach(function (contactId) {
+        relatedIds.add(contactId);
+      });
     });
 
-    return filtered.length > 0 ? filtered : allContacts;
+    return allContacts.filter(function (contact) {
+      return contact && relatedIds.has(String(contact.id));
+    });
   }
 
-  function openContactDetailsDialog(contact) {
-    const building = findBuildingById(activeBuildingId);
-    if (!contact || !building) {
+  function getScheduleItemsLinkedToContactForFilter(contactId) {
+    const items = [];
+    getBuildingsForFilter().forEach(function (building) {
+      getScheduleItemsLinkedToContact(building, contactId).forEach(function (item) {
+        items.push(item);
+      });
+    });
+    return items;
+  }
+
+  function getRelationshipForContactInFilter(contact) {
+    const buildings = getBuildingsForFilter();
+    for (let index = 0; index < buildings.length; index += 1) {
+      const relationship = getBuildingContactRelationshipMap(buildings[index])[contact.id];
+      if (relationship) {
+        return relationship;
+      }
+    }
+
+    return String(contact.responsibility || "").trim() || "Other";
+  }
+
+  function getRelatedBuildingNamesForContact(contactId) {
+    const names = [];
+    getBuildingsForFilter().forEach(function (building) {
+      if (getContactIdsRelatedToBuilding(building).has(String(contactId || ""))) {
+        names.push(String(building.buildingName || "Not set"));
+      }
+    });
+    return names;
+  }
+
+  function openContactDetailsDialog(contact, options) {
+    if (!contact) {
       return;
     }
 
@@ -5742,9 +6003,9 @@
       existingBackdrop.remove();
     }
 
-    const relationship = getBuildingRelationshipForContact(building, contact);
+    const relationship = getRelationshipForContactInFilter(contact);
     const companyName = getCompanyNameById(contact.companyId, "Not set");
-    const linkedItems = getScheduleItemsLinkedToContact(building, contact.id);
+    const linkedItems = getScheduleItemsLinkedToContactForFilter(contact.id);
     const linkedItemsMarkup = linkedItems.length === 0
       ? '<p class="module-placeholder">No linked schedule items.</p>'
       : `
@@ -5843,7 +6104,7 @@
 
       if (action === "edit") {
         closeDialog();
-        openContactForm("edit", contact);
+        openContactForm("edit", contact, options);
       }
     });
   }
@@ -6457,13 +6718,10 @@
   }
 
   function openContactsView() {
-    const building = findBuildingById(activeBuildingId);
-    if (!building) {
-      showDashboard();
-      return;
-    }
+    const building = findBuildingById(getBuildingFilterId());
+    renderBuildingFilterOptions(contactsBuildingFilter);
 
-    contactsBuildingName.textContent = building.buildingName;
+    contactsBuildingName.textContent = building ? building.buildingName : "All Buildings";
     activeContactId = "";
     contactsSearchQuery = "";
     populateContactCompanySelect("");
@@ -6537,7 +6795,16 @@
 
   function openContactForm(mode, contact, options) {
     contactFormMode = mode;
-    setContactFormAssignmentContext(options && options.assignmentContext ? options.assignmentContext : null);
+    const assignmentContext = options && options.assignmentContext ? options.assignmentContext : null;
+    setContactFormAssignmentContext(assignmentContext
+      ? Object.assign({}, assignmentContext, {
+        filterBuildingId: Object.prototype.hasOwnProperty.call(assignmentContext, "filterBuildingId")
+          ? assignmentContext.filterBuildingId
+          : getBuildingFilterId(),
+      })
+      : null);
+    contactReturnContext = options && options.returnContext ? options.returnContext : null;
+    contactFormFilterBuildingId = getBuildingFilterId();
     activeContactId = contact && contact.id ? contact.id : "";
     resetContactForm();
     populateContactCompanySelect(contact && contact.companyId ? contact.companyId : "");
@@ -6601,25 +6868,23 @@
   }
 
   function upsertContactForActiveTenancy(payload) {
+    // The master contact is always saved; the building relationship only applies when one is selected.
+    window.BuildingStorage.upsertContact(payload);
+
     const building = findBuildingById(activeBuildingId);
     if (!building) {
       return;
     }
-
-    window.BuildingStorage.upsertContact(payload);
 
     const updated = applyContactRelationshipToBuilding(building, payload.id, payload.responsibility || "Other");
     window.BuildingStorage.updateBuilding(updated);
   }
 
   function deleteContactForActiveTenancy(contactId) {
-    const building = findBuildingById(activeBuildingId);
-    if (!building) {
-      return;
-    }
-
-    const updated = removeContactRelationshipFromBuilding(building, contactId);
-    window.BuildingStorage.updateBuilding(updated);
+    getBuildingsForFilter().forEach(function (building) {
+      const updated = removeContactRelationshipFromBuilding(building, contactId);
+      window.BuildingStorage.updateBuilding(updated);
+    });
   }
 
   function getTelHref(phone) {
@@ -6630,7 +6895,12 @@
   function renderTenancyTileContacts(tenancy) {
     const linkedContacts = getContactsForTenancy(tenancy);
     if (linkedContacts.length === 0) {
-      return '<p><strong>Contact:</strong> Not set</p>';
+      return `
+        <div class="tenancy-card-contacts">
+          <p class="tenancy-card-contacts-heading">Contact</p>
+          <p>Not set</p>
+        </div>
+      `;
     }
 
     const heading = linkedContacts.length === 1 ? "Contact" : "Contacts";
@@ -6642,15 +6912,15 @@
       return `
         <div class="tenancy-card-contact">
           <p class="tenancy-card-contact-name">${escapeHtml(contact.name || "Contact")}</p>
-          ${telHref ? `<p><a class="contact-phone-link" href="tel:${escapeHtml(telHref)}">${escapeHtml(phone)}</a></p>` : ""}
-          ${email ? `<p><a class="contact-email-link" href="mailto:${escapeHtml(email)}">${escapeHtml(email)}</a></p>` : ""}
+          ${telHref ? `<p><a class="contact-link contact-phone-link" href="tel:${escapeHtml(telHref)}">${escapeHtml(phone)}</a></p>` : ""}
+          ${email ? `<p><a class="contact-link contact-email-link" href="mailto:${escapeHtml(email)}">${escapeHtml(email)}</a></p>` : ""}
         </div>
       `;
     }).join("");
 
     return `
       <div class="tenancy-card-contacts">
-        <p class="tenancy-card-contacts-heading"><strong>${heading}</strong></p>
+        <p class="tenancy-card-contacts-heading">${heading}</p>
         ${entries}
       </div>
     `;
@@ -6667,19 +6937,45 @@
     return owners;
   }
 
-  function renderCurrentTenancyPage(building) {
-    tenancyBuildingName.textContent = building.buildingName;
-    renderTenancyHistory(building);
+  // Tenancy rows for the current Building filter, each paired with its owning building.
+  function getTenancyRowsForFilter() {
+    const rows = [];
+    getBuildingsForFilter().forEach(function (building) {
+      getAllTenanciesForBuilding(building).forEach(function (tenancy) {
+        rows.push({ building: building, tenancy: tenancy });
+      });
+    });
+    return rows;
+  }
+
+  function findBuildingByTenancyId(tenancyId) {
+    return buildTenancyOwnerBuildingMap().get(String(tenancyId || "")) || null;
+  }
+
+  // The tenancy form always acts on the building that owns the tenancy being edited.
+  function getTenancyEditBuilding() {
+    return findBuildingById(tenancyEditBuildingId) || findBuildingById(activeBuildingId);
+  }
+
+  function renderCurrentTenancyPage() {
+    renderBuildingFilterOptions(tenancyBuildingFilter);
+
+    const filterBuilding = findBuildingById(getBuildingFilterId());
+    tenancyBuildingName.textContent = filterBuilding ? filterBuilding.buildingName : "All Buildings";
+    renderTenancyHistory();
 
     // Canonical tenancy list renderer: always driven by building.tenancies[].
     activeTenancyDetailsId = "";
-    const allTenancies = getAllTenanciesForBuilding(building);
+    const tenancyRows = getTenancyRowsForFilter();
     const tenancyDetailsHeading = tenancyDetailsCard.querySelector("h3");
     if (tenancyDetailsHeading) {
       tenancyDetailsHeading.textContent = "Current Tenancies";
     }
 
-    if (allTenancies.length === 0) {
+    if (tenancyRows.length === 0) {
+      if (tenancyEmptyMessage) {
+        tenancyEmptyMessage.textContent = `No tenancies for ${getBuildingFilterEmptySuffix()}.`;
+      }
       renderTenancySectionState(false, "list");
       setTenancyTab(activeTenancyTab);
       return;
@@ -6687,15 +6983,13 @@
 
     renderTenancySectionState(true, "list");
 
-    const ownerBuildings = buildTenancyOwnerBuildingMap();
-
-    tenancyDetailsList.innerHTML = allTenancies.map(function (tenancy) {
+    tenancyDetailsList.innerHTML = tenancyRows.map(function (row) {
+      const tenancy = row.tenancy;
       const companyName = String(tenancy.companyName || tenancy.tradingName || "Tenancy").trim();
       const tradingName = String(tenancy.tradingName || "").trim();
       const tenancyStatus = String(tenancy.status || "Occupied").trim() || "Occupied";
       const tenancyId = escapeHtml(tenancy.id);
-      const ownerBuilding = ownerBuildings.get(String(tenancy.id || "")) || building;
-      const ownerBuildingName = String(ownerBuilding.buildingName || "Not set").trim() || "Not set";
+      const ownerBuildingName = String(row.building.buildingName || "Not set").trim() || "Not set";
 
       return `
         <article class="tenancy-list-card clickable-card" role="button" tabindex="0" data-tenancy-list-action="edit" data-tenancy-id="${tenancyId}" aria-label="Edit tenancy ${escapeHtml(companyName)}">
@@ -6706,9 +7000,6 @@
           <p><strong>Lease End:</strong> ${formatDate(tenancy.leaseEnd)}</p>
           <p><strong>Status:</strong> ${escapeHtml(tenancyStatus)}</p>
           ${renderTenancyTileContacts(tenancy)}
-          <div class="tenancy-card-actions">
-            <button class="btn btn-secondary btn-small" type="button" data-tenancy-list-action="archive" data-tenancy-id="${tenancyId}">Archive</button>
-          </div>
         </article>
       `;
     }).join("");
@@ -6717,17 +7008,16 @@
   }
 
   function openCurrentTenancyView(buildingId) {
-    const building = findBuildingById(buildingId);
-    if (!building) {
-      showDashboard();
-      return;
+    if (arguments.length > 0) {
+      setCurrentPropertyId(buildingId && findBuildingById(buildingId) ? buildingId : "");
+      syncScheduleFilterToCurrentProperty();
     }
 
-    setCurrentPropertyId(building.id);
     activeTenancyTab = "current";
     activeTenancyDetailsId = "";
+    tenancyEditBuildingId = "";
     tenancyFormMode = "";
-    renderCurrentTenancyPage(building);
+    renderCurrentTenancyPage();
     showTenancyView();
   }
 
@@ -6771,9 +7061,17 @@
   }
 
   function openTenancyForm(mode, tenancyToEdit) {
-    const building = findBuildingById(activeBuildingId);
+    tenancyFormFilterBuildingId = getBuildingFilterId();
+    if (mode === "edit" && tenancyToEdit) {
+      const owner = findBuildingByTenancyId(tenancyToEdit.id);
+      tenancyEditBuildingId = owner ? owner.id : activeBuildingId;
+    } else if (mode === "add") {
+      tenancyEditBuildingId = activeBuildingId;
+    }
+
+    const building = getTenancyEditBuilding();
     if (!building) {
-      showDashboard();
+      alert("Select a building before adding a tenancy.");
       return;
     }
 
@@ -6932,7 +7230,7 @@
   }
 
   function getTenancyBeingEdited() {
-    const building = findBuildingById(activeBuildingId);
+    const building = getTenancyEditBuilding();
     if (!building || tenancyFormMode !== "edit") {
       return null;
     }
@@ -6944,7 +7242,7 @@
   }
 
   async function handleAddContactLinkForTenancy() {
-    const building = findBuildingById(activeBuildingId);
+    const building = getTenancyEditBuilding();
     const tenancy = getTenancyBeingEdited();
     if (!building || !tenancy) {
       return;
@@ -6986,7 +7284,7 @@
       return;
     }
 
-    const building = findBuildingById(activeBuildingId);
+    const building = getTenancyEditBuilding();
     if (!building) {
       return;
     }
@@ -7025,7 +7323,7 @@
   }
 
   function handleArchiveTenancy() {
-    const building = findBuildingById(activeBuildingId);
+    const building = getTenancyEditBuilding();
     const allTenancies = getAllTenanciesForBuilding(building);
     if (!building || allTenancies.length === 0) {
       return;
@@ -7064,7 +7362,7 @@
     window.BuildingStorage.updateBuilding(updated);
     renderBuildings();
     setTenancyTab("current");
-    openCurrentTenancyView(updated.id);
+    openCurrentTenancyView();
   }
 
   function renderOverviewModule(moduleName, building) {
@@ -7183,7 +7481,7 @@
 
   function handleSaveTenancy(event) {
     event.preventDefault();
-    const current = findBuildingById(activeBuildingId);
+    const current = getTenancyEditBuilding();
     if (!current) {
       showDashboard();
       renderBuildings();
@@ -7230,7 +7528,7 @@
     activeTenancyDetailsId = "";
     tenancyFormMode = "";
     renderBuildings();
-    openCurrentTenancyView(updated.id);
+    openCurrentTenancyView();
   }
 
   function handleAddContact() {
@@ -7276,30 +7574,17 @@
     }
 
     const building = findBuildingById(activeBuildingId);
-    if (!building) {
-      contactLinkedScheduleSection.style.display = "block";
-      contactLinkedScheduleList.innerHTML = '<p class="module-placeholder">No linked schedule items.</p>';
-      if (contactAddScheduleLinkBtn instanceof HTMLButtonElement) {
-        contactAddScheduleLinkBtn.style.display = "inline-flex";
-        contactAddScheduleLinkBtn.disabled = false;
-      }
-      if (contactRemoveScheduleLinkBtn instanceof HTMLButtonElement) {
-        contactRemoveScheduleLinkBtn.style.display = "inline-flex";
-        contactRemoveScheduleLinkBtn.disabled = true;
-      }
-      return;
-    }
 
     contactLinkedScheduleSection.style.display = "block";
     if (contactAddScheduleLinkBtn instanceof HTMLButtonElement) {
-      contactAddScheduleLinkBtn.style.display = "inline-flex";
-      contactAddScheduleLinkBtn.disabled = false;
+      contactAddScheduleLinkBtn.style.display = building ? "inline-flex" : "none";
+      contactAddScheduleLinkBtn.disabled = !building;
     }
     if (contactRemoveScheduleLinkBtn instanceof HTMLButtonElement) {
-      contactRemoveScheduleLinkBtn.style.display = "inline-flex";
-      contactRemoveScheduleLinkBtn.disabled = false;
+      contactRemoveScheduleLinkBtn.style.display = building ? "inline-flex" : "none";
+      contactRemoveScheduleLinkBtn.disabled = !building;
     }
-    const linkedItems = getScheduleItemsLinkedToContact(building, contact.id);
+    const linkedItems = getScheduleItemsLinkedToContactForFilter(contact.id);
     if (linkedItems.length === 0) {
       contactLinkedScheduleList.innerHTML = '<p class="module-placeholder">No linked schedule items.</p>';
       if (contactRemoveScheduleLinkBtn instanceof HTMLButtonElement) {
@@ -7814,13 +8099,8 @@
   function handleSaveContact(event) {
     event.preventDefault();
 
-    const contacts = getContactsForActiveBuilding();
-    let existingContact = null;
-    if (contactFormMode === "edit") {
-      existingContact = contacts.find(function (contact) {
-        return contact.id === activeContactId;
-      }) || null;
-    }
+    // Resolve from master data so editing works in All Buildings mode too.
+    const existingContact = contactFormMode === "edit" ? findContactById(activeContactId) : null;
 
     const payload = buildContactPayload(existingContact);
     if (!payload.companyId) {
@@ -7846,8 +8126,7 @@
             preselectedContactId: payload.id,
           };
           setContactFormAssignmentContext(null);
-          openScheduleView(context.buildingId);
-          openScheduleDetailsDialog(context.buildingId, context.scheduleItemId);
+          returnToScheduleDetails(context);
           return;
         }
 
@@ -7857,8 +8136,7 @@
           window.BuildingStorage.updateBuilding(normalized);
           renderBuildings();
           setContactFormAssignmentContext(null);
-          openScheduleView(context.buildingId);
-          openScheduleDetailsDialog(context.buildingId, context.scheduleItemId);
+          returnToScheduleDetails(context);
           return;
         }
       }
@@ -7873,6 +8151,7 @@
     upsertContactForActiveTenancy(payload);
     renderBuildings();
     setContactFormAssignmentContext(null);
+    contactReturnContext = null;
     openContactsView();
   }
 
@@ -7931,8 +8210,16 @@
         return;
       }
 
-      openScheduleView(activeBuildingId);
-      openScheduleDetailsDialog(activeBuildingId, scheduleItemId);
+      // Resolve the owning building so the link works in All Buildings mode.
+      const ownerBuilding = getBuildingsForFilter().find(function (candidate) {
+        return Boolean(findScheduleItemById(candidate, scheduleItemId));
+      }) || findBuildingById(activeBuildingId);
+      if (!ownerBuilding) {
+        return;
+      }
+
+      openScheduleView("");
+      openScheduleDetailsDialog(ownerBuilding.id, scheduleItemId);
       return;
     }
 
@@ -7993,12 +8280,13 @@
     const actionHost = (typeof target.closest === "function" && target.closest("[data-tenancy-list-action]")) || target;
     const listAction = actionHost.getAttribute("data-tenancy-list-action");
     if (listAction) {
-      const building = findBuildingById(activeBuildingId);
+      const tenancyId = String(actionHost.getAttribute("data-tenancy-id") || "").trim();
+      // Resolve the owning building so All Buildings mode edits the right record.
+      const building = findBuildingByTenancyId(tenancyId) || findBuildingById(activeBuildingId);
       if (!building) {
         return;
       }
 
-      const tenancyId = String(actionHost.getAttribute("data-tenancy-id") || "").trim();
       const tenancy = getTenancyById(building, tenancyId);
       if (!tenancy) {
         return;
@@ -8030,7 +8318,7 @@
         };
         window.BuildingStorage.updateBuilding(updated);
         renderBuildings();
-        openCurrentTenancyView(updated.id);
+        openCurrentTenancyView();
       }
       return;
     }
@@ -8055,21 +8343,40 @@
     openCurrentTenancyView(activeBuildingId);
   }
 
+  function returnToScheduleDetails(context) {
+    if (!context || !context.buildingId || !context.scheduleItemId) {
+      return;
+    }
+
+    const filterBuildingId = Object.prototype.hasOwnProperty.call(context, "filterBuildingId")
+      ? context.filterBuildingId
+      : context.buildingId;
+    setCurrentPropertyId(filterBuildingId);
+    openScheduleView("");
+    openScheduleDetailsDialog(context.buildingId, context.scheduleItemId);
+  }
+
   function handleContactsBack() {
     if (contactAssignmentContext) {
       const context = contactAssignmentContext;
       setContactFormAssignmentContext(null);
-      openScheduleView(context.buildingId);
-      openScheduleDetailsDialog(context.buildingId, context.scheduleItemId);
+      returnToScheduleDetails(context);
       return;
     }
 
     if (contactFormCard.style.display === "block") {
+      if (contactReturnContext) {
+        const context = contactReturnContext;
+        contactReturnContext = null;
+        returnToScheduleDetails(context);
+        return;
+      }
+      setCurrentPropertyId(contactFormFilterBuildingId);
       openContactsView();
       return;
     }
 
-    openOverviewById(activeBuildingId);
+    goToDashboard();
   }
 
   function handleCompaniesBack() {
@@ -8078,29 +8385,26 @@
 
   function handleCancelTenancy() {
     // Back discards unsaved form edits and returns to the canonical tenancy list.
-    openCurrentTenancyView(activeBuildingId);
+    setCurrentPropertyId(tenancyFormFilterBuildingId);
+    openCurrentTenancyView();
   }
 
   function handleTenancyBack() {
-    openOverviewById(activeBuildingId);
+    if (tenancyFormCard.style.display === "block") {
+      handleCancelTenancy();
+      return;
+    }
+    goToDashboard();
   }
 
   function handleTenancyTabCurrent() {
     activeTenancyTab = "current";
-    const building = findBuildingById(activeBuildingId);
-    if (!building) {
-      return;
-    }
-    renderCurrentTenancyPage(building);
+    renderCurrentTenancyPage();
   }
 
   function handleTenancyTabHistory() {
     activeTenancyTab = "history";
-    const building = findBuildingById(activeBuildingId);
-    if (!building) {
-      return;
-    }
-    renderCurrentTenancyPage(building);
+    renderCurrentTenancyPage();
   }
 
   function handleContactSearch() {
@@ -8109,7 +8413,7 @@
   }
 
   function handleLeaseBack() {
-    openOverviewById(activeBuildingId);
+    goToDashboard();
   }
 
   function openLeaseCategoryDetail(categoryKey) {
@@ -8118,23 +8422,13 @@
     if (leaseCategorySearch) {
       leaseCategorySearch.value = "";
     }
-    const building = findBuildingById(activeBuildingId);
-    if (!building) {
-      return;
-    }
 
-    renderLeasePage(building);
+    renderLeasePage();
   }
 
   function handleLeaseSearch() {
     leaseSearchQuery = String(leaseSearch.value || "");
-
-    const building = findBuildingById(activeBuildingId);
-    if (!building) {
-      return;
-    }
-
-    renderLeasePage(building);
+    renderLeasePage();
   }
 
   async function handleLeaseCategoryGridClick(event) {
@@ -8145,6 +8439,27 @@
 
     const actionButton = target.closest("[data-document-module-action]");
     if (actionButton) {
+      const action = actionButton.getAttribute("data-document-module-action") || "";
+
+      // All Buildings mode is read-only: open an aggregated category, or view/download a document in place.
+      if (action === "open-all") {
+        openLeaseCategoryDetail(actionButton.getAttribute("data-document-category-key") || "");
+        return;
+      }
+
+      if (action === "view-all" || action === "download-all") {
+        const sourceBuilding = findBuildingById(actionButton.getAttribute("data-document-building-id") || "");
+        if (!sourceBuilding) {
+          return;
+        }
+
+        const record = findAnyDocumentRecordInBuilding(sourceBuilding, actionButton.getAttribute("data-document-id") || "");
+        if (record) {
+          openOrDownloadLeaseDocument(record, action === "download-all");
+        }
+        return;
+      }
+
       const building = findBuildingById(activeBuildingId);
       if (!building) {
         return;
@@ -8152,7 +8467,6 @@
 
       const categoryId = actionButton.getAttribute("data-document-category-id") || "";
       const documentId = actionButton.getAttribute("data-document-id") || "";
-      const action = actionButton.getAttribute("data-document-module-action") || "";
 
       const category = findDocumentCategoryById(ensureWorkflowCollections(building), categoryId);
       if (!category && action !== "add") {
@@ -8225,7 +8539,7 @@
 
         if (updated) {
           renderBuildings();
-          renderLeasePage(updated);
+          renderLeasePage();
         }
       }
       return;
@@ -8269,12 +8583,7 @@
       leaseCategorySearch.value = "";
     }
 
-    const building = findBuildingById(activeBuildingId);
-    if (!building) {
-      return;
-    }
-
-    renderLeasePage(building);
+    renderLeasePage();
   }
 
   async function handleLeaseCategoryDetailClick(event) {
@@ -8363,7 +8672,7 @@
 
       if (updated) {
         renderBuildings();
-        renderLeasePage(updated);
+        renderLeasePage();
       }
     }
   }
@@ -8375,7 +8684,7 @@
       return;
     }
 
-    renderLeasePage(building);
+    renderLeasePage();
   }
 
   function handleLeaseCategoryManage() {
@@ -9511,7 +9820,7 @@
   }
 
   function handleScheduleBack() {
-    openOverviewById(activeBuildingId);
+    goToDashboard();
   }
 
   function completeScheduleItemInline(itemId, buildingId) {
@@ -10099,7 +10408,6 @@
 
     window.BuildingStorage.updateBuilding(persistedBuilding);
     const savedBuilding = window.BuildingStorage.getBuildingById(persistedBuilding.id) || persistedBuilding;
-    activeBuildingId = savedBuilding.id || activeBuildingId;
     activeScheduleItemId = currentScheduleItem.id;
     renderBuildings();
     renderSchedulePage();
@@ -10959,9 +11267,14 @@
         if (!contact) {
           return;
         }
-        setCurrentPropertyId(building.id);
         close();
-        openContactDetailsDialog(contact);
+        openContactDetailsDialog(contact, {
+          returnContext: {
+            buildingId: building.id,
+            scheduleItemId: scheduleItem.id,
+            filterBuildingId: getBuildingFilterId(),
+          },
+        });
         return;
       }
 
@@ -11000,19 +11313,44 @@
 
   function handleScheduleFilterChange() {
     scheduleFilters = {
-      property: String(scheduleFilterProperty.value || "all"),
+      property: scheduleFilters.property,
       category: String(scheduleFilterCategory.value || "all"),
       status: String(scheduleFilterStatus.value || "all"),
       duePeriod: String(scheduleFilterDuePeriod.value || "all"),
     };
 
-    if (scheduleFilters.property === "all") {
-      setCurrentPropertyId("");
-    } else if (findBuildingById(scheduleFilters.property)) {
-      setCurrentPropertyId(scheduleFilters.property);
+    renderSchedulePage();
+  }
+
+  // Single entry point for the shared Building selector on all four operational pages.
+  function handleBuildingFilterChange(event) {
+    const select = event && event.target ? event.target : null;
+    applyBuildingFilterSelection(select ? select.value : "");
+
+    if (scheduleView.classList.contains("is-active")) {
+      renderSchedulePage();
+      return;
     }
 
-    renderSchedulePage();
+    if (tenancyView.classList.contains("is-active")) {
+      tenancyEditBuildingId = "";
+      tenancyFormMode = "";
+      activeTenancyDetailsId = "";
+      renderCurrentTenancyPage();
+      return;
+    }
+
+    if (contactsView.classList.contains("is-active")) {
+      activeContactId = "";
+      renderContactSectionState("list");
+      renderBuildingFilterOptions(contactsBuildingFilter);
+      return;
+    }
+
+    if (leaseView.classList.contains("is-active")) {
+      activeLeaseManagedCategoryKey = "";
+      renderLeasePage();
+    }
   }
 
   function handleHistoryBack() {
@@ -11332,8 +11670,9 @@
     }
 
     const moduleName = button.getAttribute("data-workspace-module") || "";
-    if (!activeBuildingId && moduleName !== "Schedule") {
-      alert("Select a property to open this module, or use Schedule to view All Properties.");
+    const portfolioModules = ["Schedule", "Tenancy", "Contacts", "Lease", "Documents"];
+    if (!activeBuildingId && !portfolioModules.includes(moduleName)) {
+      alert("Select a building to open this module.");
       return;
     }
 
@@ -11500,7 +11839,16 @@
   templateLibraryList.addEventListener("click", handleTemplateLibraryListClick);
   scheduleOpsList.addEventListener("click", handleScheduleListClick);
   scheduleOpsList.addEventListener("keydown", handleScheduleListKeydown);
-  scheduleFilterProperty.addEventListener("change", handleScheduleFilterChange);
+  scheduleFilterProperty.addEventListener("change", handleBuildingFilterChange);
+  if (tenancyBuildingFilter) {
+    tenancyBuildingFilter.addEventListener("change", handleBuildingFilterChange);
+  }
+  if (contactsBuildingFilter) {
+    contactsBuildingFilter.addEventListener("change", handleBuildingFilterChange);
+  }
+  if (leaseBuildingFilter) {
+    leaseBuildingFilter.addEventListener("change", handleBuildingFilterChange);
+  }
   scheduleFilterCategory.addEventListener("change", handleScheduleFilterChange);
   scheduleFilterStatus.addEventListener("change", handleScheduleFilterChange);
   scheduleFilterDuePeriod.addEventListener("change", handleScheduleFilterChange);
