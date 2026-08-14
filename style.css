@@ -1817,6 +1817,24 @@ body {
   gap: 0.6rem;
 }
 
+.document-register-list {
+  display: grid;
+  gap: 0.7rem;
+}
+
+.document-register-row {
+  cursor: pointer;
+}
+
+.document-register-row:hover,
+.document-register-row:focus-visible {
+  border-color: var(--accent);
+}
+
+.document-form-card {
+  display: none;
+}
+
 .tenancy-list-card {
   border: 1px solid var(--border);
   border-radius: 0.65rem;

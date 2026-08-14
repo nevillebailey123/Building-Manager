@@ -59,6 +59,7 @@
   const leaseStatus = document.getElementById("lease-status");
   const leaseCommencementDate = document.getElementById("lease-commencement-date");
   const leaseExpiryDate = document.getElementById("lease-expiry-date");
+  const documentsAddBtn = document.getElementById("documents-add-btn");
   const documentsAddCategoryBtn = document.getElementById("documents-add-category-btn");
   const leaseSearch = document.getElementById("lease-search");
   const leaseDashboardPanel = document.getElementById("lease-dashboard-panel");
@@ -71,6 +72,23 @@
   const leaseCategorySearch = document.getElementById("lease-category-search");
   const leaseCategoryUploadBtn = document.getElementById("lease-category-upload-btn");
   const leaseCategoryList = document.getElementById("lease-category-list");
+  const documentFormCard = document.getElementById("document-form-card");
+  const documentFormTitle = document.getElementById("document-form-title");
+  const documentForm = document.getElementById("document-form");
+  const documentTitleInput = document.getElementById("document-title-input");
+  const documentBuildingSelect = document.getElementById("document-building-select");
+  const documentTypeSelect = document.getElementById("document-type-select");
+  const documentCategorySelect = document.getElementById("document-category-select");
+  const documentDateInput = document.getElementById("document-date-input");
+  const documentExpiryInput = document.getElementById("document-expiry-input");
+  const documentTenancySelect = document.getElementById("document-tenancy-select");
+  const documentScheduleSelect = document.getElementById("document-schedule-select");
+  const documentFileInput = document.getElementById("document-file-input");
+  const documentFileHelp = document.getElementById("document-file-help");
+  const documentCurrentFile = document.getElementById("document-current-file");
+  const documentNotesInput = document.getElementById("document-notes-input");
+  const documentDeleteBtn = document.getElementById("document-delete-btn");
+  const documentCancelBtn = document.getElementById("document-cancel-btn");
   const tenancyEmptyState = document.getElementById("tenancy-empty-state");
   const tenancyDetailsCard = document.getElementById("tenancy-details-card");
   const tenancyFormCard = document.getElementById("tenancy-form-card");
@@ -213,6 +231,9 @@
   };
   let tenancyEditBuildingId = "";
   let activeLeaseManagedCategoryKey = "";
+  let activeDocumentFormMode = "";
+  let activeDocumentContext = null;
+  let documentFormFilterBuildingId = "";
   let leaseSearchQuery = "";
   let leaseCategorySearchQuery = "";
   let selectorOpen = false;
@@ -4916,40 +4937,429 @@
     }).join("");
   }
 
-  function renderLeasePage() {
-    renderBuildingFilterOptions(leaseBuildingFilter);
+  function getDocumentRegisterRecords() {
+    const records = [];
+    const seen = new Set();
+    getBuildingsForFilter().forEach(function (building) {
+      const normalized = ensureWorkflowCollections(building);
+      (normalized.documents || []).forEach(function (documentRecord) {
+        const key = `${building.id}:${documentRecord.id}`;
+        if (seen.has(key)) return;
+        seen.add(key);
+        records.push({
+          building: normalized,
+          record: documentRecord,
+          source: "building",
+          tenancyId: String(documentRecord.tenancyId || "").trim(),
+        });
+      });
 
-    const filterBuilding = findBuildingById(getBuildingFilterId());
-    if (!filterBuilding) {
-      leaseTenantName.textContent = "All Buildings";
-      leasePropertyName.textContent = "All Buildings";
-      leaseStatus.textContent = "Portfolio view";
-      leaseCommencementDate.textContent = "Not applicable";
-      leaseExpiryDate.textContent = "Not applicable";
-      if (documentsAddCategoryBtn instanceof HTMLButtonElement) {
-        documentsAddCategoryBtn.style.display = "none";
+      const currentTenancy = normalized.tenancy;
+      const leaseDocuments = currentTenancy && currentTenancy.lease && Array.isArray(currentTenancy.lease.documents)
+        ? currentTenancy.lease.documents
+        : [];
+      leaseDocuments.forEach(function (documentRecord) {
+        const key = `${building.id}:${documentRecord.id}`;
+        if (seen.has(key)) return;
+        seen.add(key);
+        records.push({
+          building: normalized,
+          record: documentRecord,
+          source: "tenancy",
+          tenancyId: String(currentTenancy.id || "").trim(),
+        });
+      });
+    });
+    return records;
+  }
+
+  function getDocumentRegisterTitle(record) {
+    return String(record.title || record.description || record.fileName || "Untitled Document").trim();
+  }
+
+  function getDocumentRegisterCategory(record, building) {
+    const category = findDocumentCategoryById(building, record.categoryId);
+    return String(record.documentType || (category && category.name) || "Other").trim() || "Other";
+  }
+
+  function getDocumentRegisterCategoryInfo(entry) {
+    const category = findDocumentCategoryById(entry.building, entry.record.categoryId);
+    if (category) {
+      return { key: String(category.key || category.id), name: category.name, category: category };
+    }
+    if (entry.source === "tenancy") {
+      const leaseCategory = getDocumentsModuleCategories(ensureWorkflowCollections(entry.building)).find(function (candidate) {
+        return candidate.source === "lease";
+      });
+      if (leaseCategory) {
+        return { key: String(leaseCategory.key || leaseCategory.id), name: leaseCategory.name, category: leaseCategory };
       }
-      renderAllBuildingsCategoryTiles();
-      renderAllBuildingsCategoryDetail();
-      showLeaseView();
+    }
+    const fallbackName = getDocumentRegisterCategory(entry.record, entry.building);
+    return { key: buildDocumentCategoryKey(fallbackName), name: fallbackName, category: null };
+  }
+
+  function getDocumentRegisterCategoryGroups() {
+    const groups = new Map();
+    getBuildingsForFilter().forEach(function (building) {
+      getDocumentsModuleCategories(ensureWorkflowCollections(building)).forEach(function (category) {
+        const key = String(category.key || category.id);
+        if (!groups.has(key)) {
+          groups.set(key, { key: key, name: category.name, category: category, entries: [] });
+        }
+      });
+    });
+
+    getDocumentRegisterRecords().forEach(function (entry) {
+      const info = getDocumentRegisterCategoryInfo(entry);
+      if (!groups.has(info.key)) {
+        groups.set(info.key, { key: info.key, name: info.name, category: info.category, entries: [] });
+      }
+      groups.get(info.key).entries.push(entry);
+    });
+
+    return Array.from(groups.values()).filter(function (group) {
+      const isDefaultCategory = DEFAULT_DOCUMENT_CATEGORY_DEFINITIONS.some(function (definition) {
+        return definition.key === group.key;
+      });
+      return group.entries.length > 0 || (group.category && group.category.source === "building" && !isDefaultCategory);
+    }).sort(function (left, right) {
+      return String(left.name).localeCompare(String(right.name), undefined, { sensitivity: "base" });
+    });
+  }
+
+  function getDocumentRegisterRelatedTenancy(entry) {
+    const tenancyId = entry.tenancyId || String(entry.record.tenancyId || "").trim();
+    return getAllTenanciesForBuilding(entry.building).find(function (tenancy) {
+      return String(tenancy.id || "") === tenancyId;
+    }) || null;
+  }
+
+  function getDocumentRegisterRelatedScheduleItem(entry) {
+    const scheduleItemId = String(entry.record.scheduleItemId || "").trim();
+    if (!scheduleItemId) {
+      return null;
+    }
+    return (ensureWorkflowCollections(entry.building).scheduleItems || []).find(function (item) {
+      return String(item.id || "") === scheduleItemId;
+    }) || null;
+  }
+
+  function renderDocumentRegister() {
+    const query = normalizeText(leaseSearchQuery);
+    const groups = getDocumentRegisterCategoryGroups().filter(function (group) {
+      if (!query) {
+        return true;
+      }
+      if (normalizeText(group.name).includes(query)) {
+        return true;
+      }
+      return group.entries.some(function (entry) {
+        return normalizeText([
+          getDocumentRegisterTitle(entry.record),
+          entry.record.fileName,
+          entry.record.notes,
+        ].join(" ")).includes(query);
+      });
+    });
+
+    if (groups.length === 0) {
+      leaseCategoryGrid.innerHTML = `<p class="module-placeholder">${getBuildingFilterId() ? "No documents for this Building." : "No documents have been added yet."}</p>`;
       return;
     }
 
-    if (documentsAddCategoryBtn instanceof HTMLButtonElement) {
-      documentsAddCategoryBtn.style.display = "inline-flex";
+    leaseCategoryGrid.classList.add("document-register-list");
+    leaseCategoryGrid.innerHTML = groups.map(function (group) {
+      return `
+        <article class="building-card document-register-row" data-document-register-category-key="${escapeHtml(group.key)}" role="button" tabindex="0" aria-label="Open document category ${escapeHtml(group.name)}">
+          <h3>${escapeHtml(group.name)}</h3>
+          <p class="document-item-meta">${group.entries.length} document${group.entries.length === 1 ? "" : "s"}</p>
+          <span class="card-chevron">&gt;</span>
+        </article>
+      `;
+    }).join("");
+  }
+
+  function renderDocumentRegisterCategoryDetail() {
+    const group = getDocumentRegisterCategoryGroups().find(function (entry) {
+      return entry.key === activeLeaseManagedCategoryKey;
+    });
+    if (!group) {
+      activeLeaseManagedCategoryKey = "";
+      renderDocumentRegister();
+      return;
     }
 
-    const data = getLeaseData(filterBuilding);
-    const tenancy = data.tenancy;
+    const query = normalizeText(leaseCategorySearchQuery);
+    const entries = group.entries.filter(function (entry) {
+      return !query || normalizeText([
+        getDocumentRegisterTitle(entry.record),
+        entry.record.fileName,
+        entry.record.notes,
+      ].join(" ")).includes(query);
+    });
+    leaseDashboardPanel.style.display = "none";
+    leaseCategoryDetail.classList.add("is-active");
+    leaseCategoryDetailTitle.textContent = group.name;
+    leaseCategoryDetailMeta.textContent = `${group.entries.length} document${group.entries.length === 1 ? "" : "s"}`;
+    if (leaseCategorySearch) {
+      leaseCategorySearch.value = leaseCategorySearchQuery;
+    }
+    leaseCategoryList.innerHTML = entries.length === 0
+      ? `<p class="module-placeholder">No documents in ${escapeHtml(group.name)}.</p>`
+      : entries.map(function (entry) {
+        const record = entry.record;
+        const tenancy = getDocumentRegisterRelatedTenancy(entry);
+        const scheduleItem = getDocumentRegisterRelatedScheduleItem(entry);
+        return `
+          <article class="building-card document-register-row" data-document-register-id="${escapeHtml(record.id)}" data-document-register-building-id="${escapeHtml(entry.building.id)}" data-document-register-source="${entry.source}" role="button" tabindex="0" aria-label="Open document ${escapeHtml(getDocumentRegisterTitle(record))}">
+            <h3>${escapeHtml(getDocumentRegisterTitle(record))}</h3>
+            <p class="document-item-meta">Building: ${escapeHtml(entry.building.buildingName || "Not set")}</p>
+            ${record.documentType ? `<p class="document-item-meta">Category: ${escapeHtml(getDocumentRegisterCategory(record, entry.building))}</p>` : ""}
+            ${tenancy ? `<p class="document-item-meta">Tenancy: ${escapeHtml(tenancy.tradingName || tenancy.companyName || "Tenancy")}</p>` : ""}
+            ${scheduleItem ? `<p class="document-item-meta">Schedule Item: ${escapeHtml(scheduleItem.taskName || "Schedule Item")}</p>` : ""}
+            ${record.documentDate ? `<p class="document-item-meta">Date: ${escapeHtml(formatDate(record.documentDate))}</p>` : ""}
+            ${record.expiryDate ? `<p class="document-item-meta">Expiry: ${escapeHtml(formatDate(record.expiryDate))}</p>` : ""}
+            ${record.fileName ? `<p class="document-item-meta">File: ${escapeHtml(record.fileName)}</p>` : ""}
+            <div class="document-item-actions">
+              <button class="btn btn-secondary lease-tile-btn document-edit-btn" type="button" data-document-register-edit="true">Edit</button>
+            </div>
+          </article>
+        `;
+      }).join("");
+  }
 
-    leaseTenantName.textContent = tenancy ? tenancy.companyName : "No current tenancy";
-    leasePropertyName.textContent = data.building.buildingName;
-    leaseStatus.textContent = getLeaseStatusLabel(tenancy);
-    leaseCommencementDate.textContent = tenancy ? formatDate(tenancy.leaseStart) : "Not set";
-    leaseExpiryDate.textContent = tenancy ? formatDate(tenancy.leaseEnd) : "Not set";
+  function getDocumentFormBuilding() {
+    return findBuildingById(documentBuildingSelect ? documentBuildingSelect.value : "");
+  }
 
-    renderLeaseCategoryTiles(data.building);
-    renderLeaseCategoryDetail(data.building);
+  function getDocumentFormCategoryId(building) {
+    const selectedKey = String(documentCategorySelect ? documentCategorySelect.value : "").trim();
+    const category = getDocumentsModuleCategories(ensureWorkflowCollections(building)).find(function (entry) {
+      return String(entry.key || entry.id) === selectedKey;
+    });
+    return category ? category.id : "";
+  }
+
+  function renderDocumentFormCategoryOptions(selectedCategoryKey) {
+    if (!documentCategorySelect) {
+      return;
+    }
+    const categories = [];
+    const seen = new Set();
+    getBuildingsForFilter().forEach(function (building) {
+      getDocumentsModuleCategories(ensureWorkflowCollections(building)).forEach(function (category) {
+        const key = String(category.key || category.id);
+        if (seen.has(key)) return;
+        seen.add(key);
+        categories.push({ key: key, name: category.name });
+      });
+    });
+    documentCategorySelect.innerHTML = categories.sort(function (left, right) {
+      return left.name.localeCompare(right.name);
+    }).map(function (category) {
+      return `<option value="${escapeHtml(category.key)}">${escapeHtml(category.name)}</option>`;
+    }).join("");
+    documentCategorySelect.value = selectedCategoryKey || (categories[0] && categories[0].key) || "";
+  }
+
+  function renderDocumentFormBuildingOptions(selectedId) {
+    if (!documentBuildingSelect) {
+      return;
+    }
+    const options = selectedId
+      ? []
+      : ['<option value="">Select a Building</option>'];
+    documentBuildingSelect.innerHTML = options.concat(getSortedBuildings().map(function (building) {
+      return `<option value="${escapeHtml(building.id)}">${escapeHtml(building.buildingName)}</option>`;
+    })).join("");
+    documentBuildingSelect.value = selectedId || "";
+  }
+
+  function renderDocumentFormRelationships(selectedTenancyId, selectedScheduleItemId) {
+    const building = getDocumentFormBuilding();
+    const tenancies = building ? getAllTenanciesForBuilding(building) : [];
+    const scheduleItems = building ? ensureWorkflowCollections(building).scheduleItems : [];
+    if (documentTenancySelect) {
+      documentTenancySelect.innerHTML = ['<option value="">No related tenancy</option>']
+        .concat(tenancies.map(function (tenancy) {
+          return `<option value="${escapeHtml(tenancy.id)}">${escapeHtml(tenancy.tradingName || tenancy.companyName || "Tenancy")}</option>`;
+        })).join("");
+      documentTenancySelect.value = tenancies.some(function (tenancy) { return String(tenancy.id) === String(selectedTenancyId || ""); }) ? selectedTenancyId : "";
+    }
+    if (documentScheduleSelect) {
+      documentScheduleSelect.innerHTML = ['<option value="">No related schedule item</option>']
+        .concat(scheduleItems.map(function (item) {
+          return `<option value="${escapeHtml(item.id)}">${escapeHtml(item.taskName || "Schedule Item")}</option>`;
+        })).join("");
+      documentScheduleSelect.value = scheduleItems.some(function (item) { return String(item.id) === String(selectedScheduleItemId || ""); }) ? selectedScheduleItemId : "";
+    }
+  }
+
+  function findDocumentRegisterEntry(buildingId, documentId, source) {
+    return getDocumentRegisterRecords().find(function (entry) {
+      return String(entry.building.id) === String(buildingId)
+        && String(entry.record.id) === String(documentId)
+        && entry.source === source;
+    }) || null;
+  }
+
+  function openDocumentForm(mode, entry) {
+    activeDocumentFormMode = mode;
+    activeDocumentContext = entry || null;
+    documentFormFilterBuildingId = getBuildingFilterId();
+    const record = entry ? entry.record : null;
+    const selectedBuildingId = entry ? entry.building.id : getBuildingFilterId();
+    documentFormTitle.textContent = mode === "edit" ? "Edit Document" : "Add Document";
+    documentTitleInput.value = record ? getDocumentRegisterTitle(record) : "";
+    documentDateInput.value = record ? String(record.documentDate || "").slice(0, 10) : "";
+    documentExpiryInput.value = record ? String(record.expiryDate || "").slice(0, 10) : "";
+    documentTypeSelect.value = record ? String(record.documentType || "Other") : "Other";
+    documentNotesInput.value = record ? String(record.notes || "") : "";
+    renderDocumentFormBuildingOptions(selectedBuildingId);
+    renderDocumentFormCategoryOptions(record ? (getDocumentRegisterCategoryInfo(entry).key) : (activeLeaseManagedCategoryKey || ""));
+    renderDocumentFormRelationships(entry ? entry.tenancyId : "", record ? record.scheduleItemId : "");
+    documentFileInput.value = "";
+    documentFileInput.required = mode !== "edit";
+    documentFileHelp.textContent = mode === "edit" ? "(leave blank to keep current file)" : "(required)";
+    documentCurrentFile.textContent = record && record.fileName ? `Current file: ${record.fileName}` : "";
+    documentDeleteBtn.style.display = mode === "edit" ? "inline-flex" : "none";
+    leaseDashboardPanel.style.display = "none";
+    leaseCategoryDetail.classList.remove("is-active");
+    documentFormCard.style.display = "block";
+  }
+
+  function closeDocumentForm() {
+    const filterId = documentFormFilterBuildingId;
+    activeDocumentFormMode = "";
+    activeDocumentContext = null;
+    documentFormCard.style.display = "none";
+    setCurrentPropertyId(filterId);
+    openLeaseView();
+  }
+
+  async function handleSaveDocument(event) {
+    event.preventDefault();
+    const building = getDocumentFormBuilding();
+    const title = String(documentTitleInput.value || "").trim();
+    if (!building || !title) {
+      return;
+    }
+    const tenancyId = String(documentTenancySelect.value || "").trim();
+    const scheduleItemId = String(documentScheduleSelect.value || "").trim();
+    const selectedFile = documentFileInput.files && documentFileInput.files[0] ? documentFileInput.files[0] : null;
+    const existing = activeDocumentContext ? activeDocumentContext.record : null;
+    const now = new Date().toISOString();
+    const storage = selectedFile
+      ? { kind: "data-url", dataUrl: await readFileAsDataUrl(selectedFile), previewStatus: "not-generated", ocrStatus: "not-indexed" }
+      : (existing && existing.storage ? { ...existing.storage } : null);
+    if (activeDocumentFormMode !== "edit" && !selectedFile) {
+      return;
+    }
+    const payload = {
+      ...(existing || {}),
+      id: existing && existing.id ? existing.id : window.BuildingStorage.createId(),
+      title: title,
+      description: title,
+      categoryId: getDocumentFormCategoryId(building),
+      documentType: String(documentTypeSelect.value || "Other").trim() || "Other",
+      documentDate: String(documentDateInput.value || "").trim(),
+      expiryDate: String(documentExpiryInput.value || "").trim(),
+      tenancyId: tenancyId,
+      scheduleItemId: scheduleItemId,
+      notes: String(documentNotesInput.value || "").trim(),
+      fileName: selectedFile ? selectedFile.name : (existing ? existing.fileName : ""),
+      mimeType: selectedFile ? (selectedFile.type || "application/octet-stream") : (existing ? existing.mimeType : "application/octet-stream"),
+      sizeBytes: selectedFile ? (selectedFile.size || 0) : (existing ? existing.sizeBytes || 0 : 0),
+      uploadedAt: existing && existing.uploadedAt ? existing.uploadedAt : now,
+      lastUpdated: now,
+      storage: storage,
+    };
+    const sourceEntry = activeDocumentContext;
+    if (sourceEntry && sourceEntry.source === "tenancy" && String(sourceEntry.building.id) === String(building.id)) {
+      const updated = updateActiveBuildingDocumentsState(function (draft) {
+        if (!draft.tenancy || !draft.tenancy.lease) return draft;
+        draft.tenancy.lease.documents = (draft.tenancy.lease.documents || []).map(function (record) {
+          return record.id === payload.id ? payload : record;
+        });
+        draft.tenancy.documents = draft.tenancy.lease.documents;
+        return draft;
+      });
+      if (updated) closeDocumentForm();
+      return;
+    }
+    if (sourceEntry && sourceEntry.source === "tenancy") {
+      updateActiveBuildingDocumentsState(function (draft) {
+        if (draft.tenancy && draft.tenancy.lease) {
+          draft.tenancy.lease.documents = (draft.tenancy.lease.documents || []).filter(function (record) { return record.id !== payload.id; });
+          draft.tenancy.documents = draft.tenancy.lease.documents;
+        }
+        return draft;
+      });
+    }
+    if (sourceEntry && sourceEntry.source === "building" && String(sourceEntry.building.id) !== String(building.id)) {
+      updateBuildingDocumentsStateForBuilding(sourceEntry.building.id, function (draft) {
+        draft.documents = (draft.documents || []).filter(function (record) { return record.id !== payload.id; });
+        return draft;
+      });
+    }
+    const updated = updateBuildingDocumentsStateForBuilding(building.id, function (draft) {
+      draft.documents = (draft.documents || []).filter(function (record) { return record.id !== payload.id; }).concat(payload);
+      return draft;
+    });
+    if (updated) closeDocumentForm();
+  }
+
+  function updateBuildingDocumentsStateForBuilding(buildingId, mutator) {
+    const building = findBuildingById(buildingId);
+    if (!building) return null;
+    const normalized = ensureWorkflowCollections(building);
+    const draft = JSON.parse(JSON.stringify(normalized));
+    const next = mutator(draft) || draft;
+    next.lastUpdated = new Date().toISOString();
+    window.BuildingStorage.updateBuilding(next);
+    return next;
+  }
+
+  function handleDeleteDocument() {
+    if (!activeDocumentContext || !window.confirm(`Delete this document?\n\nThis will permanently remove "${getDocumentRegisterTitle(activeDocumentContext.record)}".\n\nThis action cannot be undone.`)) return;
+    const entry = activeDocumentContext;
+    if (entry.source === "tenancy") {
+      updateBuildingDocumentsStateForBuilding(entry.building.id, function (draft) {
+        if (draft.tenancy && draft.tenancy.lease) {
+          draft.tenancy.lease.documents = (draft.tenancy.lease.documents || []).filter(function (record) { return record.id !== entry.record.id; });
+          draft.tenancy.documents = draft.tenancy.lease.documents;
+        }
+        return draft;
+      });
+    } else {
+      updateBuildingDocumentsStateForBuilding(entry.building.id, function (draft) {
+        draft.documents = (draft.documents || []).filter(function (record) { return record.id !== entry.record.id; });
+        return draft;
+      });
+    }
+    closeDocumentForm();
+  }
+
+  function renderLeasePage() {
+    renderBuildingFilterOptions(leaseBuildingFilter);
+
+    if (activeDocumentFormMode) {
+      documentFormCard.style.display = "block";
+      leaseDashboardPanel.style.display = "none";
+      leaseCategoryDetail.classList.remove("is-active");
+      return;
+    }
+
+    if (activeLeaseManagedCategoryKey) {
+      renderDocumentRegisterCategoryDetail();
+      showLeaseView();
+      return;
+    }
+    documentFormCard.style.display = "none";
+    leaseDashboardPanel.style.display = "block";
+    leaseCategoryDetail.classList.remove("is-active");
+    renderDocumentRegister();
     showLeaseView();
   }
 
@@ -8416,6 +8826,10 @@
     goToDashboard();
   }
 
+  function handleAddDocument() {
+    openDocumentForm("add", null);
+  }
+
   function openLeaseCategoryDetail(categoryKey) {
     activeLeaseManagedCategoryKey = categoryKey;
     leaseCategorySearchQuery = "";
@@ -8434,6 +8848,30 @@
   async function handleLeaseCategoryGridClick(event) {
     const target = event.target;
     if (!(target instanceof HTMLElement)) {
+      return;
+    }
+
+    const registerRow = target.closest("[data-document-register-id]");
+    if (registerRow) {
+      const entry = findDocumentRegisterEntry(
+        registerRow.getAttribute("data-document-register-building-id") || "",
+        registerRow.getAttribute("data-document-register-id") || "",
+        registerRow.getAttribute("data-document-register-source") || "building"
+      );
+      if (entry) {
+        if (target.closest("[data-document-register-edit=\"true\"]")) {
+          event.stopPropagation();
+          openDocumentForm("edit", entry);
+        } else {
+          openOrDownloadLeaseDocument(entry.record, false);
+        }
+      }
+      return;
+    }
+
+    const registerCategory = target.closest("[data-document-register-category-key]");
+    if (registerCategory) {
+      openLeaseCategoryDetail(registerCategory.getAttribute("data-document-register-category-key") || "");
       return;
     }
 
@@ -8554,6 +8992,39 @@
     }
   }
 
+  function handleDocumentRegisterKeydown(event) {
+    if (event.key !== "Enter" && event.key !== " ") {
+      return;
+    }
+    const target = event.target;
+    if (!(target instanceof HTMLElement)) {
+      return;
+    }
+    const row = target.closest("[data-document-register-id]");
+    if (row) {
+      event.preventDefault();
+      const entry = findDocumentRegisterEntry(
+        row.getAttribute("data-document-register-building-id") || "",
+        row.getAttribute("data-document-register-id") || "",
+        row.getAttribute("data-document-register-source") || "building"
+      );
+      if (entry) {
+        if (target.closest("[data-document-register-edit=\"true\"]")) {
+          event.stopPropagation();
+          openDocumentForm("edit", entry);
+        } else {
+          openOrDownloadLeaseDocument(entry.record, false);
+        }
+      }
+      return;
+    }
+    const category = target.closest("[data-document-register-category-key]");
+    if (category) {
+      event.preventDefault();
+      openLeaseCategoryDetail(category.getAttribute("data-document-register-category-key") || "");
+    }
+  }
+
   function handleLeaseCategoryGridKeydown(event) {
     if (event.key !== "Enter" && event.key !== " ") {
       return;
@@ -8589,6 +9060,24 @@
   async function handleLeaseCategoryDetailClick(event) {
     const target = event.target;
     if (!(target instanceof HTMLElement)) {
+      return;
+    }
+
+    const registerRow = target.closest("[data-document-register-id]");
+    if (registerRow) {
+      const entry = findDocumentRegisterEntry(
+        registerRow.getAttribute("data-document-register-building-id") || "",
+        registerRow.getAttribute("data-document-register-id") || "",
+        registerRow.getAttribute("data-document-register-source") || "building"
+      );
+      if (entry) {
+        if (target.closest("[data-document-register-edit=\"true\"]")) {
+          event.stopPropagation();
+          openDocumentForm("edit", entry);
+        } else {
+          openOrDownloadLeaseDocument(entry.record, false);
+        }
+      }
       return;
     }
 
@@ -8679,11 +9168,6 @@
 
   function handleLeaseCategorySearch() {
     leaseCategorySearchQuery = String(leaseCategorySearch.value || "");
-    const building = findBuildingById(activeBuildingId);
-    if (!building) {
-      return;
-    }
-
     renderLeasePage();
   }
 
@@ -8698,7 +9182,7 @@
     if (!activeLeaseManagedCategoryKey) {
       return;
     }
-    handleLeaseCategoryLoad(activeLeaseManagedCategoryKey);
+    openDocumentForm("add", null);
   }
 
   function openInlineMasterTemplateCreateDialog() {
@@ -11621,7 +12105,7 @@
       return;
     }
 
-    if (moduleName === "Lease" || moduleName === "Documents") {
+    if (moduleName === "Documents") {
       openLeaseView(activeBuildingId);
       return;
     }
@@ -11688,7 +12172,7 @@
       openScheduleView(activeBuildingId);
       return;
     }
-    if (moduleName === "Lease" || moduleName === "Documents") {
+    if (moduleName === "Documents") {
       openLeaseView(activeBuildingId);
       return;
     }
@@ -11782,6 +12266,7 @@
     contactsCreateBtn.addEventListener("click", handleAddContact);
   }
   documentsAddCategoryBtn.addEventListener("click", handleAddDocumentCategory);
+  documentsAddBtn.addEventListener("click", handleAddDocument);
   leaseCategoryDetailManageBtn.addEventListener("click", handleLeaseCategoryManage);
   leaseCategoryDetailBackBtn.addEventListener("click", handleLeaseCategoryDetailBack);
   leaseCategoryUploadBtn.addEventListener("click", handleLeaseCategoryUpload);
@@ -11832,7 +12317,15 @@
   workspaceModuleNav.addEventListener("click", handleWorkspaceModuleNavigationClick);
   leaseCategoryGrid.addEventListener("click", handleLeaseCategoryGridClick);
   leaseCategoryGrid.addEventListener("keydown", handleLeaseCategoryGridKeydown);
+  leaseCategoryGrid.addEventListener("keydown", handleDocumentRegisterKeydown);
   leaseCategoryList.addEventListener("click", handleLeaseCategoryDetailClick);
+  documentForm.addEventListener("submit", handleSaveDocument);
+  documentCancelBtn.addEventListener("click", closeDocumentForm);
+  documentDeleteBtn.addEventListener("click", handleDeleteDocument);
+  documentBuildingSelect.addEventListener("change", function () {
+    renderDocumentFormCategoryOptions(documentCategorySelect.value);
+    renderDocumentFormRelationships(documentTenancySelect.value, documentScheduleSelect.value);
+  });
   contactsList.addEventListener("click", handleContactListClick);
   contactLinkedScheduleList.addEventListener("click", handleContactListClick);
   companiesList.addEventListener("click", handleCompanyListClick);

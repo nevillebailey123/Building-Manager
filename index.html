@@ -67,7 +67,7 @@
             <span class="module-nav-desc">Upcoming and completed scheduled work.</span>
             <span class="chevron">&gt;</span>
           </button>
-          <button class="module-nav-card" type="button" data-workspace-module="Lease">
+          <button class="module-nav-card" type="button" data-workspace-module="Documents">
             <span class="module-nav-title module-nav-title-documents">Documents</span>
             <span class="module-nav-desc">Lease agreements, versions and supporting records.</span>
             <span class="chevron">&gt;</span>
@@ -380,7 +380,7 @@
             <span class="module-nav-desc">Upcoming tasks and completed work.</span>
             <span class="chevron">&gt;</span>
           </button>
-          <button class="module-nav-card" type="button" data-module="Lease">
+          <button class="module-nav-card" type="button" data-module="Documents">
             <span class="module-nav-title">📄 Documents</span>
             <span class="module-nav-desc">Lease documentation, versions and notes.</span>
             <span class="chevron">&gt;</span>
@@ -510,15 +510,10 @@
         <header class="view-header overview-header">
           <div>
             <h1 id="lease-title">Documents</h1>
-            <p class="overview-building-detail"><strong>Tenant:</strong> <span id="lease-tenant-name"></span></p>
-            <p class="overview-building-detail"><strong>Property:</strong> <span id="lease-property-name"></span></p>
-            <div class="lease-header-meta" aria-label="Lease summary">
-              <p class="overview-building-detail"><strong>Status:</strong> <span id="lease-status"></span></p>
-              <p class="overview-building-detail"><strong>Commencement:</strong> <span id="lease-commencement-date"></span></p>
-              <p class="overview-building-detail"><strong>Expiry:</strong> <span id="lease-expiry-date"></span></p>
-            </div>
+            <p class="tagline">Central document register.</p>
           </div>
           <div class="top-right-actions">
+            <button id="documents-add-btn" class="btn btn-primary btn-small" type="button">+ Add Document</button>
             <button id="documents-add-category-btn" class="btn btn-primary btn-small" type="button">+ Add Category</button>
             <button id="lease-back-btn" class="btn btn-secondary" type="button">← Back</button>
           </div>
@@ -538,6 +533,60 @@
 
           <section id="lease-dashboard-panel">
             <section id="lease-category-grid" class="lease-category-grid" aria-live="polite"></section>
+          </section>
+
+          <section id="document-form-card" class="module-content-card document-form-card">
+            <h3 id="document-form-title">Add Document</h3>
+            <form id="document-form" class="building-form">
+              <label for="document-title-input">Document Title</label>
+              <input id="document-title-input" name="title" type="text" required />
+
+              <label for="document-building-select">Building</label>
+              <select id="document-building-select" name="buildingId" required></select>
+
+              <label for="document-type-select">Document Type</label>
+              <select id="document-type-select" name="documentType">
+                <option value="">Other</option>
+                <option>Lease</option>
+                <option>Insurance</option>
+                <option>Certificate</option>
+                <option>Invoice</option>
+                <option>Quote</option>
+                <option>Report</option>
+                <option>Valuation</option>
+                <option>Correspondence</option>
+                <option>Compliance</option>
+                <option>Other</option>
+              </select>
+
+              <label for="document-category-select">Category</label>
+              <select id="document-category-select" name="categoryId" required></select>
+
+              <label for="document-date-input">Document Date</label>
+              <input id="document-date-input" name="documentDate" type="date" />
+
+              <label for="document-expiry-input">Expiry Date (optional)</label>
+              <input id="document-expiry-input" name="expiryDate" type="date" />
+
+              <label for="document-tenancy-select">Related Tenancy (optional)</label>
+              <select id="document-tenancy-select" name="tenancyId"></select>
+
+              <label for="document-schedule-select">Related Schedule Item (optional)</label>
+              <select id="document-schedule-select" name="scheduleItemId"></select>
+
+              <label for="document-file-input">File <span id="document-file-help">(required)</span></label>
+              <input id="document-file-input" name="file" type="file" accept=".pdf,.doc,.docx,image/*" />
+              <p id="document-current-file" class="lease-helper-text"></p>
+
+              <label for="document-notes-input">Notes (optional)</label>
+              <textarea id="document-notes-input" name="notes" rows="4"></textarea>
+
+              <div class="form-actions">
+                <button id="document-save-btn" class="btn btn-primary" type="submit">Save Document</button>
+                <button id="document-delete-btn" class="btn template-delete-btn" type="button" style="display: none;">Delete Document</button>
+                <button id="document-cancel-btn" class="btn btn-secondary" type="button">← Back to Documents</button>
+              </div>
+            </form>
           </section>
 
           <section id="lease-category-detail" class="lease-category-detail" aria-live="polite">
