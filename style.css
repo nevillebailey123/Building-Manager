@@ -2006,7 +2006,16 @@ body {
   background: #111823;
   padding: 0.75rem;
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  align-items: start;
+  gap: 0.3rem 1.1rem;
+}
+
+.tenancy-card-main {
+  display: grid;
+  align-content: start;
   gap: 0.3rem;
+  min-width: 0;
 }
 
 .tenancy-list-card h4 {
@@ -2018,12 +2027,15 @@ body {
   margin: 0;
   font-size: var(--type-meta-contacts);
   color: var(--text-muted);
+  overflow-wrap: anywhere;
 }
 
 .tenancy-card-contacts {
   display: grid;
+  align-content: start;
   justify-items: start;
   gap: 0.5rem;
+  min-width: 0;
   margin-top: 0.5rem;
   padding-top: 0.5rem;
   border-top: 1px solid var(--border);
@@ -2038,11 +2050,33 @@ body {
   display: grid;
   justify-items: start;
   gap: 0.1rem;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.tenancy-card-contacts .contact-link {
+  overflow-wrap: anywhere;
+  max-width: 100%;
 }
 
 .tenancy-list-card .tenancy-card-contact-name {
   color: var(--text-main);
   font-weight: 600;
+}
+
+/* Wide screens balance the card: tenancy details left, contact details right. */
+@media (min-width: 640px) {
+  .tenancy-list-card {
+    grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr);
+  }
+
+  .tenancy-card-contacts {
+    margin-top: 0;
+    padding-top: 0;
+    padding-left: 1.1rem;
+    border-top: 0;
+    border-left: 1px solid var(--border);
+  }
 }
 
 .tenancy-card-actions {

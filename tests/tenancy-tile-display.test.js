@@ -373,6 +373,22 @@ assert.ok(tileA.includes("<strong>Lease Start:</strong>"), "Tile should show lea
 assert.ok(tileA.includes("<strong>Lease End:</strong>"), "Tile should show lease end");
 assert.ok(tileA.includes("<strong>Status:</strong> Occupied"), "Tile should show status");
 
+// Two-column card: tenancy details in the left column, contacts in the right column.
+assert.ok(tileA.includes('class="tenancy-card-main"'), "Tenancy details must sit in their own column");
+assert.strictEqual(
+  tileA.indexOf('class="tenancy-card-main"') < tileA.indexOf('class="tenancy-card-contacts"'),
+  true,
+  "Tenancy details must come before contact details in source order"
+);
+["Property:", "Lease Start:", "Lease End:", "Status:"].forEach(function (label) {
+  const mainColumn = tileA.slice(tileA.indexOf('class="tenancy-card-main"'), tileA.indexOf('class="tenancy-card-contacts"'));
+  assert.ok(mainColumn.includes(`<strong>${label}</strong>`), `${label} must live in the tenancy column`);
+});
+const contactColumn = tileA.slice(tileA.indexOf('class="tenancy-card-contacts"'));
+assert.ok(contactColumn.includes("Jim Beveridge"), "The contact name must live in the contact column");
+assert.ok(contactColumn.includes("tel:0278333030"), "The phone link must live in the contact column");
+assert.ok(contactColumn.includes("mailto:admin@jimslocksmithnz.com"), "The email link must live in the contact column");
+
 // 5-8: linked contact name, tel: link and mailto: link.
 assert.ok(tileA.includes("Jim Beveridge"), "Tenancy A tile must show its linked contact name");
 assert.ok(

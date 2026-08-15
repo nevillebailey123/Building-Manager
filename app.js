@@ -6572,12 +6572,14 @@
 
       return `
         <article class="tenancy-list-card clickable-card" role="button" tabindex="0" data-tenancy-list-action="edit" data-tenancy-id="${tenancyId}" aria-label="Edit tenancy ${escapeHtml(companyName)}">
-          <h4>${escapeHtml(companyName)}</h4>
-          ${tradingName && tradingName !== companyName ? `<p><strong>Trading Name:</strong> ${escapeHtml(tradingName)}</p>` : ""}
-          <p><strong>Property:</strong> ${escapeHtml(ownerBuildingName)}</p>
-          <p><strong>Lease Start:</strong> ${formatDate(tenancy.leaseStart)}</p>
-          <p><strong>Lease End:</strong> ${formatDate(tenancy.leaseEnd)}</p>
-          <p><strong>Status:</strong> ${escapeHtml(tenancyStatus)}</p>
+          <div class="tenancy-card-main">
+            <h4>${escapeHtml(companyName)}</h4>
+            ${tradingName && tradingName !== companyName ? `<p><strong>Trading Name:</strong> ${escapeHtml(tradingName)}</p>` : ""}
+            <p><strong>Property:</strong> ${escapeHtml(ownerBuildingName)}</p>
+            <p><strong>Lease Start:</strong> ${formatDate(tenancy.leaseStart)}</p>
+            <p><strong>Lease End:</strong> ${formatDate(tenancy.leaseEnd)}</p>
+            <p><strong>Status:</strong> ${escapeHtml(tenancyStatus)}</p>
+          </div>
           ${renderTenancyTileContacts(tenancy)}
         </article>
       `;
