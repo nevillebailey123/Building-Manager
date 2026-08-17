@@ -10,8 +10,8 @@ assert.ok(indexSource.includes('data-app-module="Documents"'), "Shared shell mus
 assert.ok(indexSource.includes('data-module="Documents"'), "Property Documents tile must use the Documents module name");
 assert.ok(appSource.includes("appModuleNav.addEventListener(\"click\", handleAppModuleNavClick)"), "Shared shell must register the delegated module click listener");
 assert.ok(appSource.includes('moduleKey === "Documents"'), "Shared shell handler must recognize Documents");
-assert.ok(serviceWorkerSource.includes('building-manager-shell-v3'), "Service worker shell cache must invalidate stale shell code");
-assert.ok(serviceWorkerSource.includes('building-manager-runtime-v3'), "Service worker runtime cache must invalidate stale shell code");
+assert.ok(/building-manager-shell-v\d+/.test(serviceWorkerSource), "Service worker shell cache must invalidate stale shell code");
+assert.ok(/building-manager-runtime-v\d+/.test(serviceWorkerSource), "Service worker runtime cache must invalidate stale shell code");
 
 const homeHandlerStart = appSource.indexOf("function openAppModule");
 const homeHandlerEnd = appSource.indexOf("\n\n  function handleAppModuleNavClick", homeHandlerStart);

@@ -1077,18 +1077,26 @@
       collectContactRelationshipsForBuilding(building, relationshipsByContactId);
     });
 
-    getContacts().forEach(function (contact) {
+    // Duplicate master contact records must not multiply the derived company relationship.
+    dedupeContacts(getContacts()).forEach(function (contact) {
       const companyName = contact && contact.companyId ? getCompanyNameById(contact.companyId, "") : "";
       if (!contact || !contact.companyId || !companyName) {
         return;
       }
       const id = String(contact.id || "").trim();
-      if (!id || !relationshipsByContactId.has(id)) {
-        relationshipsByContactId.set(id, relationshipsByContactId.get(id) || []);
+      if (!id) {
+        return;
       }
-      relationshipsByContactId.get(id).push(
-        buildContactRelationship("Company", contact.companyId, companyName, "Company", null)
-      );
+      if (!relationshipsByContactId.has(id)) {
+        relationshipsByContactId.set(id, []);
+      }
+      const list = relationshipsByContactId.get(id);
+      const alreadyLinked = list.some(function (existing) {
+        return existing.type === "Company" && existing.targetId === String(contact.companyId || "");
+      });
+      if (!alreadyLinked) {
+        list.push(buildContactRelationship("Company", contact.companyId, companyName, "Company", null));
+      }
     });
 
     return relationshipsByContactId;
@@ -1111,6 +1119,54 @@
       .filter(function (group) {
         return group.items.length > 0;
       });
+  }
+
+  // Compact repository summary: operational links only. Company is omitted because the
+  // contact's company is already shown with their details.
+  function summarizeContactRelationships(relationships) {
+    const seenTargets = new Set();
+    const propertyNames = [];
+    const tenancyNames = [];
+    const calendarTargets = new Set();
+
+    (relationships || []).forEach(function (relationship) {
+      if (!relationship) {
+        return;
+      }
+
+      const targetKey = `${relationship.type}|${String(relationship.targetId || relationship.targetName || "")}`;
+      if (relationship.type === "Calendar") {
+        calendarTargets.add(targetKey);
+        return;
+      }
+
+      if (relationship.type !== "Property" && relationship.type !== "Tenancy") {
+        return;
+      }
+
+      if (seenTargets.has(targetKey)) {
+        return;
+      }
+      seenTargets.add(targetKey);
+
+      const name = String(relationship.targetName || "").trim();
+      if (!name) {
+        return;
+      }
+
+      if (relationship.type === "Property") {
+        propertyNames.push(name);
+        return;
+      }
+      tenancyNames.push(name);
+    });
+
+    const parts = propertyNames.concat(tenancyNames);
+    if (calendarTargets.size > 0) {
+      parts.push(calendarTargets.size === 1 ? "1 Calendar item" : `${calendarTargets.size} Calendar items`);
+    }
+
+    return parts;
   }
 
   function findContactById(contactId) {
@@ -5507,7 +5563,7 @@
           contact: contact,
           companyName: companyName,
           relationships: relationships,
-          relationshipGroups: groupRelationshipsByType(relationships),
+          linkedSummary: summarizeContactRelationships(relationships),
         };
       })
       .filter(function (entry) {
@@ -5553,22 +5609,13 @@
       return;
     }
 
-    function renderRelationshipGroups(entry) {
-      if (entry.relationshipGroups.length === 0) {
-        return '<p class="contact-relationship-empty">Not linked to anything yet.</p>';
+    function renderLinkedSummary(entry) {
+      if (entry.linkedSummary.length === 0) {
+        return '<p class="contact-card-linked contact-relationship-empty">Not linked to anything yet.</p>';
       }
 
-      return entry.relationshipGroups.map(function (group) {
-        const items = group.items.map(function (relationship) {
-          return `<li>${escapeHtml(relationship.targetName)} \u00b7 ${escapeHtml(relationship.role)}</li>`;
-        }).join("");
-        return `
-          <div class="contact-relationship-group">
-            <p class="contact-relationship-type">${escapeHtml(group.type)}</p>
-            <ul class="contact-relationship-list">${items}</ul>
-          </div>
-        `;
-      }).join("");
+      const summary = entry.linkedSummary.map(escapeHtml).join(" \u00b7 ");
+      return `<p class="contact-card-linked"><strong>Linked to:</strong> ${summary}</p>`;
     }
 
     function buildContactCard(entry) {
@@ -5580,23 +5627,12 @@
         ? `<a class="inline-link contact-email-link" href="mailto:${escapeHtml(contact.email)}">${escapeHtml(contact.email)}</a>`
         : "Not provided";
       return `
-        <article class="building-card clickable-card" data-contact-id="${contact.id}" role="button" tabindex="0" aria-label="Open contact ${contact.name}">
-          <div class="contact-card-header">
-            <div class="contact-card-title-group">
-              <h3><button class="inline-link contact-open-link" type="button">${contact.name}</button></h3>
-            </div>
-          </div>
-          <div class="contact-card-layout">
-            <div class="contact-card-column contact-card-column-left">
-              <p><strong>Company:</strong> <button class="inline-link company-open-link" type="button" data-company-id="${contact.companyId}">${entry.companyName}</button></p>
-              <p><strong>Phone:</strong> ${mobileLink}</p>
-              <p><strong>Email:</strong> ${emailLink}</p>
-            </div>
-            <div class="contact-card-column contact-card-column-right contact-card-relationships">
-              <p class="contact-relationship-heading">Linked to</p>
-              ${renderRelationshipGroups(entry)}
-            </div>
-          </div>
+        <article class="building-card clickable-card contact-card" data-contact-id="${contact.id}" role="button" tabindex="0" aria-label="Open contact ${escapeHtml(contact.name)}">
+          <h3 class="contact-card-name">${escapeHtml(contact.name)}</h3>
+          <p class="contact-card-company">${escapeHtml(entry.companyName)}</p>
+          <p><strong>Phone:</strong> ${mobileLink}</p>
+          <p><strong>Email:</strong> ${emailLink}</p>
+          ${renderLinkedSummary(entry)}
         </article>
       `;
     }
@@ -5766,6 +5802,21 @@
       `;
 
     const tenancyLinks = getTenancyLinksForContact(contact.id);
+    const relationshipGroups = groupRelationshipsByType(getRelationshipsForContact(contact.id));
+    const relationshipsMarkup = relationshipGroups.length === 0
+      ? '<p class="module-placeholder">Not linked to anything yet.</p>'
+      : relationshipGroups.map(function (group) {
+        const items = group.items.map(function (relationship) {
+          return `<li>${escapeHtml(relationship.targetName)} \u00b7 ${escapeHtml(relationship.role)}</li>`;
+        }).join("");
+        return `
+          <div class="contact-relationship-group">
+            <p class="contact-relationship-type">${escapeHtml(group.type)}</p>
+            <ul class="contact-relationship-list">${items}</ul>
+          </div>
+        `;
+      }).join("");
+
     const linkedTenanciesMarkup = tenancyLinks.length === 0
       ? '<p class="module-placeholder">No linked tenancies.</p>'
       : `
@@ -5803,6 +5854,11 @@
             <div><dt>Linked Calendar Items</dt><dd>${linkedItems.length}</dd></div>
             <div><dt>Linked Tenancies</dt><dd>${tenancyLinks.length}</dd></div>
           </dl>
+        </section>
+
+        <section class="schedule-details-section contact-details-relationships">
+          <h4>Relationships</h4>
+          ${relationshipsMarkup}
         </section>
 
         <section class="schedule-details-section">
@@ -7990,12 +8046,8 @@
       return;
     }
 
+    // Phone and email links perform their own action instead of opening the contact.
     if (target.closest(".contact-phone-link") || target.closest(".contact-email-link")) {
-      return;
-    }
-
-    if (target.closest(".contact-open-link") || target.closest(".contact-edit-btn")) {
-      openContactDetailsDialog(selected);
       return;
     }
 

@@ -55,6 +55,8 @@ function contactRecord(id, name, mobile, email, companyId) {
 const MASTER_DATA = {
   contacts: [
     contactRecord("c-jim", "Jim Beveridge", "027 833 3030", "admin@jimslocksmithnz.com"),
+    // The same master record stored twice must still render one card and one company link.
+    contactRecord("c-jim", "Jim Beveridge", "027 833 3030", "admin@jimslocksmithnz.com"),
     contactRecord("c-pat", "Pat Painter", "021 222 2222", "pat@example.com", "company-paint"),
     contactRecord("c-sue", "Sue Surveyor", "021 333 3333", "sue@example.com", "company-survey"),
     contactRecord("c-orphan", "Orphan Olive", "021 999 9999", "olive@example.com", "company-olive"),
@@ -149,21 +151,43 @@ function cardFor(page, contactId) {
   return page.locator(`[data-contact-id="${contactId}"]`);
 }
 
-function relationshipsFor(page, contactId) {
+// The repository card shows only a compact summary of the operational links.
+function summaryFor(page, contactId) {
   return page.evaluate(function (id) {
     const card = document.querySelector(`[data-contact-id="${id}"]`);
     if (!card) {
       return null;
     }
+    const linked = card.querySelector(".contact-card-linked");
+    if (!linked) {
+      return null;
+    }
+    return linked.textContent.replace(/\s+/g, " ").replace(/^Linked to:\s*/, "").trim();
+  }, contactId);
+}
+
+// The detailed relationship view lives in Contact Details.
+async function detailRelationshipsFor(page, contactId) {
+  await page.locator(`[data-contact-id="${contactId}"]`).click();
+  const details = await page.evaluate(function () {
+    const backdrop = document.querySelector(".contact-details-backdrop");
+    if (!backdrop) {
+      return null;
+    }
     const groups = {};
-    card.querySelectorAll(".contact-relationship-group").forEach(function (group) {
+    backdrop.querySelectorAll(".contact-details-relationships .contact-relationship-group").forEach(function (group) {
       const type = group.querySelector(".contact-relationship-type").textContent.trim();
       groups[type] = Array.prototype.map.call(group.querySelectorAll("li"), function (item) {
         return item.textContent.trim();
       });
     });
-    return groups;
-  }, contactId);
+    return {
+      title: backdrop.querySelector("#contact-details-title").textContent.trim(),
+      groups: groups,
+    };
+  });
+  await page.locator('.contact-details-backdrop [data-contact-details-action="close"]').first().click();
+  return details;
 }
 
 async function seed(page, url, buildings, propertyId) {
@@ -189,34 +213,76 @@ async function seed(page, url, buildings, propertyId) {
 
     // --- Repository: one card per contact ------------------------------------
     assert.strictEqual(await page.locator("[data-contact-id]").count(), 4, "All Properties must show the whole contact repository");
-    assert.strictEqual(await cardFor(page, "c-jim").count(), 1, "A contact with many relationships must render exactly one card");
+    assert.strictEqual(await cardFor(page, "c-jim").count(), 1, "A duplicated master record must still render exactly one card");
     assert.strictEqual(await cardFor(page, "c-orphan").count(), 1, "A contact with no relationships must still appear in the repository");
 
-    // --- Relationship model --------------------------------------------------
-    const jim = await relationshipsFor(page, "c-jim");
-    assert.deepStrictEqual(
-      jim.Property,
-      ["Ford Onekawa · Locksmith", "Taradale Chambers · Locksmith"],
-      "One contact must link to several properties without duplication"
+    // --- Compact linked-to summary -------------------------------------------
+    assert.strictEqual(
+      await summaryFor(page, "c-jim"),
+      "Ford Onekawa · Taradale Chambers · Jims Locksmith · 1 Calendar item",
+      "The summary must list properties and tenancies once each and count calendar items"
     );
-    assert.deepStrictEqual(jim.Tenancy, ["Jims Locksmith · Tenant Contact"], "The tenancy relationship must be independent");
-    assert.deepStrictEqual(jim.Calendar, ["Annual Security Inspection · Preferred Contact"], "The calendar relationship must be independent");
-    assert.deepStrictEqual(jim.Company, ["Jims Locksmiths Ltd · Company"], "The company association must be preserved");
+    assert.strictEqual(await summaryFor(page, "c-pat"), "Ford Onekawa", "A property-only contact summarises to its property");
+    assert.strictEqual(await summaryFor(page, "c-sue"), "Jims Locksmith", "A tenancy-only contact summarises to its tenancy");
+    assert.strictEqual(await summaryFor(page, "c-orphan"), "Not linked to anything yet.", "An unlinked contact must say so");
+    for (const companyName of ["Jims Locksmiths Ltd", "Olive Co"]) {
+      assert.strictEqual(
+        (await page.locator(".contact-card-linked").allTextContents()).join(" ").includes(companyName),
+        false,
+        `The summary must not list the company relationship (${companyName})`
+      );
+    }
+    assert.ok(
+      (await cardFor(page, "c-jim").textContent()).includes("Jims Locksmiths Ltd"),
+      "The contact's company must still be shown with their details"
+    );
+    assert.strictEqual(
+      await page.locator("#contacts-list .contact-relationship-group").count(),
+      0,
+      "The repository card must not render the full relationship tree"
+    );
 
-    const pat = await relationshipsFor(page, "c-pat");
-    assert.deepStrictEqual(pat.Property, ["Ford Onekawa · Painter"], "A property-only contact keeps its property role");
-    assert.strictEqual(pat.Tenancy, undefined, "A property contact must not gain a tenancy relationship");
-    assert.strictEqual(pat.Calendar, undefined, "A property contact must not gain a calendar relationship");
+    // --- Detailed relationship management stays in Contact Details -----------
+    const jimDetails = await detailRelationshipsFor(page, "c-jim");
+    assert.strictEqual(jimDetails.title, "Jim Beveridge", "Clicking a card must open that contact");
+    assert.deepStrictEqual(
+      jimDetails.groups.Property,
+      ["Ford Onekawa · Locksmith", "Taradale Chambers · Locksmith"],
+      "Contact Details must still show every property relationship and role"
+    );
+    assert.deepStrictEqual(jimDetails.groups.Tenancy, ["Jims Locksmith · Tenant Contact"], "Contact Details must still show tenancy relationships");
+    assert.deepStrictEqual(jimDetails.groups.Calendar, ["Annual Security Inspection · Preferred Contact"], "Contact Details must still show calendar relationships");
+    assert.deepStrictEqual(jimDetails.groups.Company, ["Jims Locksmiths Ltd · Company"], "A duplicated master record must not duplicate the company relationship");
 
-    const sue = await relationshipsFor(page, "c-sue");
-    assert.deepStrictEqual(sue.Tenancy, ["Jims Locksmith · Tenant Contact"], "A tenancy-only contact keeps its tenancy relationship");
-    assert.strictEqual(sue.Property, undefined, "A tenancy contact must not gain a property relationship");
+    const patDetails = await detailRelationshipsFor(page, "c-pat");
+    assert.deepStrictEqual(patDetails.groups.Property, ["Ford Onekawa · Painter"], "A property-only contact keeps its property role");
+    assert.strictEqual(patDetails.groups.Tenancy, undefined, "A property contact must not gain a tenancy relationship");
+    assert.strictEqual(patDetails.groups.Calendar, undefined, "A property contact must not gain a calendar relationship");
 
-    const olive = await relationshipsFor(page, "c-orphan");
-    assert.strictEqual(olive.Property, undefined, "An unlinked contact must have no property relationship");
-    assert.strictEqual(olive.Tenancy, undefined, "An unlinked contact must have no tenancy relationship");
-    assert.strictEqual(olive.Calendar, undefined, "An unlinked contact must have no calendar relationship");
-    assert.deepStrictEqual(olive.Company, ["Olive Co · Company"], "A company association is independent of operational links");
+    const sueDetails = await detailRelationshipsFor(page, "c-sue");
+    assert.deepStrictEqual(sueDetails.groups.Tenancy, ["Jims Locksmith · Tenant Contact"], "A tenancy-only contact keeps its tenancy relationship");
+    assert.strictEqual(sueDetails.groups.Property, undefined, "A tenancy contact must not gain a property relationship");
+
+    const oliveDetails = await detailRelationshipsFor(page, "c-orphan");
+    assert.strictEqual(oliveDetails.groups.Property, undefined, "An unlinked contact must have no property relationship");
+    assert.strictEqual(oliveDetails.groups.Tenancy, undefined, "An unlinked contact must have no tenancy relationship");
+    assert.strictEqual(oliveDetails.groups.Calendar, undefined, "An unlinked contact must have no calendar relationship");
+    assert.deepStrictEqual(oliveDetails.groups.Company, ["Olive Co · Company"], "A company association is independent of operational links");
+
+    // --- Phone and email links act on their own ------------------------------
+    for (const linkCase of [[".contact-phone-link", "tel:027 833 3030"], [".contact-email-link", "mailto:admin@jimslocksmithnz.com"]]) {
+      const result = await page.evaluate(function (payload) {
+        const link = document.querySelector(`[data-contact-id="c-jim"] ${payload.selector}`);
+        // Suppress the external navigation while still letting the delegated card handler run.
+        const guard = function (event) { event.preventDefault(); };
+        document.addEventListener("click", guard, true);
+        link.click();
+        document.removeEventListener("click", guard, true);
+        return { href: link.getAttribute("href"), openedCard: Boolean(document.querySelector(".contact-details-backdrop")) };
+      }, { selector: linkCase[0] });
+      assert.strictEqual(result.href, linkCase[1], `${linkCase[0]} must keep its own action`);
+      assert.strictEqual(result.openedCard, false, `${linkCase[0]} must not open the contact card`);
+    }
 
     // --- Search --------------------------------------------------------------
     for (const term of ["Jim Beveridge", "Jims Locksmiths Ltd", "027 833 3030", "admin@jimslocksmithnz.com"]) {
@@ -253,9 +319,11 @@ async function seed(page, url, buildings, propertyId) {
       return nodes.map(function (node) { return node.getAttribute("data-contact-id"); });
     });
     assert.deepStrictEqual(visible, ["c-jim"], "A selected property must show only its related contacts");
-    const scopedJim = await relationshipsFor(page, "c-jim");
-    assert.deepStrictEqual(scopedJim.Property, ["Taradale Chambers · Locksmith"], "Relationships must be scoped to the selected property");
-    assert.strictEqual(scopedJim.Tenancy, undefined, "Another property's tenancy link must not leak into the scoped view");
+    assert.strictEqual(
+      await summaryFor(page, "c-jim"),
+      "Taradale Chambers",
+      "Relationships must be scoped to the selected property"
+    );
     await page.locator("#app-property-selector").selectOption("");
 
     // --- Tenancy integration must not regress --------------------------------
@@ -291,14 +359,14 @@ async function seed(page, url, buildings, propertyId) {
     assert.strictEqual(afterPropertyUnlink, true, "The schedule API must remain available");
     await moduleButton(page, "dashboard").click();
     await moduleButton(page, "Contacts").click();
-    const afterUnlink = await relationshipsFor(page, "c-jim");
-    assert.deepStrictEqual(afterUnlink.Property, ["Taradale Chambers · Locksmith"], "Unlinking one property must leave the other");
-    assert.deepStrictEqual(afterUnlink.Tenancy, ["Jims Locksmith · Tenant Contact"], "A property unlink must not touch the tenancy link");
-    assert.deepStrictEqual(afterUnlink.Calendar, ["Annual Security Inspection · Preferred Contact"], "A property unlink must not touch the calendar link");
+    const afterUnlink = await detailRelationshipsFor(page, "c-jim");
+    assert.deepStrictEqual(afterUnlink.groups.Property, ["Taradale Chambers · Locksmith"], "Unlinking one property must leave the other");
+    assert.deepStrictEqual(afterUnlink.groups.Tenancy, ["Jims Locksmith · Tenant Contact"], "A property unlink must not touch the tenancy link");
+    assert.deepStrictEqual(afterUnlink.groups.Calendar, ["Annual Security Inspection · Preferred Contact"], "A property unlink must not touch the calendar link");
     assert.strictEqual(await cardFor(page, "c-jim").count(), 1, "Unlinking must never delete the master contact");
     assert.strictEqual(
       await page.evaluate(function () { return JSON.parse(localStorage.getItem("buildingManagerMasterData")).contacts.length; }),
-      4,
+      5,
       "Unlinking must never delete a contact record"
     );
     await page.close();
@@ -332,12 +400,12 @@ async function seed(page, url, buildings, propertyId) {
     const restoredIds = await targetPage.evaluate(function () {
       return JSON.parse(localStorage.getItem("buildingManagerMasterData")).contacts.map(function (c) { return c.id; }).sort();
     });
-    assert.deepStrictEqual(restoredIds, ["c-jim", "c-orphan", "c-pat", "c-sue"], "Restore must preserve contact IDs");
-    const restoredJim = await relationshipsFor(targetPage, "c-jim");
-    assert.deepStrictEqual(restoredJim.Property, ["Ford Onekawa · Locksmith", "Taradale Chambers · Locksmith"], "Restore must preserve property relationships and roles");
-    assert.deepStrictEqual(restoredJim.Tenancy, ["Jims Locksmith · Tenant Contact"], "Restore must preserve tenancy relationships");
-    assert.deepStrictEqual(restoredJim.Calendar, ["Annual Security Inspection · Preferred Contact"], "Restore must preserve calendar relationships");
-    assert.deepStrictEqual(restoredJim.Company, ["Jims Locksmiths Ltd · Company"], "Restore must preserve company associations");
+    assert.deepStrictEqual(restoredIds, ["c-jim", "c-jim", "c-orphan", "c-pat", "c-sue"], "Restore must preserve every stored contact record");
+    const restoredJim = await detailRelationshipsFor(targetPage, "c-jim");
+    assert.deepStrictEqual(restoredJim.groups.Property, ["Ford Onekawa · Locksmith", "Taradale Chambers · Locksmith"], "Restore must preserve property relationships and roles");
+    assert.deepStrictEqual(restoredJim.groups.Tenancy, ["Jims Locksmith · Tenant Contact"], "Restore must preserve tenancy relationships");
+    assert.deepStrictEqual(restoredJim.groups.Calendar, ["Annual Security Inspection · Preferred Contact"], "Restore must preserve calendar relationships");
+    assert.deepStrictEqual(restoredJim.groups.Company, ["Jims Locksmiths Ltd · Company"], "Restore must preserve company associations");
     await targetContext.close();
 
     assert.deepStrictEqual(pageErrors, [], "The contacts repository must not throw a browser exception");

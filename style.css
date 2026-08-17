@@ -2642,6 +2642,26 @@ body {
   font-size: var(--type-meta-contacts);
 }
 
+.contact-card-name {
+  margin: 0 0 0.15rem;
+}
+
+.contact-card-company {
+  margin: 0 0 0.3rem;
+  color: var(--text-muted);
+}
+
+.contact-card-linked {
+  margin-top: 0.45rem;
+  color: var(--text-muted);
+  font-size: var(--type-meta-contacts);
+  overflow-wrap: anywhere;
+}
+
+.contact-details-relationships .contact-relationship-group + .contact-relationship-group {
+  margin-top: 0.45rem;
+}
+
 .contact-role-pill {
   background: #283a50;
   border-color: #3b5678;
