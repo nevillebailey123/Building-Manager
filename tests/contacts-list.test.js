@@ -11,6 +11,8 @@ const context = {
   contactsList: { innerHTML: "" },
   activeBuildingId: "building-1",
   contactsSearchQuery: "",
+  contactsRelationshipFilterValue: "",
+  CONTACT_RELATIONSHIP_TYPES: ["Property", "Tenancy", "Calendar", "Company"],
   findBuildingById() {
     return { id: "building-1" };
   },
@@ -20,23 +22,26 @@ const context = {
   getCompanyNameById(companyId, fallback) {
     return companyId === "company-b" ? "Dawn Co" : fallback;
   },
-  getBuildingRelationshipForContact(building, contact) {
-    return contact.relationship || "Other";
+  getContactRelationshipIndex() {
+    return new Map([
+      ["c1", [
+        { type: "Property", targetId: "building-1", targetName: "Ford Onekawa", role: "Locksmith" },
+        { type: "Property", targetId: "building-2", targetName: "Taradale Chambers", role: "Locksmith" },
+        { type: "Tenancy", targetId: "ten-1", targetName: "Jims Locksmith", role: "Tenant Contact" },
+        { type: "Calendar", targetId: "cal-1", targetName: "Annual Security Inspection", role: "Preferred Contact" },
+      ]],
+      ["c2", []],
+    ]);
   },
-  getRelationshipForContactInFilter(contact) {
-    return contact.relationship || "Other";
-  },
-  getScheduleItemsLinkedToContact() {
-    return [];
-  },
-  getScheduleItemsLinkedToContactForFilter() {
-    return [];
+  groupRelationshipsByType(relationships) {
+    return ["Property", "Tenancy", "Calendar", "Company"]
+      .map(function (type) {
+        return { type: type, items: relationships.filter(function (item) { return item.type === type; }) };
+      })
+      .filter(function (group) { return group.items.length > 0; });
   },
   dedupeContacts(contacts) {
     return contacts;
-  },
-  renderContactRoleBadge(role) {
-    return `<span>${role}</span>`;
   },
   escapeHtml(value) {
     return String(value)
@@ -50,8 +55,8 @@ vm.createContext(context);
 vm.runInContext(renderContactListSource, context);
 
 const contacts = [
-  { id: "c2", name: "Zed Example", companyId: "company-a", mobile: "", email: "", relationship: "Accountant" },
-  { id: "c1", name: "Amy Example", companyId: "company-b", mobile: "", email: "", relationship: "Locksmith" },
+  { id: "c2", name: "Zed Example", companyId: "company-a", mobile: "", email: "" },
+  { id: "c1", name: "Amy Example", companyId: "company-b", mobile: "021 111 1111", email: "amy@example.com" },
 ];
 
 context.contacts = contacts;
@@ -59,12 +64,48 @@ vm.runInContext("renderContactList(contacts);", context);
 
 const rendered = context.contactsList.innerHTML;
 assert.ok(!rendered.includes("contact-group-block"), "Contacts list should not render group wrappers");
-assert.ok(!rendered.includes("contact-relationship-block"), "Contacts list should not render relationship section wrappers");
 assert.ok(!rendered.includes("PROFESSIONAL"), "Contacts list should not render category headings");
-assert.ok(!rendered.includes("Other Relationships"), "Contacts list should not render subgroup headings");
-assert.ok(rendered.includes("Role:"), "Contacts cards should still show the role field");
-assert.ok(rendered.includes("Locksmith"), "Contacts cards should still show the role value");
+assert.strictEqual(
+  (rendered.match(/data-contact-id="c1"/g) || []).length,
+  1,
+  "A contact with several relationships must still render exactly one card"
+);
+assert.ok(rendered.includes("Linked to"), "Contact cards must show their relationships");
+["Property", "Tenancy", "Calendar"].forEach(function (type) {
+  assert.ok(rendered.includes(`contact-relationship-type\">${type}<`), `Relationships must be grouped under ${type}`);
+});
+assert.ok(rendered.includes("Ford Onekawa · Locksmith"), "A property relationship must show its target and role");
+assert.ok(rendered.includes("Taradale Chambers · Locksmith"), "A second property relationship must also be listed");
+assert.ok(rendered.includes("Jims Locksmith · Tenant Contact"), "A tenancy relationship must show its target and role");
+assert.ok(rendered.includes("Annual Security Inspection · Preferred Contact"), "A calendar relationship must show its target and role");
+assert.ok(rendered.includes("Not linked to anything yet."), "A contact with no relationships must say so");
 assert.ok(rendered.indexOf("Amy Example") < rendered.indexOf("Zed Example"), "Contacts should be alphabetically ordered by name");
+
+// Search covers name, company, phone and email.
+[
+  ["amy", "c1"],
+  ["dawn co", "c1"],
+  ["021 111", "c1"],
+  ["amy@example.com", "c1"],
+  ["annual security", "c1"],
+].forEach(function (testCase) {
+  context.contactsSearchQuery = testCase[0];
+  vm.runInContext("renderContactList(contacts);", context);
+  const html = context.contactsList.innerHTML;
+  assert.ok(html.includes(`data-contact-id="${testCase[1]}"`), `Search "${testCase[0]}" must match the expected contact`);
+  assert.strictEqual(html.includes('data-contact-id="c2"'), false, `Search "${testCase[0]}" must exclude other contacts`);
+});
+context.contactsSearchQuery = "";
+
+// The relationship filter narrows by relationship type without duplicating contacts.
+["Property", "Tenancy", "Calendar"].forEach(function (type) {
+  context.contactsRelationshipFilterValue = type;
+  vm.runInContext("renderContactList(contacts);", context);
+  const html = context.contactsList.innerHTML;
+  assert.strictEqual((html.match(/data-contact-id="c1"/g) || []).length, 1, `${type} filter must keep one card for c1`);
+  assert.strictEqual(html.includes('data-contact-id="c2"'), false, `${type} filter must exclude the unlinked contact`);
+});
+context.contactsRelationshipFilterValue = "";
 
 console.log("contacts list regression test passed");
 
@@ -139,3 +180,44 @@ assert.deepStrictEqual(
 );
 
 console.log("contact building filter regression test passed");
+
+// --- Setup wizard creates Property relationships only -------------------------
+const setupStart = appSource.indexOf("const buildingId = window.BuildingStorage.createId();");
+const setupEnd = appSource.indexOf("window.BuildingStorage.addBuilding(building);", setupStart);
+assert.ok(setupStart >= 0 && setupEnd > setupStart, "Setup wizard building assembly must exist");
+const setupSource = appSource.slice(setupStart, setupEnd);
+assert.ok(
+  setupSource.includes("buildingContactAssignments: linkedContactIds.slice()"),
+  "Setup must record its linked contacts as Property relationships"
+);
+assert.strictEqual(
+  setupSource.includes("buildingContactAssignments: tenancy ?"),
+  false,
+  "Setup must not skip Property relationships when a tenancy is created"
+);
+
+const setupTenancyStart = appSource.indexOf("    let tenancy = null;\n    if (setupState.tenancy) {");
+const setupTenancyEnd = appSource.indexOf("const propertyTemplates = setupState.configuredScheduleItems", setupTenancyStart);
+assert.ok(setupTenancyStart >= 0 && setupTenancyEnd > setupTenancyStart, "Setup wizard tenancy assembly must exist");
+const setupTenancySource = appSource.slice(setupTenancyStart, setupTenancyEnd);
+assert.ok(
+  setupTenancySource.includes("contactRefs: []"),
+  "Setup must not silently create Tenancy relationships from Property contacts"
+);
+assert.strictEqual(
+  setupTenancySource.includes("contactRefs: linkedContactIds"),
+  false,
+  "Setup Property contacts must never become Tenancy contacts"
+);
+
+console.log("setup contact relationship regression test passed");
+
+// --- Relationship layer derives each type from its own canonical source -------
+const relationshipStart = appSource.indexOf("function collectContactRelationshipsForBuilding");
+const relationshipEnd = appSource.indexOf("\n  function getContactRelationshipIndex", relationshipStart);
+assert.ok(relationshipStart >= 0 && relationshipEnd > relationshipStart, "The relationship layer must exist");
+const relationshipSource = appSource.slice(relationshipStart, relationshipEnd);
+assert.ok(relationshipSource.includes("buildingContactAssignments"), "Property relationships must come from buildingContactAssignments");
+assert.ok(relationshipSource.includes("getTenancyContactRefs(tenancy)"), "Tenancy relationships must come from tenancy.contactRefs");
+assert.ok(relationshipSource.includes("item.preferredContactId"), "Calendar relationships must come from preferredContactId");
+assert.ok(relationshipSource.includes("isDuplicate"), "Identical relationships must be deduplicated");

@@ -2603,6 +2603,45 @@ body {
   min-width: 0;
 }
 
+.contact-card-relationships {
+  align-content: start;
+  gap: 0.45rem;
+}
+
+.contact-relationship-heading {
+  margin: 0;
+  color: var(--text-main);
+  font-size: var(--type-meta-contacts);
+  font-weight: 600;
+}
+
+.contact-relationship-group {
+  display: grid;
+  gap: 0.1rem;
+  min-width: 0;
+}
+
+.contact-relationship-type {
+  margin: 0;
+  color: var(--text-main);
+  font-size: var(--type-meta-contacts);
+  font-weight: 600;
+}
+
+.contact-relationship-list {
+  margin: 0;
+  padding-left: 1rem;
+  color: var(--text-muted);
+  font-size: var(--type-meta-contacts);
+  overflow-wrap: anywhere;
+}
+
+.contact-relationship-empty {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: var(--type-meta-contacts);
+}
+
 .contact-role-pill {
   background: #283a50;
   border-color: #3b5678;

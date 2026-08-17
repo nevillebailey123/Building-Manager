@@ -599,13 +599,26 @@
         </section>
 
         <section id="contacts-list-card" class="module-content-card">
-          <label class="visually-hidden" for="contacts-search">Search contacts</label>
-          <input
-            id="contacts-search"
-            class="search-input"
-            type="search"
-            placeholder="Search by name, company, or role"
-          />
+          <div class="building-filter-row documents-filter-row" aria-label="Contact filters">
+            <label>
+              <span class="schedule-filter-label">Search contacts</span>
+              <input
+                id="contacts-search"
+                class="search-input"
+                type="search"
+                placeholder="Search by name, company, phone or email"
+              />
+            </label>
+            <label>
+              <span class="schedule-filter-label">Relationship</span>
+              <select id="contacts-relationship-filter" class="schedule-filter-select">
+                <option value="">All</option>
+                <option>Property</option>
+                <option>Tenancy</option>
+                <option>Calendar</option>
+              </select>
+            </label>
+          </div>
           <section id="contacts-list" class="building-list" aria-live="polite"></section>
         </section>
 

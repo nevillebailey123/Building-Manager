@@ -255,24 +255,24 @@ function moduleButton(page, key) {
     assert.strictEqual(restoredRecord.archived, false, "Restoring must clear the archived flag");
     assert.ok(restoredRecord.documents.length >= 1, "Restoring must keep documents");
 
-    // 10. Permanent deletion stays behind a confirmation and only inside Edit Property.
-    let confirmed = "";
-    page.removeAllListeners("dialog");
-    page.on("dialog", function (dialog) {
-      confirmed = dialog.message();
-      dialog.dismiss();
-    });
+    // 10. Permanent deletion stays behind an in-app confirmation and only inside Edit Property.
+    const deleteConfirm = page.locator("[data-property-delete-confirm]");
     await page.locator('[data-settings-property-id="beta"] [data-settings-property-action="edit"]').click();
     await page.locator("#edit-delete-property-btn").click();
-    assert.ok(confirmed.includes("Permanently delete"), "Permanent deletion must confirm first");
+    await deleteConfirm.waitFor({ state: "visible" });
+    assert.ok((await deleteConfirm.textContent()).includes("Beta Tower"), "The confirmation must name the property");
+    await deleteConfirm.locator('[data-property-delete-action="cancel"]').click();
     assert.strictEqual(await isActive(page, "edit-view"), true, "Dismissing the confirmation must stay in Edit Property");
     await page.locator("#cancel-edit-btn").click();
     assert.strictEqual(await page.locator("[data-settings-property-id]").count(), 2, "Dismissing the confirmation must keep the property");
 
-    page.removeAllListeners("dialog");
-    page.on("dialog", function (dialog) { dialog.accept(); });
     await page.locator('[data-settings-property-id="beta"] [data-settings-property-action="edit"]').click();
     await page.locator("#edit-delete-property-btn").click();
+    await deleteConfirm.waitFor({ state: "visible" });
+    await deleteConfirm.locator('[data-property-delete-action="delete"]').click();
+    await page.waitForFunction(function () {
+      return document.getElementById("settings-view").classList.contains("is-active");
+    });
     assert.strictEqual(await isActive(page, "settings-view"), true, "Confirmed deletion must return to Settings");
     assert.strictEqual(await page.locator("[data-settings-property-id]").count(), 1, "Confirming must permanently delete the property");
     assert.deepStrictEqual(

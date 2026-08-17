@@ -101,6 +101,7 @@
   const contactsListCard = document.getElementById("contacts-list-card");
   const contactsList = document.getElementById("contacts-list");
   const contactsSearch = document.getElementById("contacts-search");
+  const contactsRelationshipFilter = document.getElementById("contacts-relationship-filter");
   const contactsCreateBtn = document.getElementById("contacts-create-btn");
   const contactFormCard = document.getElementById("contact-form-card");
   const contactFormTitle = document.getElementById("contact-form-title");
@@ -204,6 +205,7 @@
   let contactFormFilterBuildingId = "";
   let activeContactId = "";
   let contactsSearchQuery = "";
+  let contactsRelationshipFilterValue = "";
   let companyFormMode = "add";
   let activeCompanyId = "";
   let templateFormMode = "add";
@@ -995,6 +997,122 @@
     }) || null;
   }
 
+  // --- Contact relationship layer ------------------------------------------
+  // Contacts are stored once in master data. Their links to Properties, Tenancies,
+  // Calendar items and Companies are derived here from the canonical id fields, so there is
+  // one consolidated read model without a second persisted collection that could drift.
+  const CONTACT_RELATIONSHIP_TYPES = ["Property", "Tenancy", "Calendar", "Company"];
+
+  function buildContactRelationship(type, targetId, targetName, role, building) {
+    return {
+      type: type,
+      targetId: String(targetId || ""),
+      targetName: String(targetName || "Not set"),
+      role: String(role || "").trim() || "Linked",
+      buildingId: building ? String(building.id || "") : "",
+      buildingName: building ? String(building.buildingName || "") : "",
+    };
+  }
+
+  function collectContactRelationshipsForBuilding(building, relationshipsByContactId) {
+    const normalized = ensureWorkflowCollections(building);
+    const add = function (contactId, relationship) {
+      const id = String(contactId || "").trim();
+      if (!id) {
+        return;
+      }
+      if (!relationshipsByContactId.has(id)) {
+        relationshipsByContactId.set(id, []);
+      }
+      const list = relationshipsByContactId.get(id);
+      const isDuplicate = list.some(function (existing) {
+        return existing.type === relationship.type
+          && existing.targetId === relationship.targetId
+          && existing.role === relationship.role;
+      });
+      if (!isDuplicate) {
+        list.push(relationship);
+      }
+    };
+
+    const relationshipMap = getBuildingContactRelationshipMap(normalized);
+    (Array.isArray(normalized.buildingContactAssignments) ? normalized.buildingContactAssignments : [])
+      .forEach(function (contactId) {
+        add(contactId, buildContactRelationship(
+          "Property",
+          normalized.id,
+          normalized.buildingName,
+          relationshipMap[contactId] || "Property Contact",
+          normalized
+        ));
+      });
+
+    getAllTenanciesForBuilding(normalized).forEach(function (tenancy) {
+      getTenancyContactRefs(tenancy).forEach(function (contactId) {
+        add(contactId, buildContactRelationship(
+          "Tenancy",
+          tenancy.id,
+          tenancy.tradingName || tenancy.companyName || "Tenancy",
+          "Tenant Contact",
+          normalized
+        ));
+      });
+    });
+
+    (normalized.scheduleItems || []).forEach(function (item) {
+      add(item.preferredContactId, buildContactRelationship(
+        "Calendar",
+        item.id,
+        item.taskName || "Calendar Item",
+        "Preferred Contact",
+        normalized
+      ));
+    });
+  }
+
+  // Relationships across the current Property selector scope, keyed by contact id.
+  function getContactRelationshipIndex() {
+    const relationshipsByContactId = new Map();
+    getBuildingsForFilter().forEach(function (building) {
+      collectContactRelationshipsForBuilding(building, relationshipsByContactId);
+    });
+
+    getContacts().forEach(function (contact) {
+      const companyName = contact && contact.companyId ? getCompanyNameById(contact.companyId, "") : "";
+      if (!contact || !contact.companyId || !companyName) {
+        return;
+      }
+      const id = String(contact.id || "").trim();
+      if (!id || !relationshipsByContactId.has(id)) {
+        relationshipsByContactId.set(id, relationshipsByContactId.get(id) || []);
+      }
+      relationshipsByContactId.get(id).push(
+        buildContactRelationship("Company", contact.companyId, companyName, "Company", null)
+      );
+    });
+
+    return relationshipsByContactId;
+  }
+
+  function getRelationshipsForContact(contactId) {
+    return getContactRelationshipIndex().get(String(contactId || "").trim()) || [];
+  }
+
+  function groupRelationshipsByType(relationships) {
+    return CONTACT_RELATIONSHIP_TYPES
+      .map(function (type) {
+        return {
+          type: type,
+          items: relationships.filter(function (relationship) {
+            return relationship.type === type;
+          }),
+        };
+      })
+      .filter(function (group) {
+        return group.items.length > 0;
+      });
+  }
+
   function findContactById(contactId) {
     return getContacts().find(function (contact) {
       return contact.id === contactId;
@@ -1033,18 +1151,6 @@
     });
   }
 
-  function ensureTenantContactRefs(building) {
-    if (!building.tenancy) {
-      return [];
-    }
-
-    if (Array.isArray(building.tenancy.contactRefs)) {
-      return building.tenancy.contactRefs;
-    }
-
-    return [];
-  }
-
   function normalizeRelationshipLabel(value) {
     const trimmed = String(value || "").trim();
     if (!trimmed) {
@@ -1077,13 +1183,15 @@
       return {};
     }
 
-    if (building.tenancy) {
-      const tenancyMap = building.tenancy.contactRelationshipById;
-      return tenancyMap && typeof tenancyMap === "object" ? tenancyMap : {};
-    }
+    const map = building.contactRelationshipById && typeof building.contactRelationshipById === "object"
+      ? building.contactRelationshipById
+      : {};
+    // Legacy data kept the property relationship map on the tenancy; still read it so labels survive.
+    const legacyMap = building.tenancy && building.tenancy.contactRelationshipById && typeof building.tenancy.contactRelationshipById === "object"
+      ? building.tenancy.contactRelationshipById
+      : {};
 
-    const map = building.contactRelationshipById;
-    return map && typeof map === "object" ? map : {};
+    return { ...legacyMap, ...map };
   }
 
   function getBuildingRelationshipForContact(building, contact) {
@@ -1100,28 +1208,10 @@
     return normalizeRelationshipLabel(contact.responsibility || "Other");
   }
 
+  // Property-level contact links always live on the building; tenancy.contactRefs is tenancy-only.
   function applyContactRelationshipToBuilding(building, contactId, relationship) {
     const normalizedRelationship = normalizeRelationshipLabel(relationship);
     const now = new Date().toISOString();
-
-    if (building.tenancy) {
-      const refs = ensureTenantContactRefs(building);
-      const nextRefs = refs.includes(contactId) ? refs.slice() : refs.concat(contactId);
-      const nextMap = {
-        ...getBuildingContactRelationshipMap(building),
-        [contactId]: normalizedRelationship,
-      };
-
-      return {
-        ...building,
-        tenancy: {
-          ...building.tenancy,
-          contactRefs: nextRefs,
-          contactRelationshipById: nextMap,
-        },
-        lastUpdated: now,
-      };
-    }
 
     const assignments = Array.isArray(building.buildingContactAssignments) ? building.buildingContactAssignments : [];
     const nextAssignments = assignments.includes(contactId) ? assignments.slice() : assignments.concat(contactId);
@@ -1144,22 +1234,6 @@
       ...currentMap,
     };
     delete nextMap[contactId];
-
-    if (building.tenancy) {
-      const refs = ensureTenantContactRefs(building).filter(function (refId) {
-        return refId !== contactId;
-      });
-
-      return {
-        ...building,
-        tenancy: {
-          ...building.tenancy,
-          contactRefs: refs,
-          contactRelationshipById: nextMap,
-        },
-        lastUpdated: new Date().toISOString(),
-      };
-    }
 
     const assignments = Array.isArray(building.buildingContactAssignments) ? building.buildingContactAssignments : [];
     return {
@@ -2057,7 +2131,7 @@
         status: "Occupied",
         notes: setupState.tenancy.notes,
         contacts: [],
-        contactRefs: linkedContactIds.slice(),
+        contactRefs: [],
         documents: [],
         lease: {
           notes: "",
@@ -2134,7 +2208,7 @@
       createdDate: now,
       lastUpdated: now,
       tenancy: tenancy,
-      buildingContactAssignments: tenancy ? [] : linkedContactIds.slice(),
+      buildingContactAssignments: linkedContactIds.slice(),
       buildingRoles: [],
       documents: [],
       documentCategories: createDefaultDocumentCategories(),
@@ -4422,22 +4496,41 @@
     });
   }
 
+  // A property shows its own contacts plus every contact linked to one of its tenancies.
+  function getContactIdsForBuilding(building) {
+    if (!building) {
+      return [];
+    }
+
+    const ids = [];
+    const seen = new Set();
+    const add = function (contactId) {
+      const id = String(contactId || "").trim();
+      if (!id || seen.has(id)) {
+        return;
+      }
+      seen.add(id);
+      ids.push(id);
+    };
+
+    (Array.isArray(building.buildingContactAssignments) ? building.buildingContactAssignments : []).forEach(add);
+    getAllTenanciesForBuilding(building).forEach(function (tenancy) {
+      getTenancyContactRefs(tenancy).forEach(add);
+    });
+
+    return ids;
+  }
+
   function getContactsForBuilding(building) {
     if (!building) {
       return [];
     }
 
-    let refs = [];
-    if (building.tenancy) {
-      refs = ensureTenantContactRefs(building);
+    const refs = getContactIdsForBuilding(building);
 
-      // Backward compatibility: if legacy embedded contacts exist but refs do not,
-      // show those contacts until migration links are created.
-      if (refs.length === 0 && Array.isArray(building.tenancy.contacts) && building.tenancy.contacts.length > 0) {
-        return dedupeContacts(building.tenancy.contacts);
-      }
-    } else {
-      refs = Array.isArray(building.buildingContactAssignments) ? building.buildingContactAssignments : [];
+    // Backward compatibility: show legacy embedded tenancy contacts until migration links are created.
+    if (refs.length === 0 && building.tenancy && Array.isArray(building.tenancy.contacts) && building.tenancy.contacts.length > 0) {
+      return dedupeContacts(building.tenancy.contacts);
     }
 
     return dedupeContacts(refs
@@ -4454,6 +4547,64 @@
     return getContactsForBuilding(building);
   }
 
+  // Property links used to be written into tenancy.contactRefs, which made every property contact
+  // appear on every tenancy card. Only property links also recorded a relationship label, so those
+  // are moved back to the property; refs without one were created by the tenancy Add Link flow.
+  function migratePropertyContactsOutOfTenancies() {
+    window.BuildingStorage.getBuildings().forEach(function (building) {
+      const tenancies = getAllTenanciesForBuilding(building);
+      if (tenancies.length === 0) {
+        return;
+      }
+
+      const legacyRelationshipMap = building.tenancy && building.tenancy.contactRelationshipById
+        && typeof building.tenancy.contactRelationshipById === "object"
+        ? building.tenancy.contactRelationshipById
+        : {};
+      if (Object.keys(legacyRelationshipMap).length === 0) {
+        return;
+      }
+
+      const propertyRefs = Array.isArray(building.buildingContactAssignments)
+        ? building.buildingContactAssignments.slice()
+        : [];
+      let changed = false;
+
+      const nextTenancies = tenancies.map(function (tenancy) {
+        const refs = getTenancyContactRefs(tenancy);
+        const keptRefs = refs.filter(function (contactId) {
+          if (!Object.prototype.hasOwnProperty.call(legacyRelationshipMap, contactId)) {
+            return true;
+          }
+
+          if (!propertyRefs.includes(contactId)) {
+            propertyRefs.push(contactId);
+          }
+          changed = true;
+          return false;
+        });
+
+        return keptRefs.length === refs.length ? tenancy : { ...tenancy, contactRefs: keptRefs };
+      });
+
+      if (!changed) {
+        return;
+      }
+
+      window.BuildingStorage.updateBuilding({
+        ...building,
+        buildingContactAssignments: propertyRefs,
+        contactRelationshipById: {
+          ...legacyRelationshipMap,
+          ...(building.contactRelationshipById && typeof building.contactRelationshipById === "object" ? building.contactRelationshipById : {}),
+        },
+        tenancies: nextTenancies,
+        tenancy: nextTenancies[0] || null,
+        lastUpdated: building.lastUpdated || new Date().toISOString(),
+      });
+    });
+  }
+
   function migrateBuildingRolesIntoContactsForAllBuildings() {
     const buildings = window.BuildingStorage.getBuildings();
     buildings.forEach(function (building) {
@@ -4462,9 +4613,7 @@
         return;
       }
 
-      const refs = building.tenancy
-        ? (Array.isArray(building.tenancy.contactRefs) ? building.tenancy.contactRefs.slice() : [])
-        : (Array.isArray(building.buildingContactAssignments) ? building.buildingContactAssignments.slice() : []);
+      const refs = Array.isArray(building.buildingContactAssignments) ? building.buildingContactAssignments.slice() : [];
 
       let buildingChanged = false;
       roles.forEach(function (roleItem) {
@@ -4499,18 +4648,6 @@
       });
 
       if (buildingChanged) {
-        if (building.tenancy) {
-          window.BuildingStorage.updateBuilding({
-            ...building,
-            tenancy: {
-              ...building.tenancy,
-              contactRefs: refs,
-            },
-            lastUpdated: building.lastUpdated || new Date().toISOString(),
-          });
-          return;
-        }
-
         window.BuildingStorage.updateBuilding({
           ...building,
           buildingContactAssignments: refs,
@@ -5361,39 +5498,43 @@
 
   function renderContactList(contacts) {
     const query = normalizeText(contactsSearchQuery);
+    const relationshipIndex = getContactRelationshipIndex();
     const enriched = dedupeContacts(contacts)
       .map(function (contact) {
         const companyName = getCompanyNameById(contact.companyId, "Not set");
-        const relationship = getRelationshipForContactInFilter(contact);
-        const linkedItems = getScheduleItemsLinkedToContactForFilter(contact.id);
-        const relatedBuildings = typeof getRelatedBuildingNamesForContact === "function"
-          ? getRelatedBuildingNamesForContact(contact.id)
-          : [];
-        const linkedItemsSummary = linkedItems.length === 0
-          ? "None"
-          : linkedItems.slice(0, 3).map(function (item) {
-            return item.taskName;
-          }).join(", ");
-        const linkedItemsMoreCount = linkedItems.length > 3 ? linkedItems.length - 3 : 0;
+        const relationships = relationshipIndex.get(String(contact.id || "")) || [];
         return {
           contact: contact,
           companyName: companyName,
-          relationship: relationship,
-          relatedBuildings: relatedBuildings,
-          linkedItemsSummary: linkedItemsSummary,
-          linkedItemsCount: linkedItems.length,
-          linkedItemsMoreCount: linkedItemsMoreCount,
+          relationships: relationships,
+          relationshipGroups: groupRelationshipsByType(relationships),
         };
       })
       .filter(function (entry) {
+        if (contactsRelationshipFilterValue) {
+          const hasType = entry.relationships.some(function (relationship) {
+            return relationship.type === contactsRelationshipFilterValue;
+          });
+          if (!hasType) {
+            return false;
+          }
+        }
+
         if (!query) {
           return true;
         }
 
-        return normalizeText(entry.contact.name).includes(query)
-          || normalizeText(entry.companyName).includes(query)
-          || normalizeText(entry.relationship).includes(query)
-          || normalizeText(entry.linkedItemsSummary).includes(query);
+        return normalizeText([
+          entry.contact.name,
+          entry.companyName,
+          entry.contact.mobile,
+          entry.contact.officePhone,
+          entry.contact.email,
+          entry.contact.responsibility,
+          entry.relationships.map(function (relationship) {
+            return `${relationship.targetName} ${relationship.role}`;
+          }).join(" "),
+        ].join(" ")).includes(query);
       })
       .sort(function (left, right) {
         const leftName = normalizeText(left.contact.name);
@@ -5410,6 +5551,24 @@
     if (enriched.length === 0) {
       contactsList.innerHTML = '<p class="module-placeholder">No contacts match your search.</p>';
       return;
+    }
+
+    function renderRelationshipGroups(entry) {
+      if (entry.relationshipGroups.length === 0) {
+        return '<p class="contact-relationship-empty">Not linked to anything yet.</p>';
+      }
+
+      return entry.relationshipGroups.map(function (group) {
+        const items = group.items.map(function (relationship) {
+          return `<li>${escapeHtml(relationship.targetName)} \u00b7 ${escapeHtml(relationship.role)}</li>`;
+        }).join("");
+        return `
+          <div class="contact-relationship-group">
+            <p class="contact-relationship-type">${escapeHtml(group.type)}</p>
+            <ul class="contact-relationship-list">${items}</ul>
+          </div>
+        `;
+      }).join("");
     }
 
     function buildContactCard(entry) {
@@ -5430,13 +5589,12 @@
           <div class="contact-card-layout">
             <div class="contact-card-column contact-card-column-left">
               <p><strong>Company:</strong> <button class="inline-link company-open-link" type="button" data-company-id="${contact.companyId}">${entry.companyName}</button></p>
-              ${entry.relatedBuildings.length > 0 ? `<p><strong>Propert${entry.relatedBuildings.length === 1 ? "y" : "ies"}:</strong> ${escapeHtml(entry.relatedBuildings.join(", "))}</p>` : ""}
-              <p><strong>Role:</strong> ${renderContactRoleBadge(entry.relationship)}</p>
-              <p><strong>Linked Items:</strong> ${escapeHtml(entry.linkedItemsSummary)}${entry.linkedItemsMoreCount > 0 ? ` (+${entry.linkedItemsMoreCount} more)` : ""}</p>
-            </div>
-            <div class="contact-card-column contact-card-column-right">
               <p><strong>Phone:</strong> ${mobileLink}</p>
               <p><strong>Email:</strong> ${emailLink}</p>
+            </div>
+            <div class="contact-card-column contact-card-column-right contact-card-relationships">
+              <p class="contact-relationship-heading">Linked to</p>
+              ${renderRelationshipGroups(entry)}
             </div>
           </div>
         </article>
@@ -5699,9 +5857,7 @@
       return [];
     }
 
-    const contactRefs = building.tenancy
-      ? (Array.isArray(building.tenancy.contactRefs) ? building.tenancy.contactRefs : [])
-      : (Array.isArray(building.buildingContactAssignments) ? building.buildingContactAssignments : []);
+    const contactRefs = getContactIdsForBuilding(building);
     const ids = building.tenancy && building.tenancy.companyId ? [building.tenancy.companyId] : [];
     contactRefs.forEach(function (contactId) {
       const contact = findContactById(contactId);
@@ -7987,6 +8143,12 @@
 
   function handleContactSearch() {
     contactsSearchQuery = String(contactsSearch.value || "");
+    renderContactSectionState("list");
+  }
+
+  function handleContactsRelationshipFilterChange() {
+    const value = String(contactsRelationshipFilter ? contactsRelationshipFilter.value : "").trim();
+    contactsRelationshipFilterValue = CONTACT_RELATIONSHIP_TYPES.indexOf(value) === -1 ? "" : value;
     renderContactSectionState("list");
   }
 
@@ -11063,16 +11225,83 @@
 
   function handleDeletePropertyFromEditor() {
     const building = getEditingProperty();
-    if (building) {
-      deletePropertyPermanently(building);
-    }
-  }
-
-  function setBuildingArchived(building, archived) {
-    if (archived && !window.confirm(`Archive "${building.buildingName}"?\n\nAll tenancies, contacts, calendar items, documents and history are kept. The property is hidden from the operational Property selector until it is restored.`)) {
+    if (!building) {
       return;
     }
 
+    confirmPropertyDeleteDialog(building).then(function (confirmed) {
+      if (confirmed) {
+        deletePropertyPermanently(building);
+      }
+    });
+  }
+
+  // In-app modal, matching the rest of the app: native window.confirm is suppressed in
+  // sandboxed/embedded browsers, which is what made these actions silently do nothing.
+  function confirmPropertyDeleteDialog(building) {
+    return new Promise(function (resolve) {
+      const backdrop = window.document.createElement("div");
+      backdrop.className = "template-delete-modal-backdrop app-modal-backdrop-confirm";
+      backdrop.setAttribute("data-property-delete-confirm", building.id || "");
+
+      const dialog = window.document.createElement("div");
+      dialog.className = "template-delete-modal";
+      dialog.setAttribute("role", "dialog");
+      dialog.setAttribute("aria-modal", "true");
+      dialog.setAttribute("aria-labelledby", "property-delete-modal-title");
+
+      dialog.innerHTML = `
+        <h3 id="property-delete-modal-title">Delete Property</h3>
+        <p>Permanently delete <strong>${escapeHtml(building.buildingName || "this property")}</strong>?</p>
+        <p>This removes the property and its tenancies, calendar items, documents and history. Contacts, companies and master templates in the central repository are kept. This action cannot be undone.</p>
+        <div class="template-delete-modal-actions">
+          <button class="btn btn-secondary" type="button" data-property-delete-action="cancel">Cancel</button>
+          <button class="btn template-delete-btn" type="button" data-property-delete-action="delete">Delete</button>
+        </div>
+      `;
+
+      backdrop.appendChild(dialog);
+      window.document.body.appendChild(backdrop);
+
+      function closeWith(confirmed) {
+        window.document.removeEventListener("keydown", handleEscape);
+        backdrop.remove();
+        resolve(Boolean(confirmed));
+      }
+
+      function handleEscape(event) {
+        if (event.key === "Escape") {
+          closeWith(false);
+        }
+      }
+
+      window.document.addEventListener("keydown", handleEscape);
+
+      backdrop.addEventListener("click", function (event) {
+        if (event.target === backdrop) {
+          closeWith(false);
+        }
+      });
+
+      dialog.addEventListener("click", function (event) {
+        const target = event.target;
+        if (!(target instanceof HTMLElement)) {
+          return;
+        }
+
+        const action = target.getAttribute("data-property-delete-action");
+        if (action === "cancel") {
+          closeWith(false);
+          return;
+        }
+        if (action === "delete") {
+          closeWith(true);
+        }
+      });
+    });
+  }
+
+  function setBuildingArchived(building, archived) {
     window.BuildingStorage.updateBuilding({
       ...building,
       archived: archived,
@@ -11090,11 +11319,6 @@
   }
 
   function deletePropertyPermanently(building) {
-    const confirmed = window.confirm(`Permanently delete "${building.buildingName}"?\n\nThis removes the property and all of its tenancies, calendar items, documents and history. This action cannot be undone.\n\nArchive it instead if you only want to hide it.`);
-    if (!confirmed) {
-      return;
-    }
-
     window.BuildingStorage.deleteBuilding(building.id);
     if (activeBuildingId === building.id) {
       setCurrentPropertyId("");
@@ -11216,6 +11440,9 @@
   contactForm.addEventListener("submit", handleSaveContact);
   contactForm.elements.companyId.addEventListener("change", handleContactCompanyChange);
   contactsSearch.addEventListener("input", handleContactSearch);
+  if (contactsRelationshipFilter) {
+    contactsRelationshipFilter.addEventListener("change", handleContactsRelationshipFilterChange);
+  }
   companyForm.addEventListener("submit", handleSaveCompany);
   templateForm.addEventListener("submit", handleSaveTemplate);
   completeTaskForm.addEventListener("submit", handleSaveCompleteTask);
@@ -11256,6 +11483,7 @@
   normalizeAllBuildingsForWorkflowCollections();
   ensureTemplateLibrarySeeded();
   migrateBuildingRolesIntoContactsForAllBuildings();
+  migratePropertyContactsOutOfTenancies();
   showDashboard();
   renderBuildings();
 })();

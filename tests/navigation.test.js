@@ -166,15 +166,23 @@ vm.runInContext("archivedScope = getBuildingsForFilter().map(function (b) { retu
 assert.strictEqual(archiveContext.archivedScope, "", "An archived property must not act as an operational scope");
 
 const setArchivedSource = sourceFor("setBuildingArchived", "deletePropertyPermanently");
-assert.ok(setArchivedSource.includes("window.confirm"), "Archiving must confirm before hiding a property");
+assert.strictEqual(setArchivedSource.includes("window.confirm"), false, "Archiving must not depend on a native dialog that sandboxed browsers suppress");
 assert.ok(setArchivedSource.includes("archived: archived"), "Archive and restore must share one code path");
 assert.strictEqual(setArchivedSource.includes("deleteBuilding"), false, "Archiving must never delete records");
 assert.ok(setArchivedSource.includes('setCurrentPropertyId("")'), "Archiving the selected property must clear the operational selection");
 
+const deleteConfirmSource = sourceFor("confirmPropertyDeleteDialog", "setBuildingArchived");
+assert.strictEqual(deleteConfirmSource.includes("window.confirm"), false, "Permanent deletion must not depend on a native dialog");
+assert.ok(deleteConfirmSource.includes("template-delete-modal"), "Permanent deletion must reuse the existing in-app modal pattern");
+assert.ok(deleteConfirmSource.includes("building.buildingName"), "The confirmation must identify the property by name");
+assert.ok(deleteConfirmSource.includes("cannot be undone"), "Permanent deletion must warn that it is irreversible");
+assert.ok(deleteConfirmSource.includes('data-property-delete-action="cancel"'), "Permanent deletion must offer an explicit Cancel");
+assert.ok(deleteConfirmSource.includes('data-property-delete-action="delete"'), "Permanent deletion must require an explicit final Delete");
+
 const deletePropertySource = sourceFor("deletePropertyPermanently", "handleBreadcrumbClick");
-assert.ok(deletePropertySource.includes("window.confirm"), "Permanent deletion must retain a confirmation step");
-assert.ok(deletePropertySource.includes("cannot be undone"), "Permanent deletion must warn that it is irreversible");
 assert.ok(deletePropertySource.includes("BuildingStorage.deleteBuilding"), "Permanent deletion must use the existing storage API");
+assert.strictEqual(deletePropertySource.includes("MasterData"), false, "Permanent deletion must not touch the central repository");
+assert.ok(deletePropertySource.includes('setCurrentPropertyId("")'), "Deleting the selected property must clear the operational selection");
 
 const applySelectionSource = sourceFor("applyBuildingFilterSelection", "getBuildingFilterEmptySuffix");
 assert.ok(applySelectionSource.includes("isBuildingArchived(target)"), "An archived property must never become the operational selection");
@@ -224,7 +232,7 @@ assert.ok(managementSectionSource.includes("editArchivePropertyBtn") && manageme
 ].forEach(function (entry) {
   const index = appSource.indexOf(`function ${entry[0]}(`);
   assert.ok(index >= 0, `Missing ${entry[0]}`);
-  assert.ok(appSource.slice(index, index + 260).includes(entry[1]), `${entry[0]} must reuse the existing implementation`);
+  assert.ok(appSource.slice(index, index + 420).includes(entry[1]), `${entry[0]} must reuse the existing implementation`);
 });
 
 // Property administration has left the Dashboard.
@@ -371,7 +379,8 @@ assert.ok(saveDocumentSource.includes("fileName: selectedFile ? selectedFile.nam
 assert.strictEqual(settingsListSource.includes("Delete Permanently"), false, "The prominent Delete Permanently button must be gone from Settings cards");
 assert.ok(indexSource.includes("btn-danger-subtle"), "Permanent deletion must use subdued danger styling");
 assert.ok(
-  appSource.indexOf("function handleDeletePropertyFromEditor") > 0 && sourceFor("deletePropertyPermanently", "handleBreadcrumbClick").includes("window.confirm"),
+  appSource.indexOf("function handleDeletePropertyFromEditor") > 0
+    && sourceFor("handleDeletePropertyFromEditor", "confirmPropertyDeleteDialog").includes("confirmPropertyDeleteDialog(building)"),
   "Permanent deletion must retain its confirmation"
 );
 

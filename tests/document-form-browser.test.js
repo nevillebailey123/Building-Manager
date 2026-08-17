@@ -273,13 +273,11 @@ function summaryValue(page, label) {
       "Permanent deletion must use subdued danger styling"
     );
 
-    let confirmMessage = "";
-    page.on("dialog", function (dialog) {
-      confirmMessage = dialog.message();
-      dialog.dismiss();
-    });
+    const deleteConfirm = page.locator("[data-property-delete-confirm]");
     await deleteButton.click();
-    assert.ok(confirmMessage.includes("Permanently delete"), "Permanent deletion must still confirm");
+    await deleteConfirm.waitFor({ state: "visible" });
+    assert.ok((await deleteConfirm.textContent()).includes("Permanently delete"), "Permanent deletion must still confirm");
+    await deleteConfirm.locator('[data-property-delete-action="cancel"]').click();
     await page.locator("#cancel-edit-btn").click();
     assert.strictEqual(await page.locator("[data-settings-property-id]").count(), 2, "Dismissing the confirmation must keep the property");
 
