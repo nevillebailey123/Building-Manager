@@ -43,7 +43,7 @@
 
         <p id="empty-state" class="empty-state">No properties have been added yet. Add your first property in Settings.</p>
 
-        <section id="workspace-dashboard-card" class="module-content-card" aria-live="polite">
+        <section id="workspace-dashboard-card" class="module-content-card section-card" aria-live="polite">
           <h3 id="workspace-dashboard-title">Portfolio Overview</h3>
           <dl id="workspace-dashboard-summary" class="snapshot-list"></dl>
         </section>
@@ -55,7 +55,7 @@
           <p class="tagline">Administer properties, calendar templates and your data.</p>
         </header>
 
-        <section class="module-content-card" aria-labelledby="settings-properties-title">
+        <section class="module-content-card section-card section-card-primary" aria-labelledby="settings-properties-title">
           <div class="contacts-list-header">
             <h3 id="settings-properties-title">Properties</h3>
             <button id="settings-add-property-btn" class="btn btn-primary" type="button">+ Add Property</button>
@@ -64,7 +64,7 @@
           <section id="settings-property-list" class="building-list" aria-live="polite"></section>
         </section>
 
-        <section class="module-content-card" aria-labelledby="settings-templates-title">
+        <section class="module-content-card section-card" aria-labelledby="settings-templates-title">
           <h3 id="settings-templates-title">Calendar Templates</h3>
           <p class="module-placeholder">Maintain the reusable master templates that calendar items are created from.</p>
           <div class="actions-row actions-row-tight">
@@ -72,7 +72,7 @@
           </div>
         </section>
 
-        <section class="module-content-card backup-section" aria-labelledby="settings-data-title">
+        <section class="module-content-card backup-section section-card" aria-labelledby="settings-data-title">
           <h3 id="settings-data-title">Data / Backup &amp; Restore</h3>
           <p class="module-placeholder">Export your Compliance HQ data locally, or restore it from a previously saved backup file.</p>
           <div class="actions-row actions-row-tight">
@@ -94,14 +94,14 @@
           </div>
         </header>
 
-        <section id="template-library-empty-state" class="module-content-card">
+        <section id="template-library-empty-state" class="module-content-card section-card">
           <p class="module-placeholder">No templates have been created.</p>
           <div class="actions-row actions-row-tight">
             <button id="add-template-btn" class="btn btn-primary" type="button">+ Add Master Template</button>
           </div>
         </section>
 
-        <section id="template-library-list-card" class="module-content-card">
+        <section id="template-library-list-card" class="module-content-card section-card">
           <div class="contacts-list-header">
             <h3>Template Directory</h3>
             <button id="add-template-inline-btn" class="btn btn-primary" type="button">+ Add Master Template</button>
@@ -109,7 +109,7 @@
           <section id="template-library-list" class="building-list" aria-live="polite"></section>
         </section>
 
-        <section id="template-library-form-card" class="module-content-card">
+        <section id="template-library-form-card" class="module-content-card section-card">
           <h3 id="template-form-title">Add Master Template</h3>
           <form id="template-form" class="building-form">
             <input id="templateId" name="templateId" type="hidden" />
@@ -415,16 +415,16 @@
         </section>
 
         <section id="tenancy-current-panel" class="tab-panel is-active">
-          <section id="tenancy-empty-state" class="module-content-card">
+          <section id="tenancy-empty-state" class="module-content-card section-card">
             <p id="tenancy-empty-message" class="module-placeholder">No current tenancy has been entered.</p>
           </section>
 
-          <section id="tenancy-details-card" class="module-content-card">
+          <section id="tenancy-details-card" class="module-content-card section-card">
             <h3>Current Tenancies</h3>
             <section id="tenancy-details-list" class="tenancy-list" aria-live="polite"></section>
           </section>
 
-          <section id="tenancy-form-card" class="module-content-card">
+          <section id="tenancy-form-card" class="module-content-card section-card">
             <h3 id="tenancy-form-title">Add Current Tenancy</h3>
             <form id="tenancy-form" class="building-form">
               <input type="hidden" name="tenancyId" id="tenancyFormId" />
@@ -493,7 +493,7 @@
         </section>
 
         <section id="tenancy-history-panel" class="tab-panel">
-          <section class="module-content-card">
+          <section class="module-content-card section-card">
             <h3>History</h3>
             <section id="tenancy-history-list" class="building-list"></section>
           </section>
@@ -512,7 +512,7 @@
           </div>
         </header>
 
-        <section id="lease-repository-card" class="module-content-card lease-documents-card">
+        <section id="lease-repository-card" class="module-content-card lease-documents-card section-card">
           <div class="building-filter-row documents-filter-row" aria-label="Document filters">
             <label>
               <span class="schedule-filter-label">Category</span>
@@ -540,7 +540,7 @@
           </section>
         </section>
 
-        <section id="document-form-card" class="module-content-card document-form-card">
+        <section id="document-form-card" class="module-content-card document-form-card section-card">
           <h3 id="document-form-title">Add Document</h3>
           <form id="document-form" class="building-form">
             <label for="document-title-input">Document Title</label>
@@ -594,11 +594,11 @@
           </div>
         </header>
 
-        <section id="contacts-empty-state" class="module-content-card">
+        <section id="contacts-empty-state" class="module-content-card section-card">
           <p id="contacts-empty-message" class="module-placeholder">No contacts have been added.</p>
         </section>
 
-        <section id="contacts-list-card" class="module-content-card">
+        <section id="contacts-list-card" class="module-content-card section-card">
           <div class="building-filter-row documents-filter-row" aria-label="Contact filters">
             <label>
               <span class="schedule-filter-label">Search contacts</span>
@@ -622,7 +622,7 @@
           <section id="contacts-list" class="building-list" aria-live="polite"></section>
         </section>
 
-        <section id="contact-form-card" class="module-content-card">
+        <section id="contact-form-card" class="module-content-card section-card">
           <h3 id="contact-form-title">New Contact</h3>
           <form id="contact-form" class="building-form">
             <input id="contactId" name="contactId" type="hidden" />
@@ -690,14 +690,14 @@
           </div>
         </header>
 
-        <section id="companies-empty-state" class="module-content-card">
+        <section id="companies-empty-state" class="module-content-card section-card">
           <p class="module-placeholder">No companies have been added.</p>
           <div class="actions-row actions-row-tight">
             <button id="add-company-btn" class="btn btn-primary" type="button">+ Add Company</button>
           </div>
         </section>
 
-        <section id="companies-list-card" class="module-content-card">
+        <section id="companies-list-card" class="module-content-card section-card">
           <div class="contacts-list-header">
             <h3>Companies</h3>
             <button id="add-company-inline-btn" class="btn btn-primary" type="button">+ Add Company</button>
@@ -705,7 +705,7 @@
           <section id="companies-list" class="building-list" aria-live="polite"></section>
         </section>
 
-        <section id="company-form-card" class="module-content-card">
+        <section id="company-form-card" class="module-content-card section-card">
           <h3 id="company-form-title">Add Company</h3>
           <form id="company-form" class="building-form">
             <input id="companyId" name="companyId" type="hidden" />
@@ -765,7 +765,7 @@
           </div>
         </header>
 
-        <section class="module-content-card schedule-operations-card">
+        <section class="module-content-card schedule-operations-card section-card">
           <div class="schedule-filter-row" aria-label="Calendar filters">
             <label>
               <span class="schedule-filter-label">Category</span>
@@ -809,7 +809,7 @@
           </div>
         </header>
 
-        <section class="module-content-card">
+        <section class="module-content-card section-card">
           <section id="history-list" class="building-list" aria-live="polite"></section>
         </section>
       </section>
@@ -822,7 +822,7 @@
           </div>
         </header>
 
-        <section class="module-content-card">
+        <section class="module-content-card section-card">
           <h3 id="complete-task-name"></h3>
           <form id="complete-task-form" class="building-form">
             <label for="completionDate">Completion Date</label>

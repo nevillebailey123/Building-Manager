@@ -254,6 +254,18 @@ body {
   .app-property-select {
     max-width: none;
   }
+
+  .section-card {
+    padding-top: 1rem;
+  }
+
+  .section-card-primary {
+    padding: 1.15rem 1.1rem 1.3rem;
+  }
+
+  .section-card + .section-card {
+    margin-top: 1.2rem;
+  }
 }
 
 .breadcrumb-nav {
@@ -1382,6 +1394,35 @@ body {
 
 .module-content-card h3 {
   margin: 0 0 0.8rem;
+}
+
+/* Major screen sections: consistent accent framing + spacing so sections read as distinct blocks. */
+.section-card {
+  border-top: 3px solid rgba(47, 158, 119, 0.55);
+  padding-top: 1.2rem;
+}
+
+.section-card + .section-card {
+  margin-top: 1.6rem;
+}
+
+.section-card > h3,
+.section-card > .contacts-list-header > h3 {
+  padding-left: 0.85rem;
+  border-left: 3px solid var(--accent);
+  font-size: 1.15rem;
+  letter-spacing: 0.01em;
+}
+
+/* Reserved for the one section per screen that should stay visually dominant (e.g. Settings > Properties). */
+.section-card-primary {
+  border-top-width: 4px;
+  padding: 1.5rem 1.5rem 1.7rem;
+  background: linear-gradient(180deg, #1a2230 0%, var(--bg-panel) 70%);
+}
+
+.section-card-primary > .contacts-list-header > h3 {
+  font-size: 1.3rem;
 }
 
 .dashboard-summary-card {
