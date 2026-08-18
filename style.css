@@ -1226,6 +1226,25 @@ body {
   height: 1rem;
 }
 
+.checkbox-option {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-weight: 600;
+}
+
+.checkbox-option input {
+  min-height: auto;
+  width: 1.1rem;
+  height: 1.1rem;
+  flex: 0 0 auto;
+}
+
+.checkbox-option:has(input:disabled) {
+  color: var(--text-muted);
+  opacity: 0.75;
+}
+
 .form-actions {
   margin-top: 0.5rem;
   display: grid;
@@ -1501,6 +1520,13 @@ body {
   display: grid;
   grid-template-rows: auto auto;
   gap: 0.28rem;
+}
+
+@media (min-width: 760px) {
+  .documents-filter-row {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    max-width: none;
+  }
 }
 
 .schedule-filter-label {
@@ -2036,16 +2062,91 @@ body {
 
 .document-register-list {
   display: grid;
-  gap: 0.7rem;
+  gap: 0.55rem;
 }
 
 .document-register-row {
   cursor: pointer;
+  padding: 0.75rem 0.9rem;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 0.3rem 1.1rem;
 }
 
 .document-register-row:hover,
 .document-register-row:focus-visible {
   border-color: var(--accent);
+}
+
+.document-register-row-main {
+  min-width: 0;
+  display: grid;
+  gap: 0.22rem;
+}
+
+h3.document-register-row-title {
+  margin: 0;
+  font-size: 1.02rem;
+  font-weight: 700;
+  color: var(--text-main);
+  overflow-wrap: anywhere;
+}
+
+.document-register-row-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  row-gap: 0.1rem;
+  column-gap: 0.7rem;
+}
+
+.document-register-row-meta .document-item-meta {
+  margin: 0;
+}
+
+.document-item-filename {
+  opacity: 0.75;
+}
+
+.document-register-row-dates {
+  display: grid;
+  justify-items: end;
+  gap: 0.1rem;
+  text-align: right;
+  white-space: nowrap;
+}
+
+.document-register-row-dates .document-item-meta {
+  margin: 0;
+}
+
+.document-register-row .document-item-expiry {
+  color: var(--text-main);
+  font-weight: 600;
+}
+
+.document-register-row .document-item-actions {
+  display: flex;
+  justify-content: flex-end;
+}
+
+@media (max-width: 640px) {
+  .document-register-row {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .document-register-row-dates {
+    justify-items: start;
+    text-align: left;
+    flex-direction: row;
+    display: flex;
+    gap: 0.7rem;
+  }
+
+  .document-register-row .document-item-actions {
+    justify-content: flex-start;
+  }
 }
 
 .document-form-card {

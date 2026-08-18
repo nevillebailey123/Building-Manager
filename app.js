@@ -64,6 +64,8 @@
   const leaseRepositoryCard = document.getElementById("lease-repository-card");
   const leaseSearch = document.getElementById("lease-search");
   const leaseCategoryFilter = document.getElementById("lease-category-filter");
+  const leaseRelatedToFilter = document.getElementById("lease-related-to-filter");
+  const leaseSortSelect = document.getElementById("lease-sort-select");
   const leaseDashboardPanel = document.getElementById("lease-dashboard-panel");
   const leaseCategoryGrid = document.getElementById("lease-category-grid");
   const documentFormCard = document.getElementById("document-form-card");
@@ -74,6 +76,8 @@
   const documentCategorySelect = document.getElementById("document-category-select");
   const documentDateInput = document.getElementById("document-date-input");
   const documentExpiryInput = document.getElementById("document-expiry-input");
+  const documentExpiryCalendarToggle = document.getElementById("document-expiry-calendar-toggle");
+  const documentExpiryCalendarHelp = document.getElementById("document-expiry-calendar-help");
   const documentTenancySelect = document.getElementById("document-tenancy-select");
   const documentScheduleSelect = document.getElementById("document-schedule-select");
   const documentFileInput = document.getElementById("document-file-input");
@@ -229,6 +233,8 @@
   let documentFormCategory = "";
   let leaseSearchQuery = "";
   let leaseCategoryFilterValue = "";
+  let leaseRelatedToFilterValue = "";
+  let leaseSortValue = "newest";
   let breadcrumbItems = [];
 
   const ACTIVE_BUILDING_KEY = "buildingManagerActiveBuildingId";
@@ -2921,6 +2927,11 @@
         return;
       }
 
+      // Document-generated entries are re-derived from their document every pass; never mint a property template for them.
+      if (item && item.sourceType === "document") {
+        return;
+      }
+
       const linkedPropertyTemplateId = String(item.propertyTemplateId || item.templateId || "").trim();
       if (linkedPropertyTemplateId && existingById.has(linkedPropertyTemplateId)) {
         return;
@@ -3137,7 +3148,7 @@
   }
 
   function getTenancyLabelForScheduleItem(item) {
-    if (!item || item.sourceType !== "tenancy" || !item.tenancyId) {
+    if (!item || (item.sourceType !== "tenancy" && item.sourceType !== "document") || !item.tenancyId) {
       return "";
     }
     const building = findBuildingById(String(item.propertyId || "").trim());
@@ -3479,6 +3490,83 @@
     };
   }
 
+  // Documents are the source of truth: an opted-in expiry produces exactly one deterministic, regenerated schedule item.
+  function syncDocumentScheduleItems(building, existingScheduleItems) {
+    const propertyId = String(building && building.id ? building.id : "").trim();
+    const now = new Date().toISOString();
+
+    const existingByDocumentId = new Map();
+    (existingScheduleItems || []).forEach(function (item) {
+      if (String(item.sourceType || "") !== "document") {
+        return;
+      }
+      const documentId = String(item.documentId || "").trim();
+      if (documentId) {
+        existingByDocumentId.set(documentId, item);
+      }
+    });
+
+    const documentEntries = (building.documents || []).map(function (record) {
+      return { record: record, source: "building", tenancyId: String(record.tenancyId || "").trim() };
+    });
+
+    getAllTenanciesForBuilding(building).forEach(function (tenancy) {
+      const leaseDocuments = tenancy && tenancy.lease && Array.isArray(tenancy.lease.documents) ? tenancy.lease.documents : [];
+      leaseDocuments.forEach(function (record) {
+        documentEntries.push({ record: record, source: "tenancy", tenancyId: String(tenancy.id || "").trim() });
+      });
+    });
+
+    const generated = [];
+    const consumedItemIds = new Set();
+
+    documentEntries.forEach(function (entry) {
+      const record = entry.record;
+      const documentId = String(record && record.id || "").trim();
+      const expiryDate = String(record && record.expiryDate || "").trim();
+      if (!documentId || !expiryDate || record.addExpiryToCalendar !== true) {
+        return;
+      }
+
+      const existing = existingByDocumentId.get(documentId);
+      const itemId = existing && String(existing.id || "").trim() ? existing.id : ("document-expiry-" + documentId);
+      consumedItemIds.add(itemId);
+
+      const title = getDocumentRegisterTitle(record);
+      const item = {
+        id: itemId,
+        sourceType: "document",
+        documentId: documentId,
+        documentSource: entry.source,
+        tenancyId: entry.tenancyId,
+        propertyId: propertyId,
+        propertyTemplateId: "",
+        templateId: "",
+        taskName: title + " expires",
+        category: "Document",
+        frequency: "One-off",
+        dueDate: expiryDate,
+        initialDueDate: expiryDate,
+        lastCompletedDate: "",
+        lastCompletionHistoryId: "",
+        preferredCompany: "",
+        preferredCompanyId: "",
+        preferredContactId: "",
+        notes: "",
+        status: "",
+        createdDate: existing ? existing.createdDate : now,
+        lastUpdated: now,
+      };
+      item.status = getScheduleStatusText(item);
+      generated.push(item);
+    });
+
+    return {
+      items: generated,
+      consumedItemIds: consumedItemIds,
+    };
+  }
+
   function applyTenancyEventCompletion(building, scheduleItem, options) {
     if (scheduleItem.sourceType !== "tenancy") {
       return null;
@@ -3606,9 +3694,12 @@
             const uploadedAt = document.uploadedAt || document.createdDate || next.lastUpdated || new Date().toISOString();
             return {
               id: document.id || window.BuildingStorage.createId(),
+              title: document.title || "",
               documentType: document.documentType || document.type || "Lease Agreement",
               version: document.version || document.name || `Version ${index + 1}`,
               documentDate: document.documentDate || document.date || next.tenancy.leaseStart || "",
+              expiryDate: String(document.expiryDate || "").trim(),
+              addExpiryToCalendar: document.addExpiryToCalendar === true,
               description: document.description || document.fileName || document.name || "",
               uploadedBy: document.uploadedBy || document.user || "Not recorded",
               fileName: document.fileName || document.name || "lease-document",
@@ -3647,6 +3738,8 @@
         documentType: document.documentType || document.type || "Document",
         version: document.version || `v${index + 1}`,
         documentDate: document.documentDate || document.date || uploadedAt.slice(0, 10),
+        expiryDate: String(document.expiryDate || "").trim(),
+        addExpiryToCalendar: document.addExpiryToCalendar === true,
         description: document.description || document.fileName || document.name || "",
         uploadedBy: document.uploadedBy || document.user || "Not recorded",
         fileName: document.fileName || document.name || "building-document",
@@ -3720,13 +3813,17 @@
 
     const tenancySync = syncTenancyScheduleItems(next, next.scheduleItems);
     const consumedTenancyItemIds = tenancySync.consumedItemIds || new Set();
+    const documentSync = syncDocumentScheduleItems(next, next.scheduleItems);
+    const consumedDocumentItemIds = documentSync.consumedItemIds || new Set();
     const nonTenancyItems = next.scheduleItems.filter(function (item) {
       const itemId = String(item && item.id || "").trim();
-      return item.sourceType !== "tenancy" && (!itemId || !consumedTenancyItemIds.has(itemId));
+      const isConsumedTenancyItem = itemId && consumedTenancyItemIds.has(itemId);
+      const isDocumentItem = item.sourceType === "document" || (itemId && consumedDocumentItemIds.has(itemId));
+      return item.sourceType !== "tenancy" && !isConsumedTenancyItem && !isDocumentItem;
     });
 
     const templateDerivedItems = syncScheduleItemsFromPropertyTemplates(next, nonTenancyItems);
-    next.scheduleItems = templateDerivedItems.concat(tenancySync.items || []);
+    next.scheduleItems = templateDerivedItems.concat(tenancySync.items || [], documentSync.items || []);
 
     const droppedItemIdMap = tenancySync.droppedItemIdMap || {};
     next.historyRecords = next.historyRecords.map(function (record) {
@@ -4249,6 +4346,7 @@
     const dueClass = `schedule-row-due-${row.visualPriority}`;
     const statusClass = `schedule-row-status-${row.visualPriority}`;
     const isTenancyItem = row.item.sourceType === "tenancy";
+    const isDocumentItem = row.item.sourceType === "document";
     const propertyMarkup = `<p class="schedule-row-meta">Property: ${escapeHtml(row.propertyName || "Property not assigned")}</p>`;
     const lastCompletedMarkup = `<p class="schedule-row-meta">Last Completed: ${escapeHtml(formatLastCompletedDate(row.lastCompletedDate))}</p>`;
     const dueDateMarkup = `<p class="schedule-row-due ${dueClass}">Next Due Date: ${formatDate(row.item.dueDate)}</p>`;
@@ -4260,6 +4358,10 @@
       if (tenancyLabel) {
         contextMarkup = `<p class="schedule-row-meta">Tenancy: ${escapeHtml(tenancyLabel)}</p>`;
       }
+    } else if (isDocumentItem) {
+      const tenancyLabel = getTenancyLabelForScheduleItem(row.item);
+      contextMarkup = (tenancyLabel ? `<p class="schedule-row-meta">Tenancy: ${escapeHtml(tenancyLabel)}</p>` : "")
+        + `<p class="schedule-row-meta">Source: Document</p>`;
     } else {
       const linkedContactText = getScheduleLinkedContactText(row);
       if (linkedContactText) {
@@ -4267,7 +4369,7 @@
       }
     }
 
-    const frequencyMarkup = (isTenancyItem && row.item.frequency === "One-off")
+    const frequencyMarkup = ((isTenancyItem || isDocumentItem) && row.item.frequency === "One-off")
       ? ""
       : `<p class="schedule-row-meta">Frequency: ${escapeHtml(row.item.frequency)}</p>`;
 
@@ -4424,6 +4526,32 @@
     return normalized.scheduleItems.find(function (item) {
       return item.id === itemId;
     });
+  }
+
+  // Document-generated schedule items carry documentId/documentSource back to the owning repository record.
+  function findDocumentForScheduleItem(building, scheduleItem) {
+    if (!building || !scheduleItem || scheduleItem.sourceType !== "document") {
+      return null;
+    }
+    const documentId = String(scheduleItem.documentId || "").trim();
+    if (!documentId) {
+      return null;
+    }
+    const normalized = ensureWorkflowCollections(building);
+    if (scheduleItem.documentSource === "tenancy") {
+      const tenancies = getAllTenanciesForBuilding(normalized);
+      for (let i = 0; i < tenancies.length; i += 1) {
+        const leaseDocuments = tenancies[i] && tenancies[i].lease && Array.isArray(tenancies[i].lease.documents)
+          ? tenancies[i].lease.documents
+          : [];
+        const found = leaseDocuments.find(function (record) { return String(record.id || "") === documentId; });
+        if (found) {
+          return found;
+        }
+      }
+      return null;
+    }
+    return (normalized.documents || []).find(function (record) { return String(record.id || "") === documentId; }) || null;
   }
 
   function renderCompanySelect(selectElement, selectedId, includeEmptyOption) {
@@ -5031,8 +5159,18 @@
     return resolveFixedCategoryForRecord(entry.record, getDocumentsModuleCategories(ensureWorkflowCollections(entry.building)));
   }
 
+  function getDocumentRegisterRelatedToLabel(entry) {
+    return entry.source === "tenancy" ? "Tenancy" : "Property";
+  }
+
   function matchesDocumentRegisterFilters(entry) {
     if (leaseCategoryFilterValue && getDocumentRegisterCategory(entry) !== leaseCategoryFilterValue) {
+      return false;
+    }
+
+    // Guarded reference: older embedded test harnesses execute this function without declaring the newer filter globals.
+    const relatedToFilter = typeof leaseRelatedToFilterValue !== "undefined" ? leaseRelatedToFilterValue : "";
+    if (relatedToFilter && getDocumentRegisterRelatedToLabel(entry) !== relatedToFilter) {
       return false;
     }
 
@@ -5053,12 +5191,13 @@
   }
 
   function getFilteredDocumentRegisterEntries() {
+    const sortValue = typeof leaseSortValue !== "undefined" ? leaseSortValue : "newest";
     return getDocumentRegisterRecords()
       .filter(matchesDocumentRegisterFilters)
       .sort(function (left, right) {
         const leftTime = new Date(left.record.documentDate || left.record.uploadedAt || 0).getTime() || 0;
         const rightTime = new Date(right.record.documentDate || right.record.uploadedAt || 0).getTime() || 0;
-        return rightTime - leftTime;
+        return sortValue === "oldest" ? leftTime - rightTime : rightTime - leftTime;
       });
   }
 
@@ -5105,14 +5244,22 @@
       const scheduleItem = getDocumentRegisterRelatedScheduleItem(entry);
       return `
         <article class="building-card document-register-row" data-document-register-id="${escapeHtml(record.id)}" data-document-register-building-id="${escapeHtml(entry.building.id)}" data-document-register-source="${entry.source}" role="button" tabindex="0" aria-label="Open document ${escapeHtml(getDocumentRegisterTitle(record))}">
-          <h3>${escapeHtml(getDocumentRegisterTitle(record))}</h3>
-          <p class="document-item-meta">Category: ${escapeHtml(getDocumentRegisterCategory(entry))}</p>
-          <p class="document-item-meta">Property: ${escapeHtml(entry.building.buildingName || "Not set")}</p>
-          ${tenancy ? `<p class="document-item-meta">Related Tenancy: ${escapeHtml(tenancy.tradingName || tenancy.companyName || "Tenancy")}</p>` : ""}
-          ${scheduleItem ? `<p class="document-item-meta">Related Calendar Item: ${escapeHtml(scheduleItem.taskName || "Calendar Item")}</p>` : ""}
-          ${record.documentDate ? `<p class="document-item-meta">Date: ${escapeHtml(formatDate(record.documentDate))}</p>` : ""}
-          ${record.expiryDate ? `<p class="document-item-meta">Expiry: ${escapeHtml(formatDate(record.expiryDate))}</p>` : ""}
-          ${record.fileName ? `<p class="document-item-meta">File: ${escapeHtml(record.fileName)}</p>` : ""}
+          <div class="document-register-row-main">
+            <h3 class="document-register-row-title">${escapeHtml(getDocumentRegisterTitle(record))}</h3>
+            <div class="document-register-row-meta">
+              <p class="document-item-meta">Category: ${escapeHtml(getDocumentRegisterCategory(entry))}</p>
+              <p class="document-item-meta">Property: ${escapeHtml(entry.building.buildingName || "Not set")}</p>
+              <p class="document-item-meta">Related to: ${escapeHtml(getDocumentRegisterRelatedToLabel(entry))}</p>
+              ${tenancy ? `<p class="document-item-meta">Related Tenancy: ${escapeHtml(tenancy.tradingName || tenancy.companyName || "Tenancy")}</p>` : ""}
+              ${scheduleItem ? `<p class="document-item-meta">Related Calendar Item: ${escapeHtml(scheduleItem.taskName || "Calendar Item")}</p>` : ""}
+              ${record.fileName ? `<p class="document-item-meta document-item-filename">File: ${escapeHtml(record.fileName)}</p>` : ""}
+            </div>
+          </div>
+          <div class="document-register-row-dates">
+            ${record.documentDate ? `<p class="document-item-meta">Date: ${escapeHtml(formatDate(record.documentDate))}</p>` : ""}
+            ${record.expiryDate ? `<p class="document-item-meta document-item-expiry">Expires ${escapeHtml(formatDate(record.expiryDate))}</p>` : ""}
+          </div>
+
           <div class="document-item-actions">
             <button class="btn btn-secondary lease-tile-btn document-edit-btn" type="button" data-document-register-edit="true">Edit</button>
           </div>
@@ -5180,6 +5327,20 @@
     }) || null;
   }
 
+  // The Calendar toggle only makes sense once an Expiry Date exists; keep it disabled/unchecked otherwise.
+  function updateDocumentExpiryCalendarToggleState() {
+    const hasExpiryDate = Boolean(String(documentExpiryInput.value || "").trim());
+    documentExpiryCalendarToggle.disabled = !hasExpiryDate;
+    if (!hasExpiryDate) {
+      documentExpiryCalendarToggle.checked = false;
+    }
+    if (documentExpiryCalendarHelp) {
+      documentExpiryCalendarHelp.textContent = hasExpiryDate
+        ? "The document expiry will appear in Calendar while this is checked."
+        : "Set an Expiry Date to enable a Calendar reminder.";
+    }
+  }
+
   function openDocumentForm(mode, entry) {
     activeDocumentFormMode = mode;
     activeDocumentContext = entry || null;
@@ -5191,6 +5352,8 @@
     documentTitleInput.value = record ? getDocumentRegisterTitle(record) : "";
     documentDateInput.value = record ? String(record.documentDate || "").slice(0, 10) : "";
     documentExpiryInput.value = record ? String(record.expiryDate || "").slice(0, 10) : "";
+    documentExpiryCalendarToggle.checked = Boolean(record && record.addExpiryToCalendar && record.expiryDate);
+    updateDocumentExpiryCalendarToggleState();
     documentNotesInput.value = record ? String(record.notes || "") : "";
     renderDocumentFormBuildingOptions(selectedBuildingId);
     renderDocumentFormCategoryOptions(entry ? getDocumentRegisterCategory(entry) : (leaseCategoryFilterValue || DEFAULT_DOCUMENT_CATEGORY));
@@ -5244,6 +5407,7 @@
       documentType: existing && existing.documentType ? existing.documentType : getDocumentFormCategory(),
       documentDate: String(documentDateInput.value || "").trim(),
       expiryDate: String(documentExpiryInput.value || "").trim(),
+      addExpiryToCalendar: Boolean(String(documentExpiryInput.value || "").trim() && documentExpiryCalendarToggle.checked),
       tenancyId: tenancyId,
       scheduleItemId: scheduleItemId,
       notes: String(documentNotesInput.value || "").trim(),
@@ -5334,6 +5498,12 @@
     if (leaseCategoryFilter) {
       leaseCategoryFilter.value = leaseCategoryFilterValue;
     }
+    if (leaseRelatedToFilter) {
+      leaseRelatedToFilter.value = leaseRelatedToFilterValue;
+    }
+    if (leaseSortSelect) {
+      leaseSortSelect.value = leaseSortValue;
+    }
 
     if (activeDocumentFormMode) {
       setLeaseTopLevelControlsVisible(false);
@@ -5355,6 +5525,8 @@
     }
 
     leaseCategoryFilterValue = "";
+    leaseRelatedToFilterValue = "";
+    leaseSortValue = "newest";
     leaseSearchQuery = "";
     if (leaseSearch) {
       leaseSearch.value = "";
@@ -8304,6 +8476,17 @@
     renderLeasePage();
   }
 
+  function handleLeaseRelatedToFilterChange() {
+    const value = String(leaseRelatedToFilter ? leaseRelatedToFilter.value : "").trim();
+    leaseRelatedToFilterValue = value === "Property" || value === "Tenancy" ? value : "";
+    renderLeasePage();
+  }
+
+  function handleLeaseSortChange() {
+    leaseSortValue = leaseSortSelect && leaseSortSelect.value === "oldest" ? "oldest" : "newest";
+    renderLeasePage();
+  }
+
   function handleLeaseSearch() {
     leaseSearchQuery = String(leaseSearch.value || "");
     renderLeasePage();
@@ -9889,6 +10072,7 @@
     applyScheduleDetailsUpdates: applyScheduleDetailsUpdates,
     handleScheduleDetailsSave: handleScheduleDetailsSave,
     deleteScheduleItem: deleteScheduleItem,
+    findDocumentForScheduleItem: findDocumentForScheduleItem,
     getNextDueDatePlaceholder: getNextDueDatePlaceholder,
     applyTemplateCompletion: applyTemplateCompletion,
     applyTenancyEventCompletion: applyTenancyEventCompletion,
@@ -10225,7 +10409,7 @@
   }
 
   function deleteScheduleItem(building, scheduleItem) {
-    if (!building || !scheduleItem || scheduleItem.sourceType === "tenancy") {
+    if (!building || !scheduleItem || scheduleItem.sourceType === "tenancy" || scheduleItem.sourceType === "document") {
       return null;
     }
 
@@ -10235,7 +10419,7 @@
     const currentScheduleItem = (normalizedBuilding.scheduleItems || []).find(function (item) {
       return String(item.id || "").trim() === scheduleItemId;
     });
-    if (!currentScheduleItem || currentScheduleItem.sourceType === "tenancy") {
+    if (!currentScheduleItem || currentScheduleItem.sourceType === "tenancy" || currentScheduleItem.sourceType === "document") {
       return null;
     }
 
@@ -10674,6 +10858,15 @@
 
     const scheduleItem = findScheduleItemById(building, itemId);
     if (!scheduleItem) {
+      return;
+    }
+
+    // Document-generated entries are owned by their source document: open the file, not the generic editor.
+    if (scheduleItem.sourceType === "document") {
+      const sourceDocument = findDocumentForScheduleItem(building, scheduleItem);
+      if (sourceDocument) {
+        openOrDownloadLeaseDocument(sourceDocument, false);
+      }
       return;
     }
 
@@ -11722,9 +11915,16 @@
   if (leaseCategoryFilter) {
     leaseCategoryFilter.addEventListener("change", handleLeaseCategoryFilterChange);
   }
+  if (leaseRelatedToFilter) {
+    leaseRelatedToFilter.addEventListener("change", handleLeaseRelatedToFilterChange);
+  }
+  if (leaseSortSelect) {
+    leaseSortSelect.addEventListener("change", handleLeaseSortChange);
+  }
   documentForm.addEventListener("submit", handleSaveDocument);
   documentCancelBtn.addEventListener("click", closeDocumentForm);
   documentDeleteBtn.addEventListener("click", handleDeleteDocument);
+  documentExpiryInput.addEventListener("input", updateDocumentExpiryCalendarToggleState);
   documentBuildingSelect.addEventListener("change", function () {
     renderDocumentFormRelationships(documentTenancySelect.value, documentScheduleSelect.value);
   });

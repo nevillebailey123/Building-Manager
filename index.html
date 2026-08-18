@@ -513,6 +513,10 @@
         </header>
 
         <section id="lease-repository-card" class="module-content-card lease-documents-card section-card">
+          <div id="lease-search-tools" class="lease-dashboard-tools">
+            <label class="visually-hidden" for="lease-search">Search documents</label>
+            <input id="lease-search" class="search-input lease-search-input" type="search" placeholder="Search documents" />
+          </div>
           <div class="building-filter-row documents-filter-row" aria-label="Document filters">
             <label>
               <span class="schedule-filter-label">Category</span>
@@ -529,14 +533,25 @@
                 <option>Miscellaneous</option>
               </select>
             </label>
-          </div>
-          <div id="lease-search-tools" class="lease-dashboard-tools">
-            <label class="visually-hidden" for="lease-search">Search documents</label>
-            <input id="lease-search" class="search-input lease-search-input" type="search" placeholder="Search documents" />
+            <label>
+              <span class="schedule-filter-label">Related To</span>
+              <select id="lease-related-to-filter" class="schedule-filter-select">
+                <option value="">All</option>
+                <option value="Property">Property</option>
+                <option value="Tenancy">Tenancy</option>
+              </select>
+            </label>
+            <label>
+              <span class="schedule-filter-label">Sort</span>
+              <select id="lease-sort-select" class="schedule-filter-select">
+                <option value="newest">Newest</option>
+                <option value="oldest">Oldest</option>
+              </select>
+            </label>
           </div>
 
           <section id="lease-dashboard-panel">
-            <section id="lease-category-grid" class="lease-category-grid" aria-live="polite"></section>
+            <section id="lease-category-grid" class="document-register-list" aria-live="polite"></section>
           </section>
         </section>
 
@@ -557,6 +572,12 @@
 
             <label for="document-expiry-input">Expiry Date (optional)</label>
             <input id="document-expiry-input" name="expiryDate" type="date" />
+
+            <label class="checkbox-option" for="document-expiry-calendar-toggle">
+              <input id="document-expiry-calendar-toggle" name="addExpiryToCalendar" type="checkbox" disabled />
+              <span>Add expiry to Calendar</span>
+            </label>
+            <p id="document-expiry-calendar-help" class="lease-helper-text">Set an Expiry Date to enable a Calendar reminder.</p>
 
             <label for="document-tenancy-select">Related Tenancy (optional)</label>
             <select id="document-tenancy-select" name="tenancyId"></select>
