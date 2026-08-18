@@ -60,6 +60,7 @@ function getFunctionSource(name) {
 
 [
   "confirmScheduleRevertDialog",
+  "confirmScheduleItemDeleteDialog",
   "confirmTemplateDeleteDialog",
   "confirmMasterTemplateDeleteDialog",
   "confirmPropertyTemplateUnassignDialog",

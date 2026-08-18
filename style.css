@@ -939,6 +939,11 @@ body {
   color: var(--text-muted);
 }
 
+.template-picker-item-content .template-picker-item-archived {
+  color: var(--danger, #c0392b);
+  font-weight: 600;
+}
+
 .template-picker-item-actions {
   display: flex;
   gap: 0.35rem;
@@ -1813,6 +1818,12 @@ body {
   gap: 0.5rem;
   align-items: center;
   flex-wrap: wrap;
+}
+
+.schedule-details-danger-section {
+  margin-top: 0.85rem;
+  padding-top: 1rem;
+  border-top: 1px solid rgba(185, 28, 28, 0.35);
 }
 
 .schedule-details-save-confirmation {
