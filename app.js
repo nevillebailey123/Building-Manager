@@ -46,6 +46,8 @@
   const addCompanyBtn = document.getElementById("add-company-btn");
   const addCompanyInlineBtn = document.getElementById("add-company-inline-btn");
   const archiveTenancyBtn = document.getElementById("archive-tenancy-btn");
+  const deleteTenancyBtn = document.getElementById("delete-tenancy-btn");
+  const tenancyDangerSection = document.getElementById("tenancy-danger-section");
   const emptyState = document.getElementById("empty-state");
   const overviewBuildingName = document.getElementById("overview-building-name");
   const overviewStreetAddress = document.getElementById("overview-street-address");
@@ -6798,6 +6800,18 @@
     contactForm.elements.responsibility.value = "";
   }
 
+  function getUniqueCompaniesByName() {
+    const seen = new Set();
+    return getCompanies().filter(function (company) {
+      const key = normalizeText(company.name);
+      if (!key || seen.has(key)) {
+        return false;
+      }
+      seen.add(key);
+      return true;
+    });
+  }
+
   function populateContactCompanySelect(selectedId, contact) {
     const companyName = contact && String(contact.companyName || "").trim()
       ? String(contact.companyName || "").trim()
@@ -7242,6 +7256,9 @@
     if (archiveTenancyBtn instanceof HTMLButtonElement) {
       archiveTenancyBtn.style.display = mode === "edit" && hasTenancies ? "inline-flex" : "none";
     }
+    if (tenancyDangerSection instanceof HTMLElement) {
+      tenancyDangerSection.style.display = mode === "edit" && hasTenancies ? "block" : "none";
+    }
 
     renderTenancyContactsSection(mode === "edit" ? tenancy : null);
     renderTenancySectionState(hasTenancies, "form");
@@ -7438,6 +7455,135 @@
       contactRefs: Array.isArray(tenancy.contactRefs) ? tenancy.contactRefs : [],
       contacts: Array.isArray(tenancy.contacts) ? tenancy.contacts : [],
     };
+  }
+
+  function confirmTenancyDeleteDialog(tenancy) {
+    return new Promise(function (resolve) {
+      const backdrop = window.document.createElement("div");
+      backdrop.className = "template-delete-modal-backdrop app-modal-backdrop-confirm";
+      backdrop.setAttribute("data-tenancy-delete-confirm", String(tenancy && tenancy.id || ""));
+
+      const dialog = window.document.createElement("div");
+      dialog.className = "template-delete-modal";
+      dialog.setAttribute("role", "dialog");
+      dialog.setAttribute("aria-modal", "true");
+      dialog.setAttribute("aria-labelledby", "tenancy-delete-modal-title");
+      const tenancyName = String(tenancy && (tenancy.tradingName || tenancy.companyName) || "this tenancy").trim();
+      dialog.innerHTML = `
+        <h3 id="tenancy-delete-modal-title">Delete Tenancy Permanently</h3>
+        <p>Permanently delete <strong>${escapeHtml(tenancyName)}</strong>?</p>
+        <p>This removes the tenancy and its tenancy-specific Calendar history. Master Contacts and Companies are kept, and linked Documents are preserved in the Documents repository. This action cannot be undone.</p>
+        <div class="template-delete-modal-actions">
+          <button class="btn btn-secondary" type="button" data-tenancy-delete-action="cancel">Cancel</button>
+          <button class="btn template-delete-btn" type="button" data-tenancy-delete-action="delete">Delete Tenancy</button>
+        </div>
+      `;
+
+      backdrop.appendChild(dialog);
+      window.document.body.appendChild(backdrop);
+      let isClosed = false;
+
+      function closeWith(result) {
+        if (isClosed) return;
+        isClosed = true;
+        window.document.removeEventListener("keydown", handleEscape);
+        backdrop.remove();
+        resolve(Boolean(result));
+      }
+
+      function handleEscape(event) {
+        if (event.key === "Escape") closeWith(false);
+      }
+
+      window.document.addEventListener("keydown", handleEscape);
+      backdrop.addEventListener("click", function (event) {
+        if (event.target === backdrop) closeWith(false);
+      });
+      dialog.addEventListener("click", function (event) {
+        const target = event.target;
+        if (!(target instanceof HTMLElement)) return;
+        const action = target.getAttribute("data-tenancy-delete-action");
+        if (action === "cancel") closeWith(false);
+        if (action === "delete") closeWith(true);
+      });
+    });
+  }
+
+  function deleteTenancyPermanently(building, tenancyId) {
+    const targetId = String(tenancyId || "").trim();
+    if (!building || !targetId) return null;
+
+    const latestBuilding = findBuildingById(building.id) || building;
+    const normalizedBuilding = ensureWorkflowCollections(latestBuilding);
+    const tenancies = getAllTenanciesForBuilding(normalizedBuilding);
+    const tenancyToDelete = tenancies.find(function (tenancy) {
+      return String(tenancy.id || "").trim() === targetId;
+    });
+    if (!tenancyToDelete) return null;
+
+    const tenancyScheduleItemIds = new Set((normalizedBuilding.scheduleItems || []).filter(function (item) {
+      return String(item.sourceType || "") === "tenancy" && String(item.tenancyId || "").trim() === targetId;
+    }).map(function (item) {
+      return String(item.id || "").trim();
+    }).filter(Boolean));
+
+    // Preserve tenancy documents by promoting any tenancy-only records into the property repository.
+    const propertyDocuments = (normalizedBuilding.documents || []).map(function (documentRecord) {
+      if (String(documentRecord.tenancyId || "").trim() !== targetId) return documentRecord;
+      return { ...documentRecord, tenancyId: "", lastUpdated: new Date().toISOString() };
+    });
+    const knownDocumentIds = new Set(propertyDocuments.map(function (documentRecord) {
+      return String(documentRecord.id || "").trim();
+    }).filter(Boolean));
+    const leaseDocuments = tenancyToDelete.lease && Array.isArray(tenancyToDelete.lease.documents)
+      ? tenancyToDelete.lease.documents
+      : (Array.isArray(tenancyToDelete.documents) ? tenancyToDelete.documents : []);
+    leaseDocuments.forEach(function (documentRecord) {
+      const documentId = String(documentRecord && documentRecord.id || "").trim();
+      if (documentId && knownDocumentIds.has(documentId)) return;
+      propertyDocuments.push({ ...documentRecord, tenancyId: "" });
+      if (documentId) knownDocumentIds.add(documentId);
+    });
+
+    const remainingTenancies = tenancies.filter(function (tenancy) {
+      return String(tenancy.id || "").trim() !== targetId;
+    });
+    const now = new Date().toISOString();
+    const updated = {
+      ...normalizedBuilding,
+      tenancy: remainingTenancies[0] || null,
+      tenancies: remainingTenancies,
+      documents: propertyDocuments,
+      scheduleItems: (normalizedBuilding.scheduleItems || []).filter(function (item) {
+        return !(String(item.sourceType || "") === "tenancy" && String(item.tenancyId || "").trim() === targetId);
+      }),
+      historyRecords: (normalizedBuilding.historyRecords || []).filter(function (record) {
+        return !tenancyScheduleItemIds.has(String(record.scheduleItemId || "").trim());
+      }),
+      status: remainingTenancies.length === 0 ? "Vacant" : normalizedBuilding.status,
+      lastUpdated: now,
+    };
+
+    const normalized = ensureWorkflowCollections(updated);
+    window.BuildingStorage.updateBuilding(normalized);
+    return normalized;
+  }
+
+  function handleDeleteTenancy() {
+    const building = getTenancyEditBuilding();
+    const tenancy = getTenancyBeingEdited();
+    if (!building || !tenancy) return;
+
+    confirmTenancyDeleteDialog(tenancy).then(function (confirmed) {
+      if (!confirmed) return;
+      const updated = deleteTenancyPermanently(building, tenancy.id);
+      if (!updated) return;
+      activeTenancyDetailsId = "";
+      tenancyFormMode = "";
+      renderBuildings();
+      setTenancyTab("current");
+      openCurrentTenancyView();
+    });
   }
 
   function handleArchiveTenancy() {
@@ -12080,6 +12226,9 @@
   tenancyTabHistory.addEventListener("click", handleTenancyTabHistory);
   if (archiveTenancyBtn instanceof HTMLButtonElement) {
     archiveTenancyBtn.addEventListener("click", handleArchiveTenancy);
+  }
+  if (deleteTenancyBtn instanceof HTMLButtonElement) {
+    deleteTenancyBtn.addEventListener("click", handleDeleteTenancy);
   }
   if (contactsCreateBtn instanceof HTMLButtonElement) {
     contactsCreateBtn.addEventListener("click", handleAddContact);
