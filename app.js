@@ -111,6 +111,9 @@
   const contactFormTitle = document.getElementById("contact-form-title");
   const contactSaveBtn = document.getElementById("contact-save-btn");
   const deleteContactBtn = document.getElementById("delete-contact-btn");
+  const contactLinkedPropertySection = document.getElementById("contact-linked-property-section");
+  const contactLinkedPropertyList = document.getElementById("contact-linked-property-list");
+  const contactAddPropertyLinkBtn = document.getElementById("contact-add-property-link-btn");
   const contactLinkedScheduleSection = document.getElementById("contact-linked-schedule-section");
   const contactLinkedScheduleList = document.getElementById("contact-linked-schedule-list");
   const contactAddScheduleLinkBtn = document.getElementById("contact-add-schedule-link-btn");
@@ -5736,7 +5739,7 @@
     const relationshipIndex = getContactRelationshipIndex();
     const enriched = dedupeContacts(contacts)
       .map(function (contact) {
-        const companyName = getCompanyNameById(contact.companyId, "Not set");
+        const companyName = String(contact.companyName || "").trim() || String(contact.companyName || "").trim() || getCompanyNameById(contact.companyId, "Not set");
         const relationships = relationshipIndex.get(String(contact.id || "")) || [];
         return {
           contact: contact,
@@ -5962,7 +5965,7 @@
     }
 
     const relationship = getRelationshipForContactInFilter(contact);
-    const companyName = getCompanyNameById(contact.companyId, "Not set");
+    const companyName = String(contact.companyName || "").trim() || String(contact.companyName || "").trim() || getCompanyNameById(contact.companyId, "Not set");
     const linkedItems = getScheduleItemsLinkedToContactForFilter(contact.id);
     const linkedItemsMarkup = linkedItems.length === 0
       ? '<p class="module-placeholder">No linked calendar items.</p>'
@@ -6778,7 +6781,7 @@
     contactsBuildingName.textContent = building ? building.buildingName : "All Properties";
     activeContactId = "";
     contactsSearchQuery = "";
-    populateContactCompanySelect("");
+    populateContactCompanySelect("", null);
     contactForm.elements.responsibility.value = "";
     if (contactsSearch) {
       contactsSearch.value = "";
@@ -6791,53 +6794,20 @@
     contactForm.reset();
     contactForm.elements.contactId.value = "";
     contactForm.elements.companyId.value = "";
+    contactForm.elements.companyName.value = "";
     contactForm.elements.responsibility.value = "";
   }
 
-  function getUniqueCompaniesByName() {
-    const seen = new Set();
-    return getCompanies().filter(function (company) {
-      const key = normalizeText(company.name);
-      if (!key || seen.has(key)) {
-        return false;
-      }
-      seen.add(key);
-      return true;
-    });
-  }
-
-  function populateContactCompanySelect(selectedId) {
-    const companies = getUniqueCompaniesByName();
-    const options = ['<option value="">Select a company</option>'];
-    companies.forEach(function (company) {
-      const selected = company.id === selectedId ? " selected" : "";
-      options.push(`<option value="${company.id}"${selected}>${company.name}</option>`);
-    });
-    contactForm.elements.companyId.innerHTML = options.join("");
-
-    const hasSelected = companies.some(function (company) {
-      return company.id === selectedId;
-    });
-
-    if (selectedId && !hasSelected) {
-      const selectedCompany = findCompanyById(selectedId);
-      if (selectedCompany) {
-        const normalized = normalizeText(selectedCompany.name);
-        const canonical = companies.find(function (company) {
-          return normalizeText(company.name) === normalized;
-        });
-        if (canonical) {
-          contactForm.elements.companyId.value = canonical.id;
-        }
-      }
-    }
+  function populateContactCompanySelect(selectedId, contact) {
+    const companyName = contact && String(contact.companyName || "").trim()
+      ? String(contact.companyName || "").trim()
+      : getCompanyNameById(selectedId, "");
+    contactForm.elements.companyId.value = String(selectedId || "").trim();
+    contactForm.elements.companyName.value = companyName;
   }
 
   function handleContactCompanyChange() {
-    const value = String(contactForm.elements.companyId.value || "").trim();
-    if (!value) {
-      return;
-    }
+    // Company is free text on the contact. Legacy companyId is retained only for compatibility.
   }
 
   function setContactFormAssignmentContext(context) {
@@ -6861,7 +6831,7 @@
     contactFormFilterBuildingId = getBuildingFilterId();
     activeContactId = contact && contact.id ? contact.id : "";
     resetContactForm();
-    populateContactCompanySelect(contact && contact.companyId ? contact.companyId : "");
+    populateContactCompanySelect(contact && contact.companyId ? contact.companyId : "", contact || null);
 
     contactFormTitle.textContent = mode === "edit" ? "Edit Contact" : "New Contact";
     contactForm.style.display = "grid";
@@ -6881,11 +6851,13 @@
     }
 
     if (mode === "edit" && contact && contact.id) {
-      renderContactLinkedScheduleItems(contact);
+      renderContactLinkedProperties(contact);
       renderContactLinkedTenancies(contact);
+      renderContactLinkedScheduleItems(contact);
     } else {
-      renderContactLinkedScheduleItems(null);
+      renderContactLinkedProperties(null);
       renderContactLinkedTenancies(null);
+      renderContactLinkedScheduleItems(null);
     }
 
     renderContactSectionState("form");
@@ -6904,7 +6876,8 @@
     const classification = String(getContactClassification(existingContact)).trim() || "Other";
     return {
       id: existingContact && existingContact.id ? existingContact.id : window.BuildingStorage.createId(),
-      companyId: String(formData.get("companyId") || "").trim(),
+      companyId: existingContact && existingContact.companyId ? String(existingContact.companyId).trim() : "",
+      companyName: String(formData.get("companyName") || "").trim(),
       name: String(formData.get("name") || "").trim(),
       contactType: classification,
       responsibility: relationship,
@@ -6934,11 +6907,100 @@
     window.BuildingStorage.updateBuilding(updated);
   }
 
-  function deleteContactForActiveTenancy(contactId) {
-    getBuildingsForFilter().forEach(function (building) {
-      const updated = removeContactRelationshipFromBuilding(building, contactId);
+  function removeContactIdFromRefs(refs, contactId) {
+    const targetId = String(contactId || "").trim();
+    return (Array.isArray(refs) ? refs : []).filter(function (ref) {
+      if (ref && typeof ref === "object") {
+        return String(ref.contactId || ref.id || "").trim() !== targetId;
+      }
+      return String(ref || "").trim() !== targetId;
+    });
+  }
+
+  function removeContactFromRelationshipMap(map, contactId) {
+    const nextMap = map && typeof map === "object" ? { ...map } : {};
+    delete nextMap[String(contactId || "").trim()];
+    return nextMap;
+  }
+
+  // Permanently delete one canonical contact and remove every live ID reference to it.
+  // Historical display text (for example historyRecord.contactUsed) is preserved, while
+  // the historical contactUsedId is cleared so deleted master IDs never dangle.
+  function deleteContactPermanently(contactId) {
+    const targetId = String(contactId || "").trim();
+    if (!targetId) {
+      return false;
+    }
+
+    const masterData = getMasterData();
+    const contactExists = (masterData.contacts || []).some(function (contact) {
+      return String(contact.id || "").trim() === targetId;
+    });
+    if (!contactExists) {
+      return false;
+    }
+
+    const now = new Date().toISOString();
+    window.BuildingStorage.getBuildings().forEach(function (building) {
+      const normalized = ensureWorkflowCollections(building);
+      const nextTenancies = (normalized.tenancies || []).map(function (tenancy) {
+        return {
+          ...tenancy,
+          contactRefs: removeContactIdFromRefs(tenancy.contactRefs, targetId),
+          contactRelationshipById: removeContactFromRelationshipMap(tenancy.contactRelationshipById, targetId),
+        };
+      });
+
+      const nextPropertyTemplates = (normalized.propertyTemplates || []).map(function (template) {
+        if (String(template.preferredContactId || "").trim() !== targetId) {
+          return template;
+        }
+        return { ...template, preferredContactId: "", lastUpdated: now };
+      });
+
+      const nextScheduleItems = (normalized.scheduleItems || []).map(function (item) {
+        if (String(item.preferredContactId || "").trim() !== targetId) {
+          return item;
+        }
+        return { ...item, preferredContactId: "" };
+      });
+
+      const nextHistoryRecords = (normalized.historyRecords || []).map(function (record) {
+        if (String(record.contactUsedId || "").trim() !== targetId) {
+          return record;
+        }
+        return { ...record, contactUsedId: "" };
+      });
+
+      const updated = {
+        ...normalized,
+        buildingContactAssignments: removeContactIdFromRefs(normalized.buildingContactAssignments, targetId),
+        contactRelationshipById: removeContactFromRelationshipMap(normalized.contactRelationshipById, targetId),
+        tenancies: nextTenancies,
+        tenancy: nextTenancies[0] || null,
+        propertyTemplates: nextPropertyTemplates,
+        scheduleItems: nextScheduleItems,
+        historyRecords: nextHistoryRecords,
+        lastUpdated: now,
+      };
+
       window.BuildingStorage.updateBuilding(updated);
     });
+
+    window.BuildingStorage.saveMasterData({
+      ...masterData,
+      contacts: (masterData.contacts || []).filter(function (contact) {
+        return String(contact.id || "").trim() !== targetId;
+      }),
+      scheduledItemTemplates: (masterData.scheduledItemTemplates || []).map(function (template) {
+        if (String(template.preferredContactId || "").trim() !== targetId) {
+          return template;
+        }
+        return { ...template, preferredContactId: "", lastUpdated: now };
+      }),
+    });
+
+    return true;
   }
 
   function getTelHref(phone) {
@@ -7216,7 +7278,7 @@
       return `
         <article class="building-card">
           <h3>${escapeHtml(contact.name || "Contact")}</h3>
-          <p><strong>Company:</strong> ${escapeHtml(getCompanyNameById(contact.companyId, "Not set"))}</p>
+          <p><strong>Company:</strong> ${escapeHtml(String(contact.companyName || "").trim() || getCompanyNameById(contact.companyId, "Not set"))}</p>
           <p><strong>Mobile:</strong> ${escapeHtml(contact.mobile || "Not provided")}</p>
           <p><strong>Email:</strong> ${escapeHtml(contact.email || "Not provided")}</p>
           <div class="tenancy-card-actions">
@@ -7240,7 +7302,7 @@
             <select id="tenancy-link-contact-select" class="schedule-filter-select">
               <option value="">Select contact</option>
               ${availableContacts.map(function (contact) {
-                const companyName = getCompanyNameById(contact.companyId, "");
+                const companyName = String(contact.companyName || "").trim() || getCompanyNameById(contact.companyId, "");
                 const suffix = companyName ? ` - ${companyName}` : "";
                 return `<option value="${escapeHtml(contact.id)}">${escapeHtml(contact.name || "Contact")}${escapeHtml(suffix)}</option>`;
               }).join("")}
@@ -7599,19 +7661,89 @@
     openCompanyForm("add");
   }
 
+  function confirmContactDeleteDialog(contact) {
+    return new Promise(function (resolve) {
+      const backdrop = window.document.createElement("div");
+      backdrop.className = "template-delete-modal-backdrop app-modal-backdrop-confirm";
+      backdrop.setAttribute("data-contact-delete-confirm", contact.id || "");
+
+      const dialog = window.document.createElement("div");
+      dialog.className = "template-delete-modal";
+      dialog.setAttribute("role", "dialog");
+      dialog.setAttribute("aria-modal", "true");
+      dialog.setAttribute("aria-labelledby", "contact-delete-modal-title");
+      dialog.innerHTML = `
+        <h3 id="contact-delete-modal-title">Delete Contact</h3>
+        <p>Permanently delete <strong>${escapeHtml(contact.name || "this contact")}</strong>?</p>
+        <p>This removes the contact from the central repository and clears their Property, Tenancy, Calendar and template links. Properties, Tenancies, Companies and Calendar items are kept. This action cannot be undone.</p>
+        <div class="template-delete-modal-actions">
+          <button class="btn btn-secondary" type="button" data-contact-delete-action="cancel">Cancel</button>
+          <button class="btn template-delete-btn" type="button" data-contact-delete-action="delete">Delete</button>
+        </div>
+      `;
+
+      backdrop.appendChild(dialog);
+      window.document.body.appendChild(backdrop);
+
+      function closeWith(confirmed) {
+        window.document.removeEventListener("keydown", handleEscape);
+        backdrop.remove();
+        resolve(Boolean(confirmed));
+      }
+
+      function handleEscape(event) {
+        if (event.key === "Escape") {
+          closeWith(false);
+        }
+      }
+
+      window.document.addEventListener("keydown", handleEscape);
+      backdrop.addEventListener("click", function (event) {
+        if (event.target === backdrop) {
+          closeWith(false);
+        }
+      });
+
+      dialog.addEventListener("click", function (event) {
+        const target = event.target;
+        if (!(target instanceof HTMLElement)) {
+          return;
+        }
+        const action = target.getAttribute("data-contact-delete-action");
+        if (action === "cancel") {
+          closeWith(false);
+          return;
+        }
+        if (action === "delete") {
+          closeWith(true);
+        }
+      });
+    });
+  }
+
   function handleDeleteContact() {
     if (!activeContactId) {
       return;
     }
 
-    const shouldDelete = window.confirm("Delete this contact permanently?");
-    if (!shouldDelete) {
+    const contact = findContactById(activeContactId);
+    if (!contact) {
       return;
     }
 
-    deleteContactForActiveTenancy(activeContactId);
-    renderBuildings();
-    openContactsView();
+    confirmContactDeleteDialog(contact).then(function (confirmed) {
+      if (!confirmed) {
+        return;
+      }
+
+      if (!deleteContactPermanently(contact.id)) {
+        return;
+      }
+
+      activeContactId = "";
+      renderBuildings();
+      openContactsView();
+    });
   }
 
   function renderContactLinkedScheduleItems(contact) {
@@ -7622,28 +7754,14 @@
     if (!contact || !contact.id) {
       contactLinkedScheduleSection.style.display = "block";
       contactLinkedScheduleList.innerHTML = '<p class="module-placeholder">Save this contact before linking calendar items.</p>';
-      if (contactAddScheduleLinkBtn instanceof HTMLButtonElement) {
-        contactAddScheduleLinkBtn.style.display = "none";
-        contactAddScheduleLinkBtn.disabled = true;
-      }
-      if (contactRemoveScheduleLinkBtn instanceof HTMLButtonElement) {
-        contactRemoveScheduleLinkBtn.style.display = "none";
-        contactRemoveScheduleLinkBtn.disabled = true;
-      }
+      if (contactAddScheduleLinkBtn instanceof HTMLButtonElement) contactAddScheduleLinkBtn.style.display = "none";
+      if (contactRemoveScheduleLinkBtn instanceof HTMLButtonElement) contactRemoveScheduleLinkBtn.style.display = "none";
       return;
     }
 
-    const building = findBuildingById(activeBuildingId);
-
     contactLinkedScheduleSection.style.display = "block";
-    if (contactAddScheduleLinkBtn instanceof HTMLButtonElement) {
-      contactAddScheduleLinkBtn.style.display = building ? "inline-flex" : "none";
-      contactAddScheduleLinkBtn.disabled = !building;
-    }
-    if (contactRemoveScheduleLinkBtn instanceof HTMLButtonElement) {
-      contactRemoveScheduleLinkBtn.style.display = building ? "inline-flex" : "none";
-      contactRemoveScheduleLinkBtn.disabled = !building;
-    }
+    if (contactAddScheduleLinkBtn instanceof HTMLButtonElement) contactAddScheduleLinkBtn.style.display = "none";
+    if (contactRemoveScheduleLinkBtn instanceof HTMLButtonElement) contactRemoveScheduleLinkBtn.style.display = "none";
     const linkedItems = getScheduleItemsLinkedToContactForFilter(contact.id);
     if (linkedItems.length === 0) {
       contactLinkedScheduleList.innerHTML = '<p class="module-placeholder">No linked calendar items.</p>';
@@ -7864,6 +7982,108 @@
     };
   }
 
+  function getPropertyLinksForContact(contactId) {
+    const targetId = String(contactId || "").trim();
+    if (!targetId) return [];
+    return window.BuildingStorage.getBuildings().filter(function (building) {
+      const assignments = Array.isArray(building.buildingContactAssignments) ? building.buildingContactAssignments : [];
+      return assignments.map(String).includes(targetId);
+    });
+  }
+
+  function renderContactLinkedProperties(contact) {
+    if (!contactLinkedPropertySection || !contactLinkedPropertyList) return;
+    contactLinkedPropertySection.style.display = "block";
+    if (!contact || !contact.id) {
+      contactLinkedPropertyList.innerHTML = '<p class="module-placeholder">Save this contact before linking properties.</p>';
+      if (contactAddPropertyLinkBtn instanceof HTMLButtonElement) contactAddPropertyLinkBtn.style.display = "none";
+      return;
+    }
+    if (contactAddPropertyLinkBtn instanceof HTMLButtonElement) contactAddPropertyLinkBtn.style.display = "inline-flex";
+    const links = getPropertyLinksForContact(contact.id);
+    if (links.length === 0) {
+      contactLinkedPropertyList.innerHTML = '<p class="module-placeholder">No linked properties.</p>';
+      return;
+    }
+    contactLinkedPropertyList.innerHTML = links.map(function (building) {
+      return `
+        <article class="building-card">
+          <h3>${escapeHtml(getBuildingDisplayLabel(building))}</h3>
+          <div class="actions-row actions-row-tight">
+            <button class="btn btn-secondary btn-small" type="button" data-contact-property-unlink-id="${escapeHtml(building.id)}">Remove</button>
+          </div>
+        </article>
+      `;
+    }).join("");
+  }
+
+  function showContactPropertyLinkDialog(contact, buildings) {
+    return new Promise(function (resolve) {
+      const backdrop = window.document.createElement("div");
+      backdrop.className = "template-delete-modal-backdrop";
+      backdrop.innerHTML = `
+        <div class="template-delete-modal" role="dialog" aria-modal="true" aria-labelledby="contact-link-property-title">
+          <h3 id="contact-link-property-title">Link Property</h3>
+          <p>Select a property to link to ${escapeHtml(contact.name)}.</p>
+          <label><span class="visually-hidden">Property</span>
+            <select id="contact-link-property-select" class="schedule-filter-select">
+              <option value="">Select property</option>
+              ${buildings.map(function (building) { return `<option value="${escapeHtml(building.id)}">${escapeHtml(getBuildingDisplayLabel(building))}</option>`; }).join("")}
+            </select>
+          </label>
+          <div class="template-delete-modal-actions">
+            <button class="btn btn-secondary" type="button" data-contact-property-link-action="cancel">Cancel</button>
+            <button class="btn btn-primary" type="button" data-contact-property-link-action="save">Link</button>
+          </div>
+        </div>`;
+      window.document.body.appendChild(backdrop);
+      function close(value) { backdrop.remove(); resolve(value); }
+      backdrop.addEventListener("click", function (event) {
+        if (event.target === backdrop) return close("");
+        const target = event.target;
+        if (!(target instanceof HTMLElement)) return;
+        const action = target.getAttribute("data-contact-property-link-action");
+        if (action === "cancel") return close("");
+        if (action === "save") {
+          const select = backdrop.querySelector("#contact-link-property-select");
+          close(select instanceof HTMLSelectElement ? String(select.value || "").trim() : "");
+        }
+      });
+    });
+  }
+
+  async function handleAddPropertyLinkForContact() {
+    const contact = findContactById(activeContactId);
+    if (!contact) return;
+    const linkedIds = new Set(getPropertyLinksForContact(contact.id).map(function (building) { return String(building.id); }));
+    const available = window.BuildingStorage.getBuildings().filter(function (building) { return !linkedIds.has(String(building.id)); });
+    if (available.length === 0) {
+      alert("There are no further properties available to link.");
+      return;
+    }
+    const buildingId = await showContactPropertyLinkDialog(contact, available);
+    if (!buildingId) return;
+    const building = findBuildingById(buildingId);
+    if (!building) return;
+    window.BuildingStorage.updateBuilding(applyContactRelationshipToBuilding(building, contact.id, contact.responsibility || "Other"));
+    renderBuildings();
+    renderContactLinkedProperties(contact);
+  }
+
+  function handlePropertyLinkListClick(event) {
+    const target = event.target;
+    if (!(target instanceof HTMLElement)) return;
+    const button = target.closest("[data-contact-property-unlink-id]");
+    if (!(button instanceof HTMLElement)) return;
+    const buildingId = String(button.getAttribute("data-contact-property-unlink-id") || "").trim();
+    const contact = findContactById(activeContactId);
+    const building = findBuildingById(buildingId);
+    if (!contact || !building) return;
+    window.BuildingStorage.updateBuilding(removeContactRelationshipFromBuilding(building, contact.id));
+    renderBuildings();
+    renderContactLinkedProperties(contact);
+  }
+
   function renderContactLinkedTenancies(contact) {
     if (!contactLinkedTenancySection || !contactLinkedTenancyList) {
       return;
@@ -7906,6 +8126,9 @@
           <h3>${escapeHtml(getTenancyDisplayName(link.tenancy))}</h3>
           <p><strong>Property:</strong> ${escapeHtml(getBuildingDisplayLabel(link.building))}</p>
           <p><strong>Company:</strong> ${escapeHtml(link.tenancy.companyName || "Not provided")}</p>
+          <div class="actions-row actions-row-tight">
+            <button class="btn btn-secondary btn-small" type="button" data-contact-tenancy-unlink-building="${escapeHtml(link.building.id)}" data-contact-tenancy-unlink-id="${escapeHtml(link.tenancy.id)}">Remove</button>
+          </div>
         </article>
       `;
     }).join("");
@@ -8024,39 +8247,44 @@
   }
 
   async function handleAddTenancyLinkForContact() {
-    if (!activeContactId) {
-      return;
-    }
-
+    if (!activeContactId) return;
     const contact = findContactById(activeContactId);
-    const building = findBuildingById(activeBuildingId);
-    if (!contact || !building) {
-      return;
-    }
-
-    const availableTenancies = getAllTenanciesForBuilding(building)
-      .filter(function (tenancy) {
-        return !getTenancyContactRefs(tenancy).includes(String(contact.id));
-      })
-      .map(function (tenancy) {
-        return { building: building, tenancy: tenancy };
+    if (!contact) return;
+    const availableTenancies = [];
+    window.BuildingStorage.getBuildings().forEach(function (building) {
+      getAllTenanciesForBuilding(building).forEach(function (tenancy) {
+        if (!getTenancyContactRefs(tenancy).includes(String(contact.id))) {
+          availableTenancies.push({ building: building, tenancy: tenancy });
+        }
       });
-
+    });
     if (availableTenancies.length === 0) {
-      alert("There are no further tenancies available to link for this property.");
+      alert("There are no further tenancies available to link.");
       return;
     }
+    const selection = await showContactTenancyLinkDialog(contact, availableTenancies);
+    if (!selection) return;
+    const match = availableTenancies.find(function (entry) { return String(entry.tenancy.id) === String(selection); });
+    if (!match) return;
+    const updated = linkContactToTenancy(match.building, match.tenancy.id, contact.id);
+    if (!updated) return;
+    window.BuildingStorage.updateBuilding(updated);
+    renderBuildings();
+    renderContactLinkedTenancies(contact);
+  }
 
-    const tenancyId = await showContactTenancyLinkDialog(contact, availableTenancies);
-    if (!tenancyId) {
-      return;
-    }
-
-    const updated = linkContactToTenancy(building, tenancyId, contact.id);
-    if (!updated) {
-      return;
-    }
-
+  function handleTenancyLinkListClick(event) {
+    const target = event.target;
+    if (!(target instanceof HTMLElement)) return;
+    const button = target.closest("[data-contact-tenancy-unlink-id]");
+    if (!(button instanceof HTMLElement)) return;
+    const buildingId = String(button.getAttribute("data-contact-tenancy-unlink-building") || "").trim();
+    const tenancyId = String(button.getAttribute("data-contact-tenancy-unlink-id") || "").trim();
+    const contact = findContactById(activeContactId);
+    const building = findBuildingById(buildingId);
+    if (!contact || !building) return;
+    const updated = unlinkContactFromTenancy(building, tenancyId, contact.id);
+    if (!updated) return;
     window.BuildingStorage.updateBuilding(updated);
     renderBuildings();
     renderContactLinkedTenancies(contact);
@@ -8163,10 +8391,6 @@
     const existingContact = contactFormMode === "edit" ? findContactById(activeContactId) : null;
 
     const payload = buildContactPayload(existingContact);
-    if (!payload.companyId) {
-      alert("Please select a company.");
-      return;
-    }
 
     if (contactAssignmentContext && contactFormMode === "add") {
       const context = contactAssignmentContext;
@@ -11865,7 +12089,12 @@
   addCompanyBtn.addEventListener("click", handleAddCompany);
   addCompanyInlineBtn.addEventListener("click", handleAddCompany);
   deleteContactBtn.addEventListener("click", handleDeleteContact);
-  contactAddScheduleLinkBtn.addEventListener("click", handleAddScheduleLinkForContact);
+  if (contactAddPropertyLinkBtn instanceof HTMLButtonElement) {
+    contactAddPropertyLinkBtn.addEventListener("click", handleAddPropertyLinkForContact);
+  }
+  if (contactAddScheduleLinkBtn instanceof HTMLButtonElement) {
+    contactAddScheduleLinkBtn.addEventListener("click", handleAddScheduleLinkForContact);
+  }
   if (contactRemoveScheduleLinkBtn instanceof HTMLButtonElement) {
     contactRemoveScheduleLinkBtn.addEventListener("click", handleRemoveScheduleLinkForContact);
   }

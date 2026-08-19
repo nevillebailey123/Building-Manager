@@ -408,6 +408,66 @@ async function seed(page, url, buildings, propertyId) {
     assert.deepStrictEqual(restoredJim.groups.Company, ["Jims Locksmiths Ltd · Company"], "Restore must preserve company associations");
     await targetContext.close();
 
+    // --- Permanent contact deletion ------------------------------------------
+    const deleteContext = await browser.newContext();
+    const deletePage = await deleteContext.newPage();
+    deletePage.on("pageerror", function (error) { pageErrors.push(String(error)); });
+    await seed(deletePage, running.url, BUILDINGS, "");
+    await moduleButton(deletePage, "Contacts").click();
+    await deletePage.locator('[data-contact-id="c-jim"]').click();
+    await deletePage.locator('.contact-details-backdrop [data-contact-details-action="edit"]').click();
+    await deletePage.locator('#delete-contact-btn').click();
+
+    const deleteDialog = deletePage.locator('[data-contact-delete-confirm="c-jim"]');
+    await deleteDialog.waitFor({ state: "visible" });
+    assert.ok((await deleteDialog.textContent()).includes("Jim Beveridge"), "The delete confirmation must identify the contact by name");
+
+    // Cancel must leave both the canonical contact and every relationship intact.
+    await deleteDialog.locator('[data-contact-delete-action="cancel"]').click();
+    assert.strictEqual(await deletePage.locator('[data-contact-delete-confirm]').count(), 0, "Cancel closes the contact delete modal");
+    assert.strictEqual(
+      await deletePage.evaluate(function () {
+        return JSON.parse(localStorage.getItem("buildingManagerMasterData")).contacts.some(function (contact) { return contact.id === "c-jim"; });
+      }),
+      true,
+      "Cancel must not remove the master contact"
+    );
+
+    // Confirmed delete removes the canonical record and all ID references, but not related entities.
+    await deletePage.locator('#delete-contact-btn').click();
+    await deletePage.locator('[data-contact-delete-confirm="c-jim"] [data-contact-delete-action="delete"]').click();
+    await deletePage.waitForFunction(function () {
+      return !JSON.parse(localStorage.getItem("buildingManagerMasterData")).contacts.some(function (contact) { return contact.id === "c-jim"; });
+    });
+
+    const deletedState = await deletePage.evaluate(function () {
+      return {
+        master: JSON.parse(localStorage.getItem("buildingManagerMasterData")),
+        buildings: JSON.parse(localStorage.getItem("buildingManagerBuildings")),
+      };
+    });
+    assert.strictEqual(deletedState.master.contacts.some(function (contact) { return contact.id === "c-jim"; }), false, "The canonical contact must be deleted");
+    assert.strictEqual(deletedState.master.companies.some(function (company) { return company.id === "company-locksmith"; }), true, "Deleting a contact must keep its company");
+    deletedState.buildings.forEach(function (building) {
+      assert.strictEqual((building.buildingContactAssignments || []).includes("c-jim"), false, "Property assignments must be cleaned across every property");
+      assert.strictEqual(Object.prototype.hasOwnProperty.call(building.contactRelationshipById || {}, "c-jim"), false, "Property relationship maps must be cleaned");
+      (building.tenancies || []).forEach(function (tenancy) {
+        assert.strictEqual((tenancy.contactRefs || []).some(function (ref) {
+          return String(ref && typeof ref === "object" ? ref.contactId || ref.id || "" : ref) === "c-jim";
+        }), false, "Tenancy contact references must be cleaned");
+      });
+      (building.scheduleItems || []).forEach(function (item) {
+        assert.notStrictEqual(item.preferredContactId, "c-jim", "Calendar preferred contact IDs must be cleared");
+      });
+      (building.propertyTemplates || []).forEach(function (template) {
+        assert.notStrictEqual(template.preferredContactId, "c-jim", "Property template preferred contact IDs must be cleared");
+      });
+    });
+    assert.strictEqual(deletedState.buildings.length, 2, "Deleting a contact must not delete properties");
+    assert.strictEqual(deletedState.buildings[0].tenancies.length, 2, "Deleting a contact must not delete tenancies");
+    assert.strictEqual(deletedState.buildings[0].scheduleItems.length > 0, true, "Deleting a contact must not delete Calendar items");
+    await deleteContext.close();
+
     assert.deepStrictEqual(pageErrors, [], "The contacts repository must not throw a browser exception");
     console.log("contacts repository browser regression test passed");
   } finally {

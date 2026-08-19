@@ -649,7 +649,8 @@
             <input id="contactId" name="contactId" type="hidden" />
 
             <label for="contactCompany">Company</label>
-            <select id="contactCompany" name="companyId" required></select>
+            <input id="contactCompany" name="companyName" type="text" placeholder="Optional" />
+            <input id="contactCompanyId" name="companyId" type="hidden" />
 
             <label for="contactName">Name</label>
             <input id="contactName" name="name" type="text" required />
@@ -670,26 +671,32 @@
             <textarea id="contactNotes" name="notes" rows="4"></textarea>
           </form>
 
-          <section id="contact-linked-schedule-section" class="contact-linked-schedule-section" style="display: block;">
+          <section id="contact-linked-property-section" class="contact-linked-schedule-section" style="display: block;">
             <div class="contacts-list-header">
-              <h3>Linked Calendar Items</h3>
+              <h3>Linked Properties</h3>
               <div class="contacts-list-actions">
-                <button id="contact-add-schedule-link-btn" class="btn btn-secondary" type="button">Add Link</button>
-                <button id="contact-remove-schedule-link-btn" class="btn btn-secondary" type="button">Remove Link</button>
+                <button id="contact-add-property-link-btn" class="btn btn-secondary" type="button">Link Property</button>
               </div>
             </div>
-            <section id="contact-linked-schedule-list" class="building-list" aria-live="polite"></section>
+            <section id="contact-linked-property-list" class="building-list" aria-live="polite"></section>
           </section>
 
           <section id="contact-linked-tenancy-section" class="contact-linked-schedule-section" style="display: block;">
             <div class="contacts-list-header">
               <h3>Linked Tenancies</h3>
               <div class="contacts-list-actions">
-                <button id="contact-add-tenancy-link-btn" class="btn btn-secondary" type="button">Add Link</button>
-                <button id="contact-remove-tenancy-link-btn" class="btn btn-secondary" type="button">Remove Link</button>
+                <button id="contact-add-tenancy-link-btn" class="btn btn-secondary" type="button">Link Tenancy</button>
               </div>
             </div>
             <section id="contact-linked-tenancy-list" class="building-list" aria-live="polite"></section>
+          </section>
+
+          <section id="contact-linked-schedule-section" class="contact-linked-schedule-section" style="display: block;">
+            <div class="contacts-list-header">
+              <h3>Calendar Items</h3>
+            </div>
+            <p class="module-placeholder">Calendar relationships are assigned from Calendar and shown here for reference.</p>
+            <section id="contact-linked-schedule-list" class="building-list" aria-live="polite"></section>
           </section>
 
           <div class="form-actions">
