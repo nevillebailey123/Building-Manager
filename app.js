@@ -7522,7 +7522,7 @@
     if (!tenancyToDelete) return null;
 
     const tenancyScheduleItemIds = new Set((normalizedBuilding.scheduleItems || []).filter(function (item) {
-      return String(item.sourceType || "") === "tenancy" && String(item.tenancyId || "").trim() === targetId;
+      return String(item.tenancyId || "").trim() === targetId;
     }).map(function (item) {
       return String(item.id || "").trim();
     }).filter(Boolean));
@@ -7555,7 +7555,7 @@
       tenancies: remainingTenancies,
       documents: propertyDocuments,
       scheduleItems: (normalizedBuilding.scheduleItems || []).filter(function (item) {
-        return !(String(item.sourceType || "") === "tenancy" && String(item.tenancyId || "").trim() === targetId);
+        return !(String(item.tenancyId || "").trim() === targetId);
       }),
       historyRecords: (normalizedBuilding.historyRecords || []).filter(function (record) {
         return !tenancyScheduleItemIds.has(String(record.scheduleItemId || "").trim());
