@@ -153,6 +153,7 @@
   const setupStep5 = document.getElementById("setup-step-5");
   const setupStep6 = document.getElementById("setup-step-6");
   const setupBackBtn = document.getElementById("setup-back-btn");
+  const setupSaveExitBtn = document.getElementById("setup-save-exit-btn");
   const setupCancelBtn = document.getElementById("setup-cancel-btn");
   const setupAddTenancyBtn = document.getElementById("setup-add-tenancy-btn");
   const setupSkipTenancyBtn = document.getElementById("setup-skip-tenancy-btn");
@@ -1479,13 +1480,17 @@
 
     settingsPropertyList.innerHTML = buildings.map(function (building) {
       const archived = isBuildingArchived(building);
+      const incomplete = building.setupIncomplete === true;
       const address = [building.streetAddress, building.city].filter(Boolean).join(", ");
+      const setupStep = Math.max(1, Math.min(5, Number(building.setupStep || 1)));
       return `
         <article class="building-card settings-property-card${archived ? " is-archived" : ""}" data-settings-property-id="${escapeHtml(building.id)}">
           <h3>${escapeHtml(building.buildingName || "Untitled Property")}</h3>
           ${address ? `<p>${escapeHtml(address)}</p>` : ""}
           <p><strong>Status:</strong> ${archived ? "Archived" : escapeHtml(building.status || "Active")}</p>
+          ${incomplete ? `<p><strong>Setup:</strong> Incomplete · Step ${setupStep} of 5</p>` : ""}
           <div class="document-item-actions settings-property-actions">
+            ${incomplete && !archived ? '<button class="btn btn-primary lease-tile-btn" type="button" data-settings-property-action="resume-setup">Resume Setup</button>' : ""}
             <button class="btn btn-secondary lease-tile-btn" type="button" data-settings-property-action="edit">Edit Property</button>
           </div>
         </article>
@@ -1582,6 +1587,7 @@
   function createEmptySetupState() {
     return {
       currentStep: 1,
+      propertyId: "",
       buildingDetails: null,
       tenancy: null,
       linkedContacts: [],
@@ -1694,6 +1700,120 @@
     renderSetupExistingContactOptions("");
     renderTemplateLibrary();
     showSetupStep(1);
+  }
+
+  function resumeSetupWorkflow(building) {
+    if (!building || !building.id) {
+      return;
+    }
+
+    setupState = createEmptySetupState();
+    setupState.propertyId = building.id;
+    setupState.createdBuildingId = building.id;
+
+    setupState.buildingDetails = {
+      buildingName: String(building.buildingName || ""),
+      streetAddress: String(building.streetAddress || ""),
+      city: String(building.city || ""),
+      owner: String(building.owner || ""),
+      propertyManager: String(building.propertyManager || ""),
+      buildingType: String(building.buildingType || ""),
+    };
+
+    buildingForm.elements.buildingName.value = setupState.buildingDetails.buildingName;
+    buildingForm.elements.streetAddress.value = setupState.buildingDetails.streetAddress;
+    buildingForm.elements.city.value = setupState.buildingDetails.city;
+    buildingForm.elements.owner.value = setupState.buildingDetails.owner;
+    buildingForm.elements.propertyManager.value = setupState.buildingDetails.propertyManager;
+    buildingForm.elements.buildingType.value = setupState.buildingDetails.buildingType;
+
+    const draft = building.setupDraft && typeof building.setupDraft === "object"
+      ? building.setupDraft
+      : {};
+
+    setupState.linkedContacts = Array.isArray(draft.linkedContacts)
+      ? draft.linkedContacts.map(function (entry) { return { ...entry }; })
+      : [];
+
+    setupState.selectedTemplateIds = Array.isArray(draft.selectedTemplateIds)
+      ? draft.selectedTemplateIds.slice()
+      : [];
+
+    setupState.configuredScheduleItems = Array.isArray(draft.configuredScheduleItems)
+      ? draft.configuredScheduleItems.map(function (item) { return { ...item }; })
+      : [];
+
+    const existingTenancies = getAllTenanciesForBuilding(building);
+    const existingTenancy = existingTenancies.length > 0 ? existingTenancies[0] : null;
+    const tenancyDraft = draft.tenancy && typeof draft.tenancy === "object"
+      ? draft.tenancy
+      : null;
+    const tenancy = tenancyDraft || existingTenancy;
+
+    if (tenancy) {
+      setupState.tenancy = {
+        companyId: String(tenancy.companyId || ""),
+        companyName: String(tenancy.companyName || ""),
+        leaseStart: String(tenancy.leaseStart || ""),
+        leaseEnd: String(tenancy.leaseEnd || ""),
+        notes: String(tenancy.notes || ""),
+      };
+
+      renderSetupTenancyCompanyOptions(setupState.tenancy.companyId);
+
+      if (setupState.tenancy.companyId === "__new__") {
+        setupTenancyCompanyId.value = "__new__";
+        setupTenancyNewCompanyWrap.style.display = "block";
+        setupTenancyNewCompanyName.required = true;
+        setupTenancyNewCompanyName.value = String(tenancy.newCompanyName || tenancy.companyName || "");
+      } else {
+        setupTenancyCompanyId.value = setupState.tenancy.companyId;
+        setupTenancyNewCompanyWrap.style.display = "none";
+        setupTenancyNewCompanyName.required = false;
+      }
+
+      setupTenancyForm.elements.leaseStart.value = setupState.tenancy.leaseStart;
+      setupTenancyForm.elements.leaseEnd.value = setupState.tenancy.leaseEnd;
+      setupTenancyForm.elements.notes.value = setupState.tenancy.notes;
+      setupTenancyForm.style.display = "grid";
+    } else {
+      renderSetupTenancyCompanyOptions("");
+      setupTenancyForm.reset();
+      setupTenancyForm.style.display = "none";
+    }
+
+    setupExistingContactForm.style.display = "none";
+    setupNewContactForm.style.display = "none";
+    setupTenancyNewCompanyWrap.style.display = "none";
+    setupNewContactCompanyWrap.style.display = "none";
+
+    renderSetupRelationshipOptions(setupExistingContactRelationship, "Other");
+    renderSetupRelationshipOptions(setupNewContactRelationship, "Other");
+    renderSetupContactCompanyOptions("");
+    renderSetupExistingContactOptions("");
+    renderSetupLinkedContacts();
+    renderTemplateLibrary();
+
+    setupTemplateList.querySelectorAll('input[type="checkbox"]').forEach(function (input) {
+      input.checked = setupState.selectedTemplateIds.includes(String(input.value || ""));
+    });
+
+    const savedStep = Math.max(1, Math.min(5, Number(building.setupStep || 1)));
+
+    if (savedStep === 5) {
+      renderConfigureSelectedItems();
+    }
+
+    hideAllViews();
+    setAppShellVisible(false);
+    formView.classList.add("is-active");
+
+    setBreadcrumbs([
+      { label: "Settings", onClick: openSettingsView },
+      { label: "Resume Property Setup", onClick: function () { resumeSetupWorkflow(building); } },
+    ]);
+
+    showSetupStep(savedStep);
   }
 
   function buildSetupBuildingDetails() {
@@ -2268,8 +2388,10 @@
       return scheduleItem;
     });
 
-    const buildingId = window.BuildingStorage.createId();
+    const buildingId = setupState.propertyId || window.BuildingStorage.createId();
+    const existingBuilding = window.BuildingStorage.getBuildingById(buildingId);
     const building = {
+      ...(existingBuilding || {}),
       id: buildingId,
       buildingName: setupState.buildingDetails.buildingName,
       streetAddress: setupState.buildingDetails.streetAddress,
@@ -2278,21 +2400,38 @@
       propertyManager: setupState.buildingDetails.propertyManager,
       buildingType: setupState.buildingDetails.buildingType,
       status: tenancy ? "Occupied" : "Vacant",
-      notes: "",
-      createdDate: now,
+      notes: existingBuilding ? String(existingBuilding.notes || "") : "",
+      createdDate: existingBuilding ? existingBuilding.createdDate : now,
       lastUpdated: now,
       tenancy: tenancy,
+      tenancies: tenancy ? [tenancy] : [],
       buildingContactAssignments: linkedContactIds.slice(),
-      buildingRoles: [],
-      documents: [],
-      documentCategories: createDefaultDocumentCategories(),
+      buildingRoles: existingBuilding && Array.isArray(existingBuilding.buildingRoles)
+        ? existingBuilding.buildingRoles
+        : [],
+      documents: existingBuilding && Array.isArray(existingBuilding.documents)
+        ? existingBuilding.documents
+        : [],
+      documentCategories: existingBuilding && Array.isArray(existingBuilding.documentCategories)
+        ? existingBuilding.documentCategories
+        : createDefaultDocumentCategories(),
       propertyTemplates: propertyTemplates,
       scheduleItems: scheduleItems,
-      historyRecords: [],
+      historyRecords: existingBuilding && Array.isArray(existingBuilding.historyRecords)
+        ? existingBuilding.historyRecords
+        : [],
+      setupIncomplete: false,
+      setupStep: 6,
+      setupDraft: null,
     };
 
-    window.BuildingStorage.addBuilding(building);
+    if (existingBuilding) {
+      window.BuildingStorage.updateBuilding(building);
+    } else {
+      window.BuildingStorage.addBuilding(building);
+    }
 
+    setupState.propertyId = buildingId;
     setupState.createdBuildingId = buildingId;
     setupState.finishSummary = {
       buildingCreated: true,
@@ -2322,7 +2461,51 @@
 
   function handleSetupStepOneSubmit(event) {
     event.preventDefault();
-    setupState.buildingDetails = buildSetupBuildingDetails();
+
+    const details = buildSetupBuildingDetails();
+    setupState.buildingDetails = details;
+
+    const now = new Date().toISOString();
+    const existing = setupState.propertyId
+      ? window.BuildingStorage.getBuildingById(setupState.propertyId)
+      : null;
+
+    if (existing) {
+      window.BuildingStorage.updateBuilding({
+        ...existing,
+        ...details,
+        setupIncomplete: true,
+        setupStep: 2,
+        lastUpdated: now,
+      });
+    } else {
+      const propertyId = window.BuildingStorage.createId();
+      const building = {
+        id: propertyId,
+        ...details,
+        status: "Vacant",
+        notes: "",
+        createdDate: now,
+        lastUpdated: now,
+        tenancy: null,
+        tenancies: [],
+        buildingContactAssignments: [],
+        buildingRoles: [],
+        documents: [],
+        documentCategories: createDefaultDocumentCategories(),
+        propertyTemplates: [],
+        scheduleItems: [],
+        historyRecords: [],
+        setupIncomplete: true,
+        setupStep: 2,
+      };
+
+      window.BuildingStorage.addBuilding(building);
+      setupState.propertyId = propertyId;
+      setupState.createdBuildingId = propertyId;
+    }
+
+    renderBuildings();
     showSetupStep(2);
   }
 
@@ -2330,6 +2513,64 @@
     setupState = createEmptySetupState();
     openSettingsView();
     renderBuildings();
+  }
+
+  function handleSetupSaveExit() {
+    if (!setupState.propertyId) {
+      alert("Complete Property Details and select Next before saving setup.");
+      return;
+    }
+
+    const existingBuilding = window.BuildingStorage.getBuildingById(setupState.propertyId);
+    if (!existingBuilding) {
+      alert("The property could not be found.");
+      return;
+    }
+
+    // Preserve partially entered tenancy details even if Save and Continue
+    // has not yet been selected.
+    if (setupState.currentStep === 2 && setupTenancyForm.style.display !== "none") {
+      const companySelection = String(setupTenancyCompanyId.value || "");
+      const newCompanyName = String(setupTenancyNewCompanyName.value || "").trim();
+
+      setupState.tenancy = {
+        companyId: companySelection,
+        companyName: companySelection === "__new__"
+          ? newCompanyName
+          : getCompanyNameById(companySelection, ""),
+        newCompanyName: newCompanyName,
+        leaseStart: String(setupTenancyForm.elements.leaseStart.value || "").trim(),
+        leaseEnd: String(setupTenancyForm.elements.leaseEnd.value || "").trim(),
+        notes: String(setupTenancyForm.elements.notes.value || "").trim(),
+      };
+    }
+
+    // If saving from the Calendar selection screen, capture the current
+    // checkbox state before leaving the wizard.
+    if (setupState.currentStep === 4) {
+      captureTemplateSelection();
+    }
+
+    window.BuildingStorage.updateBuilding({
+      ...existingBuilding,
+      setupIncomplete: true,
+      setupStep: setupState.currentStep,
+      setupDraft: {
+        tenancy: setupState.tenancy ? { ...setupState.tenancy } : null,
+        linkedContacts: setupState.linkedContacts.map(function (entry) {
+          return { ...entry };
+        }),
+        selectedTemplateIds: setupState.selectedTemplateIds.slice(),
+        configuredScheduleItems: setupState.configuredScheduleItems.map(function (item) {
+          return { ...item };
+        }),
+      },
+      lastUpdated: new Date().toISOString(),
+    });
+
+    setupState = createEmptySetupState();
+    renderBuildings();
+    openSettingsView();
   }
 
   function handleSetupBack() {
@@ -12004,6 +12245,12 @@
     }
 
     const action = actionButton.getAttribute("data-settings-property-action") || "";
+
+    if (action === "resume-setup") {
+      resumeSetupWorkflow(building);
+      return;
+    }
+
     if (action === "edit") {
       openPropertyEditor(building);
     }
@@ -12178,6 +12425,9 @@
 
   cancelBtn.addEventListener("click", handleSetupCancel);
   setupCancelBtn.addEventListener("click", handleSetupCancel);
+  if (setupSaveExitBtn instanceof HTMLButtonElement) {
+    setupSaveExitBtn.addEventListener("click", handleSetupSaveExit);
+  }
   setupBackBtn.addEventListener("click", handleSetupBack);
   setupAddTenancyBtn.addEventListener("click", handleSetupAddTenancy);
   setupSkipTenancyBtn.addEventListener("click", handleSetupSkipTenancy);

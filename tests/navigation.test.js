@@ -58,7 +58,7 @@ assert.ok(
 
 // Only the deliberately focused workflows may hide the shell.
 const shellHidingFunctions = appSource.split("setAppShellVisible(false)").length - 1;
-assert.strictEqual(shellHidingFunctions, 3, "Only Setup, Edit Property and Complete Task may hide the shared shell");
+assert.strictEqual(shellHidingFunctions, 4, "Only Setup, Resume Setup, Edit Property and Complete Task may hide the shared shell");
 ["showDashboard", "showTenancyView", "showContactsView", "showScheduleView", "showLeaseView", "showSettingsView"].forEach(function (name) {
   const index = appSource.indexOf(`function ${name}(`);
   const body = appSource.slice(index, appSource.indexOf("\n  }", index));
@@ -203,7 +203,15 @@ assert.ok(settingsListSource.includes('data-settings-property-action="edit"'), "
 ["archive", "unarchive", "delete"].forEach(function (action) {
   assert.strictEqual(settingsListSource.includes(`data-settings-property-action="${action}"`), false, `Settings cards must not offer the ${action} action directly`);
 });
-assert.strictEqual(settingsListSource.split("data-settings-property-action").length - 1, 1, "Edit Property must be the only property action on a Settings card");
+assert.ok(
+  settingsListSource.includes('data-settings-property-action="resume-setup"'),
+  "Incomplete Settings cards must offer Resume Setup"
+);
+assert.strictEqual(
+  settingsListSource.split("data-settings-property-action").length - 1,
+  2,
+  "Settings cards may only offer Resume Setup and Edit Property"
+);
 assert.ok(settingsListSource.includes('${archived ? "Archived"'), "Settings must clearly mark archived properties");
 assert.ok(settingsListSource.includes("getAllBuildingsIncludingArchived()"), "Settings must show archived properties too");
 

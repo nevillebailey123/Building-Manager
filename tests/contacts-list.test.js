@@ -223,8 +223,8 @@ assert.deepStrictEqual(
 console.log("contact building filter regression test passed");
 
 // --- Setup wizard creates Property relationships only -------------------------
-const setupStart = appSource.indexOf("const buildingId = window.BuildingStorage.createId();");
-const setupEnd = appSource.indexOf("window.BuildingStorage.addBuilding(building);", setupStart);
+const setupStart = appSource.indexOf("const buildingId = setupState.propertyId || window.BuildingStorage.createId();");
+const setupEnd = appSource.indexOf("setupState.createdBuildingId = buildingId;", setupStart);
 assert.ok(setupStart >= 0 && setupEnd > setupStart, "Setup wizard building assembly must exist");
 const setupSource = appSource.slice(setupStart, setupEnd);
 assert.ok(
