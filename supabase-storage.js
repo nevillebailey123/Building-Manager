@@ -548,6 +548,7 @@ async function migrateExistingBrowserData() {
     };
   });
 
+  const tenancies = [];
   const propertyTemplates = [];
   const scheduleItems = [];
   const historyRecords = [];
@@ -557,6 +558,100 @@ async function migrateExistingBrowserData() {
 
   buildings.forEach(function (building) {
     const propertyId = String(building.id);
+
+    const buildingTenancies = Array.isArray(building.tenancies)
+      ? building.tenancies
+      : (building.tenancy ? [building.tenancy] : []);
+
+    buildingTenancies.forEach(function (tenancy) {
+      if (!tenancy || !tenancy.id) {
+        return;
+      }
+
+      const tenancyId = String(tenancy.id);
+      const lease = tenancy.lease && typeof tenancy.lease === "object"
+        ? tenancy.lease
+        : {};
+
+      tenancies.push({
+        id: tenancyId,
+        property_id: propertyId,
+        company_id: tenancy.companyId || null,
+        company_name: tenancy.companyName || "",
+        trading_name: tenancy.tradingName || "",
+        lease_start: cleanDate(tenancy.leaseStart),
+        lease_end: cleanDate(tenancy.leaseEnd),
+        rent_review_date: cleanDate(tenancy.rentReviewDate),
+        rent_review_frequency: tenancy.rentReviewFrequency || "Annual",
+        renewal_date: cleanDate(tenancy.renewalDate),
+        notice_date: cleanDate(tenancy.noticeDate),
+        status: tenancy.status || "Occupied",
+        notes: tenancy.notes || "",
+        lease_notes: lease.notes || "",
+        created_at: cleanTimestamp(
+          tenancy.createdDate || building.createdDate
+        ),
+        updated_at: cleanTimestamp(
+          tenancy.lastUpdated || building.lastUpdated
+        ),
+      });
+
+      (tenancy.contactRefs || []).forEach(function (contactId) {
+        contactLinks.push({
+          contact_id: String(contactId),
+          property_id: propertyId,
+          tenancy_id: tenancyId,
+          relationship: "",
+        });
+      });
+
+      const leaseDocuments = Array.isArray(lease.documents)
+        ? lease.documents
+        : (Array.isArray(tenancy.documents) ? tenancy.documents : []);
+
+      leaseDocuments.forEach(function (document) {
+        if (!document || !document.id) {
+          return;
+        }
+
+        const documentId = String(document.id);
+        const storage = document.storage || {};
+
+        documents.push({
+          id: documentId,
+          title: document.title || "",
+          category_id: document.categoryId || "",
+          category: document.category || "Tenancy",
+          document_type: document.documentType || document.type || "Lease Agreement",
+          version: document.version || "",
+          document_date: cleanDate(document.documentDate || document.date),
+          expiry_date: cleanDate(document.expiryDate),
+          add_expiry_to_calendar: document.addExpiryToCalendar === true,
+          description: document.description || "",
+          uploaded_by: document.uploadedBy || "",
+          file_name: document.fileName || document.name || "",
+          mime_type: document.mimeType || document.fileType || "application/octet-stream",
+          size_bytes: Number(document.sizeBytes || 0),
+          uploaded_at: cleanDate(document.uploadedAt),
+          notes: document.notes || "",
+          storage_kind: storage.kind || "",
+          storage_path: "",
+          preview_status: storage.previewStatus || "",
+          ocr_status: storage.ocrStatus || "",
+          data: document,
+          created_at: cleanTimestamp(document.createdDate || document.uploadedAt),
+          updated_at: cleanTimestamp(document.lastUpdated),
+        });
+
+        documentLinks.push({
+          document_id: documentId,
+          property_id: propertyId,
+          tenancy_id: tenancyId,
+          schedule_item_id: document.scheduleItemId || null,
+          relationship_type: "tenancy",
+        });
+      });
+    });
 
     (building.propertyTemplates || []).forEach(function (template) {
       propertyTemplates.push({
@@ -672,6 +767,7 @@ async function migrateExistingBrowserData() {
   counts.companies = await upsertMigrationRows("companies", companies);
   counts.contacts = await upsertMigrationRows("contacts", contacts);
   counts.properties = await upsertMigrationRows("properties", properties);
+  counts.tenancies = await upsertMigrationRows("tenancies", tenancies);
   counts.masterTemplates = await upsertMigrationRows("master_templates", masterTemplates);
   counts.propertyTemplates = await upsertMigrationRows("property_templates", propertyTemplates);
   counts.scheduleItems = await upsertMigrationRows("schedule_items", scheduleItems);
