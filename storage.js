@@ -2,6 +2,16 @@
   const STORAGE_KEY = "buildingManagerBuildings";
   const MASTER_KEY = "buildingManagerMasterData";
 
+  function mirrorToIndexedDB(operation, value) {
+    if (!window.ComplianceHQIndexedDB || typeof window.ComplianceHQIndexedDB[operation] !== "function") {
+      return;
+    }
+
+    Promise.resolve(window.ComplianceHQIndexedDB[operation](value)).catch(function (error) {
+      console.error("IndexedDB mirror failed:", operation, error);
+    });
+  }
+
   function normalizeBuildings(value) {
     if (Array.isArray(value)) {
       return value;
@@ -47,6 +57,7 @@
   function saveBuildings(buildings) {
     const normalized = normalizeBuildings(buildings);
     localStorage.setItem(STORAGE_KEY, JSON.stringify(normalized));
+    mirrorToIndexedDB("replaceBuildings", normalized);
   }
 
   function defaultMasterData() {
@@ -79,6 +90,7 @@
 
   function saveMasterData(masterData) {
     localStorage.setItem(MASTER_KEY, JSON.stringify(masterData));
+    mirrorToIndexedDB("saveMasterData", masterData);
   }
 
   function createBackupPayload() {
@@ -154,8 +166,8 @@
       return validation;
     }
 
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(validation.data.buildingManagerBuildings));
-    localStorage.setItem(MASTER_KEY, JSON.stringify(validation.data.buildingManagerMasterData));
+    saveBuildings(validation.data.buildingManagerBuildings);
+    saveMasterData(validation.data.buildingManagerMasterData);
 
     return {
       success: true,
