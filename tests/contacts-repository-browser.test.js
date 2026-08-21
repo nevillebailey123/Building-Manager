@@ -349,11 +349,15 @@ async function seed(page, url, buildings, propertyId) {
     // --- Unlinking removes one relationship only -----------------------------
     const afterPropertyUnlink = await page.evaluate(function () {
       const api = window.BuildingManagerSchedule;
-      const buildings = JSON.parse(localStorage.getItem("buildingManagerBuildings"));
-      const ford = buildings.find(function (item) { return item.id === "ford-onekawa"; });
+      const ford = window.BuildingStorage.getBuildingById("ford-onekawa");
       // Remove Jim's Ford Onekawa property relationship only.
-      ford.buildingContactAssignments = ford.buildingContactAssignments.filter(function (id) { return id !== "c-jim"; });
-      localStorage.setItem("buildingManagerBuildings", JSON.stringify(buildings));
+      const updated = {
+        ...ford,
+        buildingContactAssignments: ford.buildingContactAssignments.filter(function (id) {
+          return id !== "c-jim";
+        }),
+      };
+      window.BuildingStorage.updateBuilding(updated);
       return Boolean(api);
     });
     assert.strictEqual(afterPropertyUnlink, true, "The schedule API must remain available");

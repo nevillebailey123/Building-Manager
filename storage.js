@@ -2,13 +2,17 @@
   const STORAGE_KEY = "buildingManagerBuildings";
   const MASTER_KEY = "buildingManagerMasterData";
 
+  let cachedBuildings = null;
+  let cachedMasterData = null;
+
   function mirrorToIndexedDB(operation, value) {
     if (!window.ComplianceHQIndexedDB || typeof window.ComplianceHQIndexedDB[operation] !== "function") {
-      return;
+      return Promise.resolve();
     }
 
-    Promise.resolve(window.ComplianceHQIndexedDB[operation](value)).catch(function (error) {
+    return Promise.resolve(window.ComplianceHQIndexedDB[operation](value)).catch(function (error) {
       console.error("IndexedDB mirror failed:", operation, error);
+      throw error;
     });
   }
 
@@ -35,9 +39,14 @@
   }
 
   function getBuildings() {
+    if (Array.isArray(cachedBuildings)) {
+      return cachedBuildings;
+    }
+
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) {
-      return [];
+      cachedBuildings = [];
+      return cachedBuildings;
     }
 
     try {
@@ -48,16 +57,19 @@
         localStorage.setItem(STORAGE_KEY, JSON.stringify(normalized));
       }
 
-      return normalized;
+      cachedBuildings = normalized;
+      return cachedBuildings;
     } catch (error) {
-      return [];
+      cachedBuildings = [];
+      return cachedBuildings;
     }
   }
 
   function saveBuildings(buildings) {
     const normalized = normalizeBuildings(buildings);
+    cachedBuildings = normalized;
     localStorage.setItem(STORAGE_KEY, JSON.stringify(normalized));
-    mirrorToIndexedDB("replaceBuildings", normalized);
+    return mirrorToIndexedDB("replaceBuildings", normalized);
   }
 
   function defaultMasterData() {
@@ -70,27 +82,83 @@
   }
 
   function getMasterData() {
+    if (cachedMasterData) {
+      return cachedMasterData;
+    }
+
     const raw = localStorage.getItem(MASTER_KEY);
     if (!raw) {
-      return defaultMasterData();
+      cachedMasterData = defaultMasterData();
+      return cachedMasterData;
     }
 
     try {
       const parsed = JSON.parse(raw);
-      return {
+      cachedMasterData = {
         companies: Array.isArray(parsed.companies) ? parsed.companies : [],
         contacts: Array.isArray(parsed.contacts) ? parsed.contacts : [],
         scheduledItemTemplates: Array.isArray(parsed.scheduledItemTemplates) ? parsed.scheduledItemTemplates : [],
         documents: Array.isArray(parsed.documents) ? parsed.documents : [],
       };
+      return cachedMasterData;
     } catch (error) {
-      return defaultMasterData();
+      cachedMasterData = defaultMasterData();
+      return cachedMasterData;
     }
   }
 
   function saveMasterData(masterData) {
+    cachedMasterData = masterData;
     localStorage.setItem(MASTER_KEY, JSON.stringify(masterData));
-    mirrorToIndexedDB("saveMasterData", masterData);
+    return mirrorToIndexedDB("saveMasterData", masterData);
+  }
+
+  async function initializeFromIndexedDB() {
+    if (!window.ComplianceHQIndexedDB) {
+      return {
+        success: false,
+        source: "localStorage",
+        reason: "IndexedDB storage layer is unavailable.",
+      };
+    }
+
+    try {
+      const results = await Promise.all([
+        window.ComplianceHQIndexedDB.getAllBuildings(),
+        window.ComplianceHQIndexedDB.getMasterData(),
+      ]);
+
+      const indexedBuildings = results[0];
+      const indexedMasterData = results[1];
+
+      if (Array.isArray(indexedBuildings) && indexedBuildings.length > 0) {
+        cachedBuildings = normalizeBuildings(indexedBuildings);
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(cachedBuildings));
+      }
+
+      if (indexedMasterData && typeof indexedMasterData === "object") {
+        cachedMasterData = {
+          companies: Array.isArray(indexedMasterData.companies) ? indexedMasterData.companies : [],
+          contacts: Array.isArray(indexedMasterData.contacts) ? indexedMasterData.contacts : [],
+          scheduledItemTemplates: Array.isArray(indexedMasterData.scheduledItemTemplates) ? indexedMasterData.scheduledItemTemplates : [],
+          documents: Array.isArray(indexedMasterData.documents) ? indexedMasterData.documents : [],
+        };
+        localStorage.setItem(MASTER_KEY, JSON.stringify(cachedMasterData));
+      }
+
+      return {
+        success: true,
+        source: "indexedDB",
+        buildingCount: Array.isArray(cachedBuildings) ? cachedBuildings.length : 0,
+      };
+    } catch (error) {
+      console.error("IndexedDB initialization failed:", error);
+      return {
+        success: false,
+        source: "localStorage",
+        reason: error && error.message ? error.message : "IndexedDB initialization failed.",
+      };
+    }
   }
 
   function syncToIndexedDB() {
@@ -190,12 +258,16 @@
       return validation;
     }
 
-    saveBuildings(validation.data.buildingManagerBuildings);
-    saveMasterData(validation.data.buildingManagerMasterData);
+    const buildingsPersistence = saveBuildings(validation.data.buildingManagerBuildings);
+    const masterDataPersistence = saveMasterData(validation.data.buildingManagerMasterData);
 
     return {
       success: true,
       data: validation.data,
+      persisted: Promise.all([
+        buildingsPersistence,
+        masterDataPersistence,
+      ]),
     };
   }
 
@@ -227,7 +299,7 @@
       return building;
     });
 
-    saveBuildings(next);
+    return saveBuildings(next);
   }
 
   function deleteBuilding(buildingId) {
@@ -418,6 +490,7 @@
     getBuildingById,
     getMasterData,
     saveMasterData,
+    initializeFromIndexedDB,
     syncToIndexedDB,
     createBackupPayload,
     validateBackupData,

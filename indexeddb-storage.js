@@ -89,6 +89,18 @@
     }
   }
 
+  async function getBuildingById(buildingId) {
+    const database = await openDatabase();
+
+    try {
+      const transaction = database.transaction(STORES.buildings, "readonly");
+      const store = transaction.objectStore(STORES.buildings);
+      return await requestToPromise(store.get(buildingId)) || null;
+    } finally {
+      database.close();
+    }
+  }
+
   async function replaceBuildings(buildings) {
     const database = await openDatabase();
 
@@ -181,6 +193,7 @@
     stores: STORES,
     openDatabase,
     getAllBuildings,
+    getBuildingById,
     replaceBuildings,
     getMasterData,
     saveMasterData,

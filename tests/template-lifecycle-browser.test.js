@@ -196,12 +196,12 @@ function firePropertyTemplate(state) {
       pageErrors.push(String(error));
     });
 
-    await load(page, running.url);
-    await page.evaluate(function (payload) {
+    await page.addInitScript(function (payload) {
       localStorage.setItem("buildingManagerBuildings", JSON.stringify(payload.buildings));
       localStorage.setItem("buildingManagerMasterData", JSON.stringify(payload.masterData));
       localStorage.setItem("buildingManagerCurrentPropertyId", "ford-onekawa");
     }, { buildings: BUILDINGS, masterData: MASTER_DATA });
+
     await load(page, running.url);
 
     // --- 1. An active master template can be assigned normally ---------------
@@ -246,7 +246,10 @@ function firePropertyTemplate(state) {
         completedBy: "Tester",
         notes: "Passed",
       });
-      localStorage.setItem("buildingManagerBuildings", JSON.stringify(buildings));
+      const updatedBuilding = buildings.find(function (item) {
+        return item.id === "ford-onekawa";
+      });
+      return window.BuildingStorage.updateBuilding(updatedBuilding);
     }, fireItem(state).id);
     const fireItemId = fireItem(state).id;
     const firePropertyTemplateId = firePropertyTemplate(state).id;
@@ -387,8 +390,11 @@ function firePropertyTemplate(state) {
     const targetPage = await targetContext.newPage();
     targetPage.on("pageerror", function (error) { pageErrors.push(String(error)); });
     await load(targetPage, running.url);
-    await targetPage.evaluate(function (payload) {
-      window.BuildingStorage.restoreBackupData(JSON.parse(payload));
+    await targetPage.evaluate(async function (payload) {
+      const restoreOutcome = window.BuildingStorage.restoreBackupData(JSON.parse(payload));
+      if (restoreOutcome.persisted) {
+        await restoreOutcome.persisted;
+      }
     }, backup);
     await load(targetPage, running.url);
 

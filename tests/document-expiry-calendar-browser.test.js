@@ -105,14 +105,29 @@ async function openCalendar(page) {
 
 async function getBuildings(page) {
   return page.evaluate(function () {
-    return JSON.parse(localStorage.getItem("buildingManagerBuildings"));
+    return window.BuildingStorage.getBuildings();
   });
 }
 
 async function setBuildings(page, buildings) {
   await page.evaluate(function (data) {
-    localStorage.setItem("buildingManagerBuildings", JSON.stringify(data));
+    const existing = window.BuildingStorage.getBuildings();
+
+    existing.forEach(function (building) {
+      if (!data.some(function (item) { return item.id === building.id; })) {
+        window.BuildingStorage.deleteBuilding(building.id);
+      }
+    });
+
+    data.forEach(function (building) {
+      if (window.BuildingStorage.getBuildingById(building.id)) {
+        window.BuildingStorage.updateBuilding(building);
+      } else {
+        window.BuildingStorage.addBuilding(building);
+      }
+    });
   }, buildings);
+
   await page.reload({ waitUntil: "networkidle" });
 }
 

@@ -165,8 +165,8 @@ const buildings = [
 function storedState(page) {
   return page.evaluate(function () {
     return {
-      buildings: JSON.parse(localStorage.getItem("buildingManagerBuildings") || "[]"),
-      masterData: JSON.parse(localStorage.getItem("buildingManagerMasterData") || "{}"),
+      buildings: window.BuildingStorage.getBuildings(),
+      masterData: window.BuildingStorage.getMasterData(),
     };
   });
 }
@@ -187,16 +187,26 @@ async function openEditItem(page, itemId) {
 
 async function assertItemStored(page, propertyId, itemId, expected) {
   await page.waitForFunction(function (condition) {
-    const stored = JSON.parse(localStorage.getItem("buildingManagerBuildings") || "[]");
-    const target = stored.find(function (entry) { return entry.id === condition.propertyId; });
-    const exists = Boolean(target && (target.scheduleItems || []).some(function (item) { return item.id === condition.itemId; }));
+    const target = window.BuildingStorage.getBuildingById(condition.propertyId);
+    const exists = Boolean(
+      target &&
+      (target.scheduleItems || []).some(function (item) {
+        return item.id === condition.itemId;
+      })
+    );
     return exists === condition.expected;
   }, { propertyId: propertyId, itemId: itemId, expected: expected });
+
   const exists = await page.evaluate(function (ids) {
-    const stored = JSON.parse(localStorage.getItem("buildingManagerBuildings") || "[]");
-    const target = stored.find(function (entry) { return entry.id === ids.propertyId; });
-    return Boolean(target && (target.scheduleItems || []).some(function (item) { return item.id === ids.itemId; }));
+    const target = window.BuildingStorage.getBuildingById(ids.propertyId);
+    return Boolean(
+      target &&
+      (target.scheduleItems || []).some(function (item) {
+        return item.id === ids.itemId;
+      })
+    );
   }, { propertyId: propertyId, itemId: itemId });
+
   assert.strictEqual(exists, expected);
 }
 
@@ -251,7 +261,16 @@ async function assertItemStored(page, propertyId, itemId, expected) {
     await page.locator('[data-schedule-details-action="delete"]').click();
     await confirm.locator('[data-schedule-item-delete-action="delete"]').click();
     await assertItemStored(page, "property-a", "item-manual-a", false);
-    assert.strictEqual(await page.locator('[data-schedule-id="item-manual-a"]').count(), 0, "Deleted manual item must disappear from Calendar");
+
+    await page.locator('[data-schedule-id="item-manual-a"]').waitFor({
+      state: "detached",
+    });
+
+    assert.strictEqual(
+      await page.locator('[data-schedule-id="item-manual-a"]').count(),
+      0,
+      "Deleted manual item must disappear from Calendar"
+    );
 
     await page.reload({ waitUntil: "networkidle" });
     await openCalendar(page);
@@ -266,6 +285,10 @@ async function assertItemStored(page, propertyId, itemId, expected) {
     await page.locator('[data-schedule-details-action="delete"]').click();
     await confirm.locator('[data-schedule-item-delete-action="delete"]').click();
     await assertItemStored(page, "property-a", "item-gutter-a", false);
+
+    await page.locator('[data-schedule-id="item-gutter-a"]').waitFor({
+      state: "detached",
+    });
 
     await page.reload({ waitUntil: "networkidle" });
     await openCalendar(page);

@@ -4015,17 +4015,21 @@
 
     next.scheduleItems = next.scheduleItems.map(function (item) {
       let preferredCompanyId = item.preferredCompanyId || "";
-      if (!preferredCompanyId && item.preferredCompany) {
+      const legacyPreferredCompany = String(item.preferredCompany || "").trim();
+      const hasRealPreferredCompany = legacyPreferredCompany
+        && normalizeText(legacyPreferredCompany) !== "not set";
+
+      if (!preferredCompanyId && hasRealPreferredCompany) {
         const companies = getCompanies();
         let matched = companies.find(function (company) {
-          return normalizeText(company.name) === normalizeText(item.preferredCompany);
+          return normalizeText(company.name) === normalizeText(legacyPreferredCompany);
         });
 
         if (!matched) {
           const now = new Date().toISOString();
           matched = {
             id: window.BuildingStorage.createId(),
-            name: item.preferredCompany,
+            name: legacyPreferredCompany,
             type: "Service",
             address: "",
             phone: "",
@@ -11019,7 +11023,7 @@
     });
   }
 
-  function deleteScheduleItem(building, scheduleItem) {
+  async function deleteScheduleItem(building, scheduleItem) {
     if (!building || !scheduleItem || scheduleItem.sourceType === "tenancy" || scheduleItem.sourceType === "document") {
       return null;
     }
@@ -11049,9 +11053,8 @@
       lastUpdated: now,
     };
 
-    const normalized = ensureWorkflowCollections(updated);
-    window.BuildingStorage.updateBuilding(normalized);
-    return normalized;
+    await window.BuildingStorage.updateBuilding(updated);
+    return updated;
   }
 
   function getScheduleCompletionActionLabel(title) {
@@ -11796,7 +11799,7 @@
           return;
         }
 
-        const deleted = deleteScheduleItem(building, scheduleItem);
+        const deleted = await deleteScheduleItem(building, scheduleItem);
         if (!deleted) {
           return;
         }
@@ -12116,8 +12119,16 @@
           return;
         }
 
-        alert("Backup restored successfully.");
-        window.location.reload();
+        Promise.resolve(restoreOutcome.persisted)
+          .then(function () {
+            alert("Backup restored successfully.");
+            window.location.reload();
+          })
+          .catch(function (error) {
+            console.error("Backup persistence failed:", error);
+            alert("The backup was restored locally, but could not be fully saved. Please try again.");
+            input.value = "";
+          });
       } catch (error) {
         alert("The selected file could not be read as JSON.");
         input.value = "";
@@ -12571,19 +12582,33 @@
   moduleContentBody.addEventListener("click", handleModuleContentClick);
   breadcrumbNav.addEventListener("click", handleBreadcrumbClick);
 
-  ensureMasterMigration();
-  normalizeAllBuildingsForWorkflowCollections();
-  ensureTemplateLibrarySeeded();
-  detachDeletedMasterTemplateReferences();
-  migrateBuildingRolesIntoContactsForAllBuildings();
-  migratePropertyContactsOutOfTenancies();
+  function startApplication() {
+    ensureMasterMigration();
+    normalizeAllBuildingsForWorkflowCollections();
+    ensureTemplateLibrarySeeded();
+    detachDeletedMasterTemplateReferences();
+    migrateBuildingRolesIntoContactsForAllBuildings();
+    migratePropertyContactsOutOfTenancies();
 
-  window.BuildingStorage.syncToIndexedDB().then(function (result) {
-    if (!result.success) {
-      console.warn("IndexedDB startup synchronization did not complete:", result.reason);
-    }
-  });
+    window.BuildingStorage.syncToIndexedDB().then(function (result) {
+      if (!result.success) {
+        console.warn("IndexedDB startup synchronization did not complete:", result.reason);
+      }
+    });
 
-  showDashboard();
-  renderBuildings();
+    showDashboard();
+    renderBuildings();
+  }
+
+  if (window.ComplianceHQIndexedDB) {
+    window.BuildingStorage.initializeFromIndexedDB().then(function (result) {
+      if (!result.success) {
+        console.warn("IndexedDB initialization did not complete:", result.reason);
+      }
+
+      startApplication();
+    });
+  } else {
+    startApplication();
+  }
 })();
