@@ -1,11 +1,12 @@
-const APP_SHELL_CACHE = "building-manager-shell-v10";
-const RUNTIME_CACHE = "building-manager-runtime-v10";
+const APP_SHELL_CACHE = "building-manager-shell-v11";
+const RUNTIME_CACHE = "building-manager-runtime-v11";
 
 const APP_SHELL_ASSETS = [
   "./",
   "./index.html",
   "./style.css",
   "./app.js",
+  "./indexeddb-storage.js",
   "./storage.js",
   "./manifest.json",
   "./icons/icon-192.png",
