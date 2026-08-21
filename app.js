@@ -12600,15 +12600,60 @@
     renderBuildings();
   }
 
-  if (window.ComplianceHQIndexedDB) {
-    window.BuildingStorage.initializeFromIndexedDB().then(function (result) {
-      if (!result.success) {
-        console.warn("IndexedDB initialization did not complete:", result.reason);
-      }
+  function startFromBrowserStorage() {
+    if (window.ComplianceHQIndexedDB) {
+      window.BuildingStorage.initializeFromIndexedDB().then(function (result) {
+        if (!result.success) {
+          console.warn("IndexedDB initialization did not complete:", result.reason);
+        }
 
-      startApplication();
-    });
-  } else {
+        startApplication();
+      }).catch(function (error) {
+        console.warn("IndexedDB startup failed; using localStorage:", error);
+        startApplication();
+      });
+      return;
+    }
+
     startApplication();
   }
+
+  async function initializeApplicationStorage() {
+    if (
+      !window.ComplianceHQSupabase
+      || typeof window.ComplianceHQSupabase.getSession !== "function"
+      || typeof window.ComplianceHQSupabase.loadApplicationData !== "function"
+    ) {
+      startFromBrowserStorage();
+      return;
+    }
+
+    try {
+      const session = await window.ComplianceHQSupabase.getSession();
+
+      if (!session) {
+        startFromBrowserStorage();
+        return;
+      }
+
+      const applicationData = await window.ComplianceHQSupabase.loadApplicationData();
+      const loadResult = window.BuildingStorage.loadExternalApplicationData(applicationData);
+
+      console.info(
+        "Compliance HQ loaded from Supabase:",
+        loadResult.buildingCount,
+        "properties."
+      );
+
+      startApplication();
+    } catch (error) {
+      console.warn(
+        "Supabase startup failed; falling back to browser storage:",
+        error
+      );
+      startFromBrowserStorage();
+    }
+  }
+
+  initializeApplicationStorage();
 })();

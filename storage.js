@@ -482,6 +482,44 @@
     };
   }
 
+  function loadExternalApplicationData(applicationData) {
+    if (!applicationData || typeof applicationData !== "object") {
+      throw new Error("External application data is invalid.");
+    }
+
+    const buildings = normalizeBuildings(applicationData.buildings);
+    const suppliedMasterData = applicationData.masterData || {};
+
+    const masterData = {
+      companies: Array.isArray(suppliedMasterData.companies)
+        ? suppliedMasterData.companies
+        : [],
+      contacts: Array.isArray(suppliedMasterData.contacts)
+        ? suppliedMasterData.contacts
+        : [],
+      scheduledItemTemplates: Array.isArray(suppliedMasterData.scheduledItemTemplates)
+        ? suppliedMasterData.scheduledItemTemplates
+        : [],
+      documents: Array.isArray(suppliedMasterData.documents)
+        ? suppliedMasterData.documents
+        : [],
+    };
+
+    cachedBuildings = buildings;
+    cachedMasterData = masterData;
+
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(buildings));
+    localStorage.setItem(MASTER_KEY, JSON.stringify(masterData));
+
+    return {
+      success: true,
+      buildingCount: buildings.length,
+      contactCount: masterData.contacts.length,
+      companyCount: masterData.companies.length,
+      templateCount: masterData.scheduledItemTemplates.length,
+    };
+  }
+
   window.BuildingStorage = {
     getBuildings,
     addBuilding,
@@ -490,6 +528,7 @@
     getBuildingById,
     getMasterData,
     saveMasterData,
+    loadExternalApplicationData,
     initializeFromIndexedDB,
     syncToIndexedDB,
     createBackupPayload,
