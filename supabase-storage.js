@@ -87,6 +87,347 @@
   };
 })();
 
+
+/*
+ * Supabase application read layer.
+ * Reconstructs the existing Compliance HQ browser data model from
+ * normalized Supabase tables without modifying browser storage.
+ */
+
+function mergeStoredData(row) {
+  const extra = row && row.data && typeof row.data === "object"
+    ? row.data
+    : {};
+
+  return { ...extra };
+}
+
+async function readSupabaseTable(table) {
+  const result = await window.ComplianceHQSupabase.client
+    .from(table)
+    .select("*");
+
+  if (result.error) {
+    throw new Error(table + ": " + result.error.message);
+  }
+
+  return Array.isArray(result.data) ? result.data : [];
+}
+
+async function loadApplicationData() {
+  const session = await window.ComplianceHQSupabase.getSession();
+
+  if (!session) {
+    throw new Error("You must be signed in before loading Supabase data.");
+  }
+
+  const results = await Promise.all([
+    readSupabaseTable("properties"),
+    readSupabaseTable("tenancies"),
+    readSupabaseTable("companies"),
+    readSupabaseTable("contacts"),
+    readSupabaseTable("master_templates"),
+    readSupabaseTable("property_templates"),
+    readSupabaseTable("schedule_items"),
+    readSupabaseTable("history_records"),
+    readSupabaseTable("documents"),
+    readSupabaseTable("document_links"),
+    readSupabaseTable("contact_links"),
+  ]);
+
+  const [
+    propertyRows,
+    tenancyRows,
+    companyRows,
+    contactRows,
+    masterTemplateRows,
+    propertyTemplateRows,
+    scheduleRows,
+    historyRows,
+    documentRows,
+    documentLinkRows,
+    contactLinkRows,
+  ] = results;
+
+  const companies = companyRows.map(function (row) {
+    return {
+      id: row.id,
+      name: row.name,
+      type: row.type,
+      address: row.address,
+      phone: row.phone,
+      email: row.email,
+      website: row.website,
+      notes: row.notes,
+      createdDate: row.created_at,
+      lastUpdated: row.updated_at,
+    };
+  });
+
+  const contacts = contactRows.map(function (row) {
+    return {
+      id: row.id,
+      companyId: row.company_id || "",
+      name: row.name,
+      contactType: row.contact_type,
+      responsibility: row.responsibility,
+      mobile: row.mobile,
+      officePhone: row.office_phone,
+      email: row.email,
+      preferredContactMethod: row.preferred_contact_method,
+      active: row.active,
+      notes: row.notes,
+      createdDate: row.created_at,
+      lastUpdated: row.updated_at,
+    };
+  });
+
+  const scheduledItemTemplates = masterTemplateRows.map(function (row) {
+    return {
+      ...mergeStoredData(row),
+      id: row.id,
+      name: row.name,
+      category: row.category,
+      frequency: row.frequency,
+      description: row.description,
+      active: row.active,
+      createdDate: row.created_at,
+      lastUpdated: row.updated_at,
+    };
+  });
+
+  const propertyTemplatesByProperty = new Map();
+  propertyTemplateRows.forEach(function (row) {
+    const item = {
+      ...mergeStoredData(row),
+      id: row.id,
+      masterTemplateId: row.master_template_id || "",
+      templateId: row.master_template_id || "",
+      name: row.name,
+      category: row.category,
+      frequency: row.frequency,
+      preferredCompanyId: row.preferred_company_id || "",
+      preferredContactId: row.preferred_contact_id || "",
+      createdDate: row.created_at,
+      lastUpdated: row.updated_at,
+    };
+
+    if (!propertyTemplatesByProperty.has(row.property_id)) {
+      propertyTemplatesByProperty.set(row.property_id, []);
+    }
+    propertyTemplatesByProperty.get(row.property_id).push(item);
+  });
+
+  const scheduleByProperty = new Map();
+  scheduleRows.forEach(function (row) {
+    const item = {
+      ...mergeStoredData(row),
+      id: row.id,
+      propertyId: row.property_id,
+      tenancyId: row.tenancy_id || "",
+      propertyTemplateId: row.property_template_id || "",
+      templateId: row.property_template_id || "",
+      taskName: row.task_name,
+      category: row.category,
+      dueDate: row.due_date || "",
+      frequency: row.frequency,
+      preferredCompanyId: row.preferred_company_id || "",
+      preferredContactId: row.preferred_contact_id || "",
+      sourceType: row.source_type,
+      sourceId: row.source_id,
+      status: row.status,
+      lastCompletionHistoryId: row.last_completion_history_id || "",
+      createdDate: row.created_at,
+      lastUpdated: row.updated_at,
+    };
+
+    if (!scheduleByProperty.has(row.property_id)) {
+      scheduleByProperty.set(row.property_id, []);
+    }
+    scheduleByProperty.get(row.property_id).push(item);
+  });
+
+  const historyByProperty = new Map();
+  historyRows.forEach(function (row) {
+    const item = {
+      ...mergeStoredData(row),
+      id: row.id,
+      propertyId: row.property_id,
+      scheduleItemId: row.schedule_item_id || "",
+      completedAt: row.completed_at || "",
+      createdDate: row.created_at,
+    };
+
+    if (!historyByProperty.has(row.property_id)) {
+      historyByProperty.set(row.property_id, []);
+    }
+    historyByProperty.get(row.property_id).push(item);
+  });
+
+  const documentById = new Map();
+  documentRows.forEach(function (row) {
+    documentById.set(row.id, {
+      ...mergeStoredData(row),
+      id: row.id,
+      title: row.title,
+      categoryId: row.category_id,
+      category: row.category,
+      documentType: row.document_type,
+      version: row.version,
+      documentDate: row.document_date || "",
+      expiryDate: row.expiry_date || "",
+      addExpiryToCalendar: row.add_expiry_to_calendar === true,
+      description: row.description,
+      uploadedBy: row.uploaded_by,
+      fileName: row.file_name,
+      mimeType: row.mime_type,
+      sizeBytes: Number(row.size_bytes || 0),
+      uploadedAt: row.uploaded_at || row.created_at,
+      notes: row.notes,
+      storage: {
+        kind: row.storage_kind,
+        path: row.storage_path,
+        previewStatus: row.preview_status,
+        ocrStatus: row.ocr_status,
+      },
+      createdDate: row.created_at,
+      lastUpdated: row.updated_at,
+    });
+  });
+
+  const documentsByProperty = new Map();
+  documentLinkRows.forEach(function (row) {
+    if (!row.property_id || row.tenancy_id) {
+      return;
+    }
+
+    const document = documentById.get(row.document_id);
+    if (!document) {
+      return;
+    }
+
+    if (!documentsByProperty.has(row.property_id)) {
+      documentsByProperty.set(row.property_id, []);
+    }
+
+    documentsByProperty.get(row.property_id).push({
+      ...document,
+      tenancyId: "",
+      scheduleItemId: row.schedule_item_id || "",
+    });
+  });
+
+  const tenancyRowsByProperty = new Map();
+  tenancyRows.forEach(function (row) {
+    const contactRefs = contactLinkRows
+      .filter(function (link) {
+        return link.tenancy_id === row.id;
+      })
+      .map(function (link) {
+        return link.contact_id;
+      });
+
+    const leaseDocuments = documentLinkRows
+      .filter(function (link) {
+        return link.tenancy_id === row.id;
+      })
+      .map(function (link) {
+        return documentById.get(link.document_id);
+      })
+      .filter(Boolean);
+
+    const tenancy = {
+      id: row.id,
+      companyId: row.company_id || "",
+      companyName: row.company_name,
+      tradingName: row.trading_name,
+      leaseStart: row.lease_start || "",
+      leaseEnd: row.lease_end || "",
+      rentReviewDate: row.rent_review_date || "",
+      rentReviewFrequency: row.rent_review_frequency,
+      renewalDate: row.renewal_date || "",
+      noticeDate: row.notice_date || "",
+      status: row.status,
+      notes: row.notes,
+      contacts: [],
+      contactRefs: contactRefs,
+      documents: leaseDocuments,
+      lease: {
+        notes: row.lease_notes,
+        documents: leaseDocuments,
+        versionHistory: [],
+      },
+    };
+
+    if (!tenancyRowsByProperty.has(row.property_id)) {
+      tenancyRowsByProperty.set(row.property_id, []);
+    }
+    tenancyRowsByProperty.get(row.property_id).push(tenancy);
+  });
+
+  const buildings = propertyRows.map(function (row) {
+    const tenancies = tenancyRowsByProperty.get(row.id) || [];
+
+    const propertyContactLinks = contactLinkRows.filter(function (link) {
+      return link.property_id === row.id && !link.tenancy_id;
+    });
+
+    const relationshipById = {};
+    propertyContactLinks.forEach(function (link) {
+      relationshipById[link.contact_id] = link.relationship;
+    });
+
+    return {
+      id: row.id,
+      buildingName: row.building_name,
+      streetAddress: row.street_address,
+      city: row.city,
+      owner: row.owner,
+      propertyManager: row.property_manager,
+      buildingType: row.building_type,
+      status: row.status,
+      notes: row.notes,
+      archived: row.archived === true,
+      createdDate: row.created_at,
+      lastUpdated: row.updated_at,
+      tenancy: tenancies[0] || null,
+      tenancies: tenancies,
+      buildingContactAssignments: propertyContactLinks.map(function (link) {
+        return link.contact_id;
+      }),
+      contactRelationshipById: relationshipById,
+      buildingRoles: [],
+      documents: documentsByProperty.get(row.id) || [],
+      propertyTemplates: propertyTemplatesByProperty.get(row.id) || [],
+      scheduleItems: scheduleByProperty.get(row.id) || [],
+      historyRecords: historyByProperty.get(row.id) || [],
+    };
+  });
+
+  return {
+    buildings: buildings,
+    masterData: {
+      companies: companies,
+      contacts: contacts,
+      scheduledItemTemplates: scheduledItemTemplates,
+      documents: [],
+    },
+    counts: {
+      properties: buildings.length,
+      tenancies: tenancyRows.length,
+      companies: companies.length,
+      contacts: contacts.length,
+      masterTemplates: scheduledItemTemplates.length,
+      propertyTemplates: propertyTemplateRows.length,
+      scheduleItems: scheduleRows.length,
+      historyRecords: historyRows.length,
+      documents: documentRows.length,
+      documentLinks: documentLinkRows.length,
+      contactLinks: contactLinkRows.length,
+    },
+  };
+}
+
 /*
  * Compliance HQ migration support.
  * Copies existing browser data to Supabase.
@@ -360,4 +701,5 @@ async function migrateExistingBrowserData() {
   };
 }
 
+window.ComplianceHQSupabase.loadApplicationData = loadApplicationData;
 window.ComplianceHQSupabase.migrateExistingBrowserData = migrateExistingBrowserData;
