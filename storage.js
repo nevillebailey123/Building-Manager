@@ -93,6 +93,30 @@
     mirrorToIndexedDB("saveMasterData", masterData);
   }
 
+  function syncToIndexedDB() {
+    if (!window.ComplianceHQIndexedDB) {
+      return Promise.resolve({
+        success: false,
+        reason: "IndexedDB storage layer is unavailable.",
+      });
+    }
+
+    return Promise.all([
+      window.ComplianceHQIndexedDB.replaceBuildings(getBuildings()),
+      window.ComplianceHQIndexedDB.saveMasterData(getMasterData()),
+    ]).then(function () {
+      return {
+        success: true,
+      };
+    }).catch(function (error) {
+      console.error("IndexedDB startup sync failed:", error);
+      return {
+        success: false,
+        reason: error && error.message ? error.message : "IndexedDB synchronization failed.",
+      };
+    });
+  }
+
   function createBackupPayload() {
     return {
       backupVersion: 1,
@@ -394,6 +418,7 @@
     getBuildingById,
     getMasterData,
     saveMasterData,
+    syncToIndexedDB,
     createBackupPayload,
     validateBackupData,
     restoreBackupData,

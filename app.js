@@ -12577,6 +12577,13 @@
   detachDeletedMasterTemplateReferences();
   migrateBuildingRolesIntoContactsForAllBuildings();
   migratePropertyContactsOutOfTenancies();
+
+  window.BuildingStorage.syncToIndexedDB().then(function (result) {
+    if (!result.success) {
+      console.warn("IndexedDB startup synchronization did not complete:", result.reason);
+    }
+  });
+
   showDashboard();
   renderBuildings();
 })();
