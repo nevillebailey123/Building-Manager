@@ -12749,7 +12749,8 @@
     } catch (error) {
       console.error("Supabase startup failed:", error);
       showAuthenticationScreen(
-        "Unable to connect to Compliance HQ. Please check your internet connection and try again."
+        "Unable to connect to Compliance HQ: " +
+        (error && error.message ? error.message : "Unknown error")
       );
     }
   }
