@@ -5,6 +5,66 @@
   let cachedBuildings = null;
   let cachedMasterData = null;
 
+  let supabaseSyncPromise = Promise.resolve();
+  let supabaseSyncRequested = false;
+
+  function queueSupabaseSync() {
+    if (
+      !window.ComplianceHQSupabase
+      || typeof window.ComplianceHQSupabase.syncCurrentApplicationData !== "function"
+    ) {
+      return Promise.resolve({
+        success: false,
+        skipped: true,
+        reason: "Supabase synchronization is unavailable.",
+      });
+    }
+
+    supabaseSyncRequested = true;
+
+    supabaseSyncPromise = supabaseSyncPromise
+      .catch(function () {
+        // A previous failed sync must not permanently block the queue.
+      })
+      .then(async function () {
+        let lastResult = null;
+
+        while (supabaseSyncRequested) {
+          supabaseSyncRequested = false;
+
+          try {
+            const session = await window.ComplianceHQSupabase.getSession();
+
+            if (!session) {
+              return {
+                success: false,
+                skipped: true,
+                reason: "No authenticated Supabase session.",
+              };
+            }
+
+            lastResult =
+              await window.ComplianceHQSupabase.syncCurrentApplicationData();
+
+            console.info(
+              "Compliance HQ synchronized to Supabase:",
+              lastResult.counts
+            );
+          } catch (error) {
+            console.error("Supabase synchronization failed:", error);
+            throw error;
+          }
+        }
+
+        return lastResult || {
+          success: true,
+          skipped: true,
+        };
+      });
+
+    return supabaseSyncPromise;
+  }
+
   function mirrorToIndexedDB(operation, value) {
     if (!window.ComplianceHQIndexedDB || typeof window.ComplianceHQIndexedDB[operation] !== "function") {
       return Promise.resolve();
@@ -69,7 +129,14 @@
     const normalized = normalizeBuildings(buildings);
     cachedBuildings = normalized;
     localStorage.setItem(STORAGE_KEY, JSON.stringify(normalized));
-    return mirrorToIndexedDB("replaceBuildings", normalized);
+
+    const indexedDBMirror = mirrorToIndexedDB("replaceBuildings", normalized);
+
+    queueSupabaseSync().catch(function () {
+      // Local save remains successful if remote synchronization fails.
+    });
+
+    return indexedDBMirror;
   }
 
   function defaultMasterData() {
@@ -110,7 +177,14 @@
   function saveMasterData(masterData) {
     cachedMasterData = masterData;
     localStorage.setItem(MASTER_KEY, JSON.stringify(masterData));
-    return mirrorToIndexedDB("saveMasterData", masterData);
+
+    const indexedDBMirror = mirrorToIndexedDB("saveMasterData", masterData);
+
+    queueSupabaseSync().catch(function () {
+      // Local save remains successful if remote synchronization fails.
+    });
+
+    return indexedDBMirror;
   }
 
   async function initializeFromIndexedDB() {
