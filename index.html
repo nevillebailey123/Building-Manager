@@ -14,7 +14,38 @@
     <link rel="stylesheet" href="style.css" />
   </head>
   <body>
-    <main class="app-shell">
+    <section id="auth-screen" class="auth-screen" hidden>
+      <div class="auth-card">
+        <h1>Compliance HQ</h1>
+        <p class="auth-subtitle">Sign in to access your properties.</p>
+
+        <form id="auth-form" class="auth-form">
+          <label for="auth-email">Email</label>
+          <input
+            id="auth-email"
+            type="email"
+            autocomplete="email"
+            required
+          />
+
+          <label for="auth-password">Password</label>
+          <input
+            id="auth-password"
+            type="password"
+            autocomplete="current-password"
+            required
+          />
+
+          <p id="auth-error" class="auth-error" role="alert" hidden></p>
+
+          <button id="auth-submit" class="btn btn-primary" type="submit">
+            Sign In
+          </button>
+        </form>
+      </div>
+    </section>
+
+    <main id="app-shell" class="app-shell" hidden>
       <header id="app-shell-header" class="app-shell-header">
         <div class="app-shell-top">
           <button id="app-brand-btn" class="app-brand-btn" type="button" aria-label="Compliance HQ home">Compliance HQ</button>

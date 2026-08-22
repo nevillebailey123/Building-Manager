@@ -12608,14 +12608,74 @@
         }
 
         startApplication();
+        showApplicationShell();
       }).catch(function (error) {
         console.warn("IndexedDB startup failed; using localStorage:", error);
         startApplication();
+        showApplicationShell();
       });
       return;
     }
 
     startApplication();
+    showApplicationShell();
+  }
+
+  const authScreen = document.getElementById("auth-screen");
+  const authForm = document.getElementById("auth-form");
+  const authEmail = document.getElementById("auth-email");
+  const authPassword = document.getElementById("auth-password");
+  const authError = document.getElementById("auth-error");
+  const authSubmit = document.getElementById("auth-submit");
+  const appShell = document.getElementById("app-shell");
+
+  function showAuthenticationScreen(message) {
+    appShell.hidden = true;
+    authScreen.hidden = false;
+
+    if (message) {
+      authError.textContent = message;
+      authError.hidden = false;
+    } else {
+      authError.textContent = "";
+      authError.hidden = true;
+    }
+  }
+
+  function showApplicationShell() {
+    authScreen.hidden = true;
+    appShell.hidden = false;
+  }
+
+  async function handleAuthenticationSubmit(event) {
+    event.preventDefault();
+
+    authError.hidden = true;
+    authSubmit.disabled = true;
+    authSubmit.textContent = "Signing In...";
+
+    try {
+      await window.ComplianceHQSupabase.signIn(
+        authEmail.value,
+        authPassword.value
+      );
+
+      authPassword.value = "";
+      await initializeApplicationStorage();
+    } catch (error) {
+      showAuthenticationScreen(
+        error && error.message
+          ? error.message
+          : "Unable to sign in. Please check your email and password."
+      );
+    } finally {
+      authSubmit.disabled = false;
+      authSubmit.textContent = "Sign In";
+    }
+  }
+
+  if (authForm) {
+    authForm.addEventListener("submit", handleAuthenticationSubmit);
   }
 
   async function initializeApplicationStorage() {
@@ -12632,7 +12692,7 @@
       const session = await window.ComplianceHQSupabase.getSession();
 
       if (!session) {
-        startFromBrowserStorage();
+        showAuthenticationScreen();
         return;
       }
 
@@ -12648,15 +12708,15 @@
       window.BuildingStorage.setSupabaseSyncSuppressed(true);
       try {
         startApplication();
+        showApplicationShell();
       } finally {
         window.BuildingStorage.setSupabaseSyncSuppressed(false);
       }
     } catch (error) {
-      console.warn(
-        "Supabase startup failed; falling back to browser storage:",
-        error
+      console.error("Supabase startup failed:", error);
+      showAuthenticationScreen(
+        "Unable to connect to Compliance HQ. Please check your internet connection and try again."
       );
-      startFromBrowserStorage();
     }
   }
 
