@@ -7,8 +7,21 @@
 
   let supabaseSyncPromise = Promise.resolve();
   let supabaseSyncRequested = false;
+  let supabaseSyncSuppressed = false;
+
+  function setSupabaseSyncSuppressed(suppressed) {
+    supabaseSyncSuppressed = suppressed === true;
+  }
 
   function queueSupabaseSync() {
+    if (supabaseSyncSuppressed) {
+      return Promise.resolve({
+        success: true,
+        skipped: true,
+        reason: "Supabase synchronization is temporarily suppressed.",
+      });
+    }
+
     if (
       !window.ComplianceHQSupabase
       || typeof window.ComplianceHQSupabase.syncCurrentApplicationData !== "function"
@@ -603,6 +616,7 @@
     getMasterData,
     saveMasterData,
     loadExternalApplicationData,
+    setSupabaseSyncSuppressed,
     initializeFromIndexedDB,
     syncToIndexedDB,
     createBackupPayload,

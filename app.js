@@ -12645,7 +12645,12 @@
         "properties."
       );
 
-      startApplication();
+      window.BuildingStorage.setSupabaseSyncSuppressed(true);
+      try {
+        startApplication();
+      } finally {
+        window.BuildingStorage.setSupabaseSyncSuppressed(false);
+      }
     } catch (error) {
       console.warn(
         "Supabase startup failed; falling back to browser storage:",
