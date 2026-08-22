@@ -285,6 +285,7 @@ async function loadApplicationData() {
       uploadedAt: row.uploaded_at || row.created_at,
       notes: row.notes,
       storage: {
+        ...(mergeStoredData(row).storage || {}),
         kind: row.storage_kind,
         path: row.storage_path,
         previewStatus: row.preview_status,
