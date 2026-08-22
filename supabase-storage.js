@@ -450,6 +450,47 @@ async function upsertMigrationRows(table, rows) {
   return rows.length;
 }
 
+async function deleteRowsNotInSnapshot(table, rows) {
+  const wantedIds = new Set(
+    (Array.isArray(rows) ? rows : [])
+      .map(function (row) {
+        return row && row.id != null ? String(row.id) : "";
+      })
+      .filter(Boolean)
+  );
+
+  const existingResult = await window.ComplianceHQSupabase.client
+    .from(table)
+    .select("id");
+
+  if (existingResult.error) {
+    throw new Error(table + " deletion check: " + existingResult.error.message);
+  }
+
+  const obsoleteIds = (existingResult.data || [])
+    .map(function (row) {
+      return row.id != null ? String(row.id) : "";
+    })
+    .filter(function (id) {
+      return id && !wantedIds.has(id);
+    });
+
+  if (obsoleteIds.length === 0) {
+    return 0;
+  }
+
+  const deleteResult = await window.ComplianceHQSupabase.client
+    .from(table)
+    .delete()
+    .in("id", obsoleteIds);
+
+  if (deleteResult.error) {
+    throw new Error(table + " deletion: " + deleteResult.error.message);
+  }
+
+  return obsoleteIds.length;
+}
+
 function cleanDate(value) {
   const text = String(value || "").trim();
   return text || null;
@@ -458,6 +499,373 @@ function cleanDate(value) {
 function cleanTimestamp(value) {
   const text = String(value || "").trim();
   return text || new Date().toISOString();
+}
+
+
+async function replaceRelationshipTable(table, rows) {
+  const deleteResult = await window.ComplianceHQSupabase.client
+    .from(table)
+    .delete()
+    .gte("id", 0);
+
+  if (deleteResult.error) {
+    throw new Error(table + " relationship clear: " + deleteResult.error.message);
+  }
+
+  if (!Array.isArray(rows) || rows.length === 0) {
+    return 0;
+  }
+
+  const insertResult = await window.ComplianceHQSupabase.client
+    .from(table)
+    .insert(rows);
+
+  if (insertResult.error) {
+    throw new Error(table + " relationship insert: " + insertResult.error.message);
+  }
+
+  return rows.length;
+}
+
+async function syncCurrentApplicationData() {
+  if (!window.BuildingStorage) {
+    throw new Error("BuildingStorage is unavailable.");
+  }
+
+  const session = await window.ComplianceHQSupabase.getSession();
+  if (!session) {
+    throw new Error("You must be signed in before synchronizing data.");
+  }
+
+  const buildings = window.BuildingStorage.getBuildings();
+  const master = window.BuildingStorage.getMasterData();
+
+  const companies = (master.companies || []).map(function (company) {
+    return {
+      id: String(company.id),
+      name: company.name || "",
+      type: company.type || "",
+      address: company.address || "",
+      phone: company.phone || "",
+      email: company.email || "",
+      website: company.website || "",
+      notes: company.notes || "",
+      created_at: cleanTimestamp(company.createdDate),
+      updated_at: cleanTimestamp(company.lastUpdated),
+    };
+  });
+
+  const uniqueContactsById = new Map();
+
+  (master.contacts || []).forEach(function (contact) {
+    const contactId = String(contact.id || "").trim();
+    if (!contactId || uniqueContactsById.has(contactId)) {
+      return;
+    }
+    uniqueContactsById.set(contactId, contact);
+  });
+
+  const contacts = Array.from(uniqueContactsById.values()).map(function (contact) {
+    return {
+      id: String(contact.id),
+      company_id: contact.companyId || null,
+      name: contact.name || "",
+      contact_type: contact.contactType || "",
+      responsibility: contact.responsibility || "",
+      mobile: contact.mobile || "",
+      office_phone: contact.officePhone || "",
+      email: contact.email || "",
+      preferred_contact_method: contact.preferredContactMethod || "",
+      active: contact.active || "Yes",
+      notes: contact.notes || "",
+      created_at: cleanTimestamp(contact.createdDate),
+      updated_at: cleanTimestamp(contact.lastUpdated),
+    };
+  });
+
+  const properties = buildings.map(function (building) {
+    return {
+      id: String(building.id),
+      building_name: building.buildingName || "",
+      street_address: building.streetAddress || "",
+      city: building.city || "",
+      owner: building.owner || "",
+      property_manager: building.propertyManager || "",
+      building_type: building.buildingType || "",
+      status: building.status || "Vacant",
+      notes: building.notes || "",
+      archived: building.archived === true,
+      created_at: cleanTimestamp(building.createdDate),
+      updated_at: cleanTimestamp(building.lastUpdated),
+    };
+  });
+
+  const masterTemplates = (master.scheduledItemTemplates || []).map(function (template) {
+    return {
+      id: String(template.id),
+      name: template.name || template.taskName || "",
+      category: template.category || "General",
+      frequency: template.frequency || "",
+      description: template.description || "",
+      active: template.archived !== true,
+      data: template,
+      created_at: cleanTimestamp(template.createdDate),
+      updated_at: cleanTimestamp(template.lastUpdated),
+    };
+  });
+
+  const tenancies = [];
+  const propertyTemplates = [];
+  const scheduleItems = [];
+  const historyRecords = [];
+  const documents = [];
+  const documentLinks = [];
+  const contactLinks = [];
+
+  buildings.forEach(function (building) {
+    const propertyId = String(building.id);
+
+    const buildingTenancies = Array.isArray(building.tenancies)
+      ? building.tenancies
+      : (building.tenancy ? [building.tenancy] : []);
+
+    buildingTenancies.forEach(function (tenancy) {
+      if (!tenancy || !tenancy.id) {
+        return;
+      }
+
+      const tenancyId = String(tenancy.id);
+      const lease = tenancy.lease && typeof tenancy.lease === "object"
+        ? tenancy.lease
+        : {};
+
+      tenancies.push({
+        id: tenancyId,
+        property_id: propertyId,
+        company_id: tenancy.companyId || null,
+        company_name: tenancy.companyName || "",
+        trading_name: tenancy.tradingName || "",
+        lease_start: cleanDate(tenancy.leaseStart),
+        lease_end: cleanDate(tenancy.leaseEnd),
+        rent_review_date: cleanDate(tenancy.rentReviewDate),
+        rent_review_frequency: tenancy.rentReviewFrequency || "Annual",
+        renewal_date: cleanDate(tenancy.renewalDate),
+        notice_date: cleanDate(tenancy.noticeDate),
+        status: tenancy.status || "Occupied",
+        notes: tenancy.notes || "",
+        lease_notes: lease.notes || "",
+        created_at: cleanTimestamp(tenancy.createdDate || building.createdDate),
+        updated_at: cleanTimestamp(tenancy.lastUpdated || building.lastUpdated),
+      });
+
+      (tenancy.contactRefs || []).forEach(function (contactId) {
+        contactLinks.push({
+          contact_id: String(contactId),
+          property_id: propertyId,
+          tenancy_id: tenancyId,
+          relationship: "",
+        });
+      });
+
+      const leaseDocuments = Array.isArray(lease.documents)
+        ? lease.documents
+        : (Array.isArray(tenancy.documents) ? tenancy.documents : []);
+
+      leaseDocuments.forEach(function (document) {
+        if (!document || !document.id) {
+          return;
+        }
+
+        const documentId = String(document.id);
+        const storage = document.storage || {};
+
+        documents.push({
+          id: documentId,
+          title: document.title || "",
+          category_id: document.categoryId || "",
+          category: document.category || "Tenancy",
+          document_type: document.documentType || document.type || "Lease Agreement",
+          version: document.version || "",
+          document_date: cleanDate(document.documentDate || document.date),
+          expiry_date: cleanDate(document.expiryDate),
+          add_expiry_to_calendar: document.addExpiryToCalendar === true,
+          description: document.description || "",
+          uploaded_by: document.uploadedBy || "",
+          file_name: document.fileName || document.name || "",
+          mime_type: document.mimeType || document.fileType || "application/octet-stream",
+          size_bytes: Number(document.sizeBytes || 0),
+          uploaded_at: cleanDate(document.uploadedAt),
+          notes: document.notes || "",
+          storage_kind: storage.kind || "",
+          storage_path: "",
+          preview_status: storage.previewStatus || "",
+          ocr_status: storage.ocrStatus || "",
+          data: document,
+          created_at: cleanTimestamp(document.createdDate || document.uploadedAt),
+          updated_at: cleanTimestamp(document.lastUpdated),
+        });
+
+        documentLinks.push({
+          document_id: documentId,
+          property_id: propertyId,
+          tenancy_id: tenancyId,
+          schedule_item_id: document.scheduleItemId || null,
+          relationship_type: "tenancy",
+        });
+      });
+    });
+
+    (building.propertyTemplates || []).forEach(function (template) {
+      propertyTemplates.push({
+        id: String(template.id),
+        property_id: propertyId,
+        master_template_id: template.masterTemplateId || template.templateId || null,
+        name: template.name || template.taskName || "",
+        category: template.category || "General",
+        frequency: template.frequency || "",
+        preferred_company_id: template.preferredCompanyId || null,
+        preferred_contact_id: template.preferredContactId || null,
+        data: template,
+        created_at: cleanTimestamp(template.createdDate),
+        updated_at: cleanTimestamp(template.lastUpdated),
+      });
+    });
+
+    (building.scheduleItems || []).forEach(function (item) {
+      scheduleItems.push({
+        id: String(item.id),
+        property_id: propertyId,
+        tenancy_id: item.tenancyId || null,
+        property_template_id: item.propertyTemplateId || item.templateId || null,
+        task_name: item.taskName || "",
+        category: item.category || "General",
+        due_date: cleanDate(item.dueDate),
+        frequency: item.frequency || "",
+        preferred_company_id: item.preferredCompanyId || null,
+        preferred_contact_id: item.preferredContactId || null,
+        source_type: item.sourceType || "",
+        source_id: item.sourceId || item.documentId || "",
+        status: item.status || "",
+        last_completion_history_id: item.lastCompletionHistoryId || null,
+        data: item,
+        created_at: cleanTimestamp(item.createdDate),
+        updated_at: cleanTimestamp(item.lastUpdated),
+      });
+    });
+
+    (building.historyRecords || []).forEach(function (record) {
+      historyRecords.push({
+        id: String(record.id),
+        property_id: propertyId,
+        schedule_item_id: record.scheduleItemId || null,
+        completed_at: cleanDate(
+          record.completedAt ||
+          record.completedDate ||
+          record.date
+        ),
+        data: record,
+        created_at: cleanTimestamp(
+          record.createdDate ||
+          record.completedAt ||
+          record.completedDate
+        ),
+      });
+    });
+
+    (building.documents || []).forEach(function (document) {
+      const documentId = String(document.id);
+      const storage = document.storage || {};
+
+      documents.push({
+        id: documentId,
+        title: document.title || "",
+        category_id: document.categoryId || "",
+        category: document.category || "",
+        document_type: document.documentType || document.type || "Document",
+        version: document.version || "",
+        document_date: cleanDate(document.documentDate || document.date),
+        expiry_date: cleanDate(document.expiryDate),
+        add_expiry_to_calendar: document.addExpiryToCalendar === true,
+        description: document.description || "",
+        uploaded_by: document.uploadedBy || "",
+        file_name: document.fileName || document.name || "",
+        mime_type: document.mimeType || document.fileType || "application/octet-stream",
+        size_bytes: Number(document.sizeBytes || 0),
+        uploaded_at: cleanDate(document.uploadedAt),
+        notes: document.notes || "",
+        storage_kind: storage.kind || "",
+        storage_path: "",
+        preview_status: storage.previewStatus || "",
+        ocr_status: storage.ocrStatus || "",
+        data: document,
+        created_at: cleanTimestamp(document.createdDate || document.uploadedAt),
+        updated_at: cleanTimestamp(document.lastUpdated),
+      });
+
+      documentLinks.push({
+        document_id: documentId,
+        property_id: propertyId,
+        tenancy_id: null,
+        schedule_item_id: document.scheduleItemId || null,
+        relationship_type: "property",
+      });
+    });
+
+    (building.buildingContactAssignments || []).forEach(function (contactId) {
+      contactLinks.push({
+        contact_id: String(contactId),
+        property_id: propertyId,
+        tenancy_id: null,
+        relationship: building.contactRelationshipById &&
+          building.contactRelationshipById[contactId]
+          ? building.contactRelationshipById[contactId]
+          : "",
+      });
+    });
+  });
+
+  await upsertMigrationRows("companies", companies);
+  await upsertMigrationRows("contacts", contacts);
+  await upsertMigrationRows("properties", properties);
+  await upsertMigrationRows("tenancies", tenancies);
+  await upsertMigrationRows("master_templates", masterTemplates);
+  await upsertMigrationRows("property_templates", propertyTemplates);
+  await upsertMigrationRows("schedule_items", scheduleItems);
+  await upsertMigrationRows("history_records", historyRecords);
+  await upsertMigrationRows("documents", documents);
+
+  await replaceRelationshipTable("document_links", documentLinks);
+  await replaceRelationshipTable("contact_links", contactLinks);
+
+  const deleted = {};
+
+  deleted.historyRecords = await deleteRowsNotInSnapshot("history_records", historyRecords);
+  deleted.scheduleItems = await deleteRowsNotInSnapshot("schedule_items", scheduleItems);
+  deleted.propertyTemplates = await deleteRowsNotInSnapshot("property_templates", propertyTemplates);
+  deleted.tenancies = await deleteRowsNotInSnapshot("tenancies", tenancies);
+  deleted.documents = await deleteRowsNotInSnapshot("documents", documents);
+  deleted.contacts = await deleteRowsNotInSnapshot("contacts", contacts);
+  deleted.masterTemplates = await deleteRowsNotInSnapshot("master_templates", masterTemplates);
+  deleted.properties = await deleteRowsNotInSnapshot("properties", properties);
+  deleted.companies = await deleteRowsNotInSnapshot("companies", companies);
+
+  return {
+    success: true,
+    counts: {
+      properties: properties.length,
+      tenancies: tenancies.length,
+      companies: companies.length,
+      contacts: contacts.length,
+      masterTemplates: masterTemplates.length,
+      propertyTemplates: propertyTemplates.length,
+      scheduleItems: scheduleItems.length,
+      historyRecords: historyRecords.length,
+      documents: documents.length,
+      documentLinks: documentLinks.length,
+      contactLinks: contactLinks.length,
+    },
+    deleted: deleted,
+  };
 }
 
 async function migrateExistingBrowserData() {
@@ -798,4 +1206,5 @@ async function migrateExistingBrowserData() {
 }
 
 window.ComplianceHQSupabase.loadApplicationData = loadApplicationData;
+window.ComplianceHQSupabase.syncCurrentApplicationData = syncCurrentApplicationData;
 window.ComplianceHQSupabase.migrateExistingBrowserData = migrateExistingBrowserData;
