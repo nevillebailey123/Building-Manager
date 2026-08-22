@@ -94,6 +94,7 @@ function moduleButton(page, key) {
       dialog.accept();
     });
     await page.addInitScript(function (buildings) {
+      window.__COMPLIANCE_HQ_BROWSER_TEST__ = true;
       localStorage.setItem("buildingManagerBuildings", JSON.stringify(buildings));
       localStorage.setItem("buildingManagerCurrentPropertyId", "");
     }, seededBuildings);

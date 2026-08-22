@@ -218,6 +218,7 @@ async function assertItemStored(page, propertyId, itemId, expected) {
     const pageErrors = [];
     page.on("pageerror", function (error) { pageErrors.push(String(error)); });
     await page.addInitScript(function (seed) {
+      window.__COMPLIANCE_HQ_BROWSER_TEST__ = true;
       if (!localStorage.getItem("buildingManagerBuildings")) {
         localStorage.setItem("buildingManagerBuildings", JSON.stringify(seed.buildings));
         localStorage.setItem("buildingManagerMasterData", JSON.stringify(seed.masterData));

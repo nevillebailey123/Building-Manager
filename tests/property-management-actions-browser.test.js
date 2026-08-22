@@ -138,6 +138,7 @@ function findBuilding(buildings, id) {
     });
 
     await page.addInitScript(function (payload) {
+      window.__COMPLIANCE_HQ_BROWSER_TEST__ = true;
       localStorage.setItem("buildingManagerBuildings", JSON.stringify(payload.buildings));
       localStorage.setItem("buildingManagerMasterData", JSON.stringify(payload.masterData));
       localStorage.setItem("buildingManagerCurrentPropertyId", "alpha");

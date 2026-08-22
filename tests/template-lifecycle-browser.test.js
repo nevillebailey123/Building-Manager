@@ -197,6 +197,7 @@ function firePropertyTemplate(state) {
     });
 
     await page.addInitScript(function (payload) {
+      window.__COMPLIANCE_HQ_BROWSER_TEST__ = true;
       localStorage.setItem("buildingManagerBuildings", JSON.stringify(payload.buildings));
       localStorage.setItem("buildingManagerMasterData", JSON.stringify(payload.masterData));
       localStorage.setItem("buildingManagerCurrentPropertyId", "ford-onekawa");
@@ -415,7 +416,9 @@ function firePropertyTemplate(state) {
     const legacyContext = await browser.newContext();
     const legacyPage = await legacyContext.newPage();
     legacyPage.on("pageerror", function (error) { pageErrors.push(String(error)); });
-    await legacyPage.addInitScript(function () {}, null);
+    await legacyPage.addInitScript(function () {
+      window.__COMPLIANCE_HQ_BROWSER_TEST__ = true;
+    });
     await load(legacyPage, running.url);
     await legacyPage.evaluate(function (payload) {
       localStorage.setItem("buildingManagerBuildings", JSON.stringify(payload.buildings));

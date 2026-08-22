@@ -45,6 +45,7 @@ function startServer() {
         pageErrors.push(String(error));
       });
       await page.addInitScript(function (filterId) {
+      window.__COMPLIANCE_HQ_BROWSER_TEST__ = true;
         localStorage.setItem("buildingManagerBuildings", JSON.stringify([
           { id: "ford-onekawa", buildingName: "Ford Onekawa", tenancy: null, tenancies: [], documents: [], documentCategories: [], scheduleItems: [], propertyTemplates: [], historyRecords: [] },
           { id: "building-b", buildingName: "Building B", tenancies: [{ id: "tenancy-b1", companyName: "Tenant B1" }, { id: "tenancy-b2", companyName: "Tenant B2" }], documents: [], documentCategories: [], scheduleItems: [], propertyTemplates: [], historyRecords: [] },

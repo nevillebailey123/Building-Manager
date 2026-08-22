@@ -82,6 +82,7 @@ async function seedAndGoto(page, url, buildings) {
   // be re-applied on later reloads (page.addInitScript persists for the page's lifetime), or later
   // mutations made mid-test would be silently clobbered back to the original seed.
   await page.addInitScript(function () {
+      window.__COMPLIANCE_HQ_BROWSER_TEST__ = true;
     window.__openedDocumentUrls = [];
     const originalAnchorClick = HTMLAnchorElement.prototype.click;
     HTMLAnchorElement.prototype.click = function () {

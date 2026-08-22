@@ -12679,6 +12679,11 @@
   }
 
   async function initializeApplicationStorage() {
+    if (window.__COMPLIANCE_HQ_BROWSER_TEST__ === true) {
+      startFromBrowserStorage();
+      return;
+    }
+
     if (
       !window.ComplianceHQSupabase
       || typeof window.ComplianceHQSupabase.getSession !== "function"

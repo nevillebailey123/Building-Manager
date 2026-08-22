@@ -67,6 +67,10 @@ function storedBuildings(page) {
       pageErrors.push(String(error));
     });
 
+    await page.addInitScript(function () {
+      window.__COMPLIANCE_HQ_BROWSER_TEST__ = true;
+    });
+
     await page.goto(running.url, { waitUntil: "networkidle" });
 
     // ------------------------------------------------------------

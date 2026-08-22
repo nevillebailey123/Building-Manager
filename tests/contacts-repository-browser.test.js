@@ -192,6 +192,7 @@ async function detailRelationshipsFor(page, contactId) {
 
 async function seed(page, url, buildings, propertyId) {
   await page.addInitScript(function (payload) {
+      window.__COMPLIANCE_HQ_BROWSER_TEST__ = true;
     localStorage.setItem("buildingManagerBuildings", JSON.stringify(payload.buildings));
     localStorage.setItem("buildingManagerMasterData", JSON.stringify(payload.masterData));
     localStorage.setItem("buildingManagerCurrentPropertyId", payload.propertyId);
@@ -385,6 +386,9 @@ async function seed(page, url, buildings, propertyId) {
     await sourcePage.close();
 
     const targetContext = await browser.newContext();
+    await targetContext.addInitScript(function () {
+      window.__COMPLIANCE_HQ_BROWSER_TEST__ = true;
+    });
     const targetPage = await targetContext.newPage();
     targetPage.on("pageerror", function (error) { pageErrors.push(String(error)); });
     await targetPage.goto(running.url, { waitUntil: "networkidle" });

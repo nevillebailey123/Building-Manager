@@ -139,6 +139,7 @@ function cardContacts(page, tenancyId) {
 
 async function openTenancies(page, url, buildings, propertyId) {
   await page.addInitScript(function (payload) {
+      window.__COMPLIANCE_HQ_BROWSER_TEST__ = true;
     localStorage.setItem("buildingManagerBuildings", JSON.stringify(payload.buildings));
     localStorage.setItem("buildingManagerMasterData", JSON.stringify(payload.masterData));
     localStorage.setItem("buildingManagerCurrentPropertyId", payload.propertyId);
@@ -260,6 +261,9 @@ async function openTenancies(page, url, buildings, propertyId) {
     // Restoring that backup into a separate browser store reproduces the same relationships.
     // A fresh context stands in for the other origin, since localStorage is never shared.
     const targetContext = await browser.newContext();
+    await targetContext.addInitScript(function () {
+      window.__COMPLIANCE_HQ_BROWSER_TEST__ = true;
+    });
     const targetPage = await targetContext.newPage();
     targetPage.on("pageerror", function (error) {
       pageErrors.push(String(error));

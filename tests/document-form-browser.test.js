@@ -111,6 +111,7 @@ function summaryValue(page, label) {
       pageErrors.push(String(error));
     });
     await page.addInitScript(function (buildings) {
+      window.__COMPLIANCE_HQ_BROWSER_TEST__ = true;
       localStorage.setItem("buildingManagerBuildings", JSON.stringify(buildings));
       localStorage.setItem("buildingManagerCurrentPropertyId", "");
     }, seededBuildings);

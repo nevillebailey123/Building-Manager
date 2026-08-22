@@ -32,6 +32,7 @@ function startServer() {
   try {
     const page = await browser.newPage();
     await page.addInitScript(function () {
+      window.__COMPLIANCE_HQ_BROWSER_TEST__ = true;
       window.__openedDocumentUrls = [];
       const originalAnchorClick = HTMLAnchorElement.prototype.click;
       HTMLAnchorElement.prototype.click = function () {

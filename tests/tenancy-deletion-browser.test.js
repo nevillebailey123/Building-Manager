@@ -18,7 +18,7 @@ const masterData={contacts:[{id:"contact-1",name:"Master Contact",email:"contact
  const running=await startServer(); const browser=await chromium.launch({headless:true});
  try {
   const page=await browser.newPage(); const errors=[]; page.on("pageerror",e=>errors.push(String(e)));
-  await page.addInitScript(payload=>{if(!localStorage.getItem("buildingManagerBuildings")){localStorage.setItem("buildingManagerBuildings",JSON.stringify(payload.buildings));localStorage.setItem("buildingManagerMasterData",JSON.stringify(payload.masterData));localStorage.setItem("buildingManagerCurrentPropertyId","property-a");}},{buildings,masterData});
+  await page.addInitScript(payload=>{window.__COMPLIANCE_HQ_BROWSER_TEST__=true;if(!localStorage.getItem("buildingManagerBuildings")){localStorage.setItem("buildingManagerBuildings",JSON.stringify(payload.buildings));localStorage.setItem("buildingManagerMasterData",JSON.stringify(payload.masterData));localStorage.setItem("buildingManagerCurrentPropertyId","property-a");}},{buildings,masterData});
   await page.goto(running.url,{waitUntil:"networkidle"});
   await page.locator('#app-module-nav [data-app-module="Tenancy"]').click();
   await page.locator('[data-tenancy-id="ten-a"]').click();
