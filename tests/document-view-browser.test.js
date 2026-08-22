@@ -68,7 +68,12 @@ function startServer() {
 
     await documentRow.locator("h3").click();
     const openedUrls = await page.evaluate(function () { return window.__openedDocumentUrls; });
-    assert.ok(openedUrls.some(function (url) { return url.startsWith("data:application/pdf"); }), "Document body click must open the stored PDF");
+    assert.ok(
+      openedUrls.some(function (url) {
+        return url.startsWith("blob:") || url.startsWith("data:application/pdf");
+      }),
+      "Document body click must open the stored PDF"
+    );
     assert.strictEqual(await page.locator("#document-form-card").evaluate(function (element) { return getComputedStyle(element).display; }), "none", "Viewing must not open Edit");
 
     await documentRow.locator("[data-document-register-edit=\"true\"]").click();

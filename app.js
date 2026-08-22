@@ -5968,17 +5968,46 @@
       return;
     }
 
-    const link = window.document.createElement("a");
-    link.href = documentRecord.storage.dataUrl;
-    if (shouldDownload) {
-      link.download = documentRecord.fileName || "lease-document";
-    } else {
-      link.target = "_blank";
-      link.rel = "noopener noreferrer";
+    try {
+      const dataUrl = documentRecord.storage.dataUrl;
+      const parts = dataUrl.split(",");
+      const metadata = parts[0] || "";
+      const encodedData = parts.slice(1).join(",");
+      const mimeMatch = metadata.match(/^data:([^;]+)/);
+      const mimeType = mimeMatch ? mimeMatch[1] : documentRecord.mimeType || "application/octet-stream";
+      const binary = metadata.includes(";base64")
+        ? window.atob(encodedData)
+        : decodeURIComponent(encodedData);
+      const bytes = new Uint8Array(binary.length);
+
+      for (let index = 0; index < binary.length; index += 1) {
+        bytes[index] = binary.charCodeAt(index);
+      }
+
+      const blob = new Blob([bytes], { type: mimeType });
+      const objectUrl = window.URL.createObjectURL(blob);
+      const link = window.document.createElement("a");
+
+      link.href = objectUrl;
+
+      if (shouldDownload) {
+        link.download = documentRecord.fileName || "lease-document";
+      } else {
+        link.target = "_blank";
+        link.rel = "noopener noreferrer";
+      }
+
+      window.document.body.appendChild(link);
+      link.click();
+      window.document.body.removeChild(link);
+
+      window.setTimeout(function () {
+        window.URL.revokeObjectURL(objectUrl);
+      }, 60000);
+    } catch (error) {
+      console.error("Unable to open document:", error);
+      alert("Unable to open this document.");
     }
-    window.document.body.appendChild(link);
-    link.click();
-    window.document.body.removeChild(link);
   }
 
   function renderContactList(contacts) {
