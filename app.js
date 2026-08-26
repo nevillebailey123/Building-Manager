@@ -5612,6 +5612,7 @@
     documentFileInput.required = mode !== "edit";
     documentFileHelp.textContent = mode === "edit" ? "(leave blank to keep current file)" : "(required)";
     documentCurrentFile.textContent = record && record.fileName ? `Current file: ${record.fileName}` : "";
+    documentSaveBtn.disabled = false;
     documentSaveBtn.textContent = mode === "edit" ? "Save Changes" : "Save Document";
     documentDeleteBtn.style.display = mode === "edit" ? "inline-flex" : "none";
     setLeaseTopLevelControlsVisible(false);
@@ -5632,75 +5633,124 @@
 
   async function handleSaveDocument(event) {
     event.preventDefault();
+
+    if (documentSaveBtn.disabled) {
+      return;
+    }
+
     const building = getDocumentFormBuilding();
     const title = String(documentTitleInput.value || "").trim();
+    const selectedFile = documentFileInput.files && documentFileInput.files[0]
+      ? documentFileInput.files[0]
+      : null;
+
     if (!building || !title) {
       return;
     }
-    const tenancyId = String(documentTenancySelect.value || "").trim();
-    const scheduleItemId = String(documentScheduleSelect.value || "").trim();
-    const selectedFile = documentFileInput.files && documentFileInput.files[0] ? documentFileInput.files[0] : null;
-    const existing = activeDocumentContext ? activeDocumentContext.record : null;
-    const now = new Date().toISOString();
-    const storage = selectedFile
-      ? { kind: "data-url", dataUrl: await readFileAsDataUrl(selectedFile), previewStatus: "not-generated", ocrStatus: "not-indexed" }
-      : (existing && existing.storage ? { ...existing.storage } : null);
+
     if (activeDocumentFormMode !== "edit" && !selectedFile) {
       return;
     }
-    const payload = {
-      ...(existing || {}),
-      id: existing && existing.id ? existing.id : window.BuildingStorage.createId(),
-      title: title,
-      description: title,
-      category: getDocumentFormCategory(),
-      documentType: existing && existing.documentType ? existing.documentType : getDocumentFormCategory(),
-      documentDate: String(documentDateInput.value || "").trim(),
-      expiryDate: String(documentExpiryInput.value || "").trim(),
-      addExpiryToCalendar: Boolean(String(documentExpiryInput.value || "").trim() && documentExpiryCalendarToggle.checked),
-      tenancyId: tenancyId,
-      scheduleItemId: scheduleItemId,
-      notes: String(documentNotesInput.value || "").trim(),
-      fileName: selectedFile ? selectedFile.name : (existing ? existing.fileName : ""),
-      mimeType: selectedFile ? (selectedFile.type || "application/octet-stream") : (existing ? existing.mimeType : "application/octet-stream"),
-      sizeBytes: selectedFile ? (selectedFile.size || 0) : (existing ? existing.sizeBytes || 0 : 0),
-      uploadedAt: existing && existing.uploadedAt ? existing.uploadedAt : now,
-      lastUpdated: now,
-      storage: storage,
-    };
-    const sourceEntry = activeDocumentContext;
-    if (sourceEntry && sourceEntry.source === "tenancy" && String(sourceEntry.building.id) === String(building.id)) {
-      const updated = updateActiveBuildingDocumentsState(function (draft) {
-        if (!draft.tenancy || !draft.tenancy.lease) return draft;
-        draft.tenancy.lease.documents = (draft.tenancy.lease.documents || []).map(function (record) {
-          return record.id === payload.id ? payload : record;
-        });
-        draft.tenancy.documents = draft.tenancy.lease.documents;
-        return draft;
-      });
-      if (updated) closeDocumentForm();
-      return;
-    }
-    if (sourceEntry && sourceEntry.source === "tenancy") {
-      updateActiveBuildingDocumentsState(function (draft) {
-        if (draft.tenancy && draft.tenancy.lease) {
-          draft.tenancy.lease.documents = (draft.tenancy.lease.documents || []).filter(function (record) { return record.id !== payload.id; });
-          draft.tenancy.documents = draft.tenancy.lease.documents;
+
+    const originalSaveText = documentSaveBtn.textContent;
+    documentSaveBtn.disabled = true;
+    documentSaveBtn.textContent = "Saving...";
+
+    try {
+      const tenancyId = String(documentTenancySelect.value || "").trim();
+      const scheduleItemId = String(documentScheduleSelect.value || "").trim();
+      const existing = activeDocumentContext ? activeDocumentContext.record : null;
+      const now = new Date().toISOString();
+
+      const storage = selectedFile
+        ? {
+          kind: "data-url",
+          dataUrl: await readFileAsDataUrl(selectedFile),
+          previewStatus: "not-generated",
+          ocrStatus: "not-indexed",
         }
+        : (existing && existing.storage ? { ...existing.storage } : null);
+
+      const payload = {
+        ...(existing || {}),
+        id: existing && existing.id ? existing.id : window.BuildingStorage.createId(),
+        title: title,
+        description: title,
+        category: getDocumentFormCategory(),
+        documentType: existing && existing.documentType ? existing.documentType : getDocumentFormCategory(),
+        documentDate: String(documentDateInput.value || "").trim(),
+        expiryDate: String(documentExpiryInput.value || "").trim(),
+        addExpiryToCalendar: Boolean(String(documentExpiryInput.value || "").trim() && documentExpiryCalendarToggle.checked),
+        tenancyId: tenancyId,
+        scheduleItemId: scheduleItemId,
+        notes: String(documentNotesInput.value || "").trim(),
+        fileName: selectedFile ? selectedFile.name : (existing ? existing.fileName : ""),
+        mimeType: selectedFile ? (selectedFile.type || "application/octet-stream") : (existing ? existing.mimeType : "application/octet-stream"),
+        sizeBytes: selectedFile ? (selectedFile.size || 0) : (existing ? existing.sizeBytes || 0 : 0),
+        uploadedAt: existing && existing.uploadedAt ? existing.uploadedAt : now,
+        lastUpdated: now,
+        storage: storage,
+      };
+
+      const sourceEntry = activeDocumentContext;
+
+      if (sourceEntry && sourceEntry.source === "tenancy" && String(sourceEntry.building.id) === String(building.id)) {
+        const updated = updateActiveBuildingDocumentsState(function (draft) {
+          if (!draft.tenancy || !draft.tenancy.lease) return draft;
+          draft.tenancy.lease.documents = (draft.tenancy.lease.documents || []).map(function (record) {
+            return record.id === payload.id ? payload : record;
+          });
+          draft.tenancy.documents = draft.tenancy.lease.documents;
+          return draft;
+        });
+
+        if (!updated) {
+          throw new Error("Unable to update document.");
+        }
+
+        closeDocumentForm();
+        return;
+      }
+
+      if (sourceEntry && sourceEntry.source === "tenancy") {
+        updateActiveBuildingDocumentsState(function (draft) {
+          if (draft.tenancy && draft.tenancy.lease) {
+            draft.tenancy.lease.documents = (draft.tenancy.lease.documents || []).filter(function (record) {
+              return record.id !== payload.id;
+            });
+            draft.tenancy.documents = draft.tenancy.lease.documents;
+          }
+          return draft;
+        });
+      }
+
+      if (sourceEntry && sourceEntry.source === "building" && String(sourceEntry.building.id) !== String(building.id)) {
+        updateBuildingDocumentsStateForBuilding(sourceEntry.building.id, function (draft) {
+          draft.documents = (draft.documents || []).filter(function (record) {
+            return record.id !== payload.id;
+          });
+          return draft;
+        });
+      }
+
+      const updated = updateBuildingDocumentsStateForBuilding(building.id, function (draft) {
+        draft.documents = (draft.documents || []).filter(function (record) {
+          return record.id !== payload.id;
+        }).concat(payload);
         return draft;
       });
+
+      if (!updated) {
+        throw new Error("Unable to save document.");
+      }
+
+      closeDocumentForm();
+    } catch (error) {
+      console.error("Unable to save document:", error);
+      documentSaveBtn.disabled = false;
+      documentSaveBtn.textContent = originalSaveText;
+      window.alert(error && error.message ? error.message : "Unable to save document. Please try again.");
     }
-    if (sourceEntry && sourceEntry.source === "building" && String(sourceEntry.building.id) !== String(building.id)) {
-      updateBuildingDocumentsStateForBuilding(sourceEntry.building.id, function (draft) {
-        draft.documents = (draft.documents || []).filter(function (record) { return record.id !== payload.id; });
-        return draft;
-      });
-    }
-    const updated = updateBuildingDocumentsStateForBuilding(building.id, function (draft) {
-      draft.documents = (draft.documents || []).filter(function (record) { return record.id !== payload.id; }).concat(payload);
-      return draft;
-    });
-    if (updated) closeDocumentForm();
   }
 
   function updateBuildingDocumentsStateForBuilding(buildingId, mutator) {
