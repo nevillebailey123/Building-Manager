@@ -141,12 +141,20 @@
   function saveBuildings(buildings) {
     const normalized = normalizeBuildings(buildings);
     cachedBuildings = normalized;
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(normalized));
+
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(normalized));
+    } catch (error) {
+      console.warn(
+        "Building data exceeded the localStorage quota; continuing with IndexedDB and Supabase:",
+        error
+      );
+    }
 
     const indexedDBMirror = mirrorToIndexedDB("replaceBuildings", normalized);
 
     queueSupabaseSync().catch(function () {
-      // Local save remains successful if remote synchronization fails.
+      // IndexedDB/local application state remains available if remote synchronization fails.
     });
 
     return indexedDBMirror;
@@ -189,12 +197,20 @@
 
   function saveMasterData(masterData) {
     cachedMasterData = masterData;
-    localStorage.setItem(MASTER_KEY, JSON.stringify(masterData));
+
+    try {
+      localStorage.setItem(MASTER_KEY, JSON.stringify(masterData));
+    } catch (error) {
+      console.warn(
+        "Master data exceeded the localStorage quota; continuing with IndexedDB and Supabase:",
+        error
+      );
+    }
 
     const indexedDBMirror = mirrorToIndexedDB("saveMasterData", masterData);
 
     queueSupabaseSync().catch(function () {
-      // Local save remains successful if remote synchronization fails.
+      // IndexedDB/local application state remains available if remote synchronization fails.
     });
 
     return indexedDBMirror;
@@ -595,8 +611,18 @@
     cachedBuildings = buildings;
     cachedMasterData = masterData;
 
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(buildings));
-    localStorage.setItem(MASTER_KEY, JSON.stringify(masterData));
+    let localStorageMirrored = true;
+
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(buildings));
+      localStorage.setItem(MASTER_KEY, JSON.stringify(masterData));
+    } catch (error) {
+      localStorageMirrored = false;
+      console.warn(
+        "Compliance HQ data loaded successfully, but the localStorage mirror was skipped:",
+        error
+      );
+    }
 
     return {
       success: true,
@@ -604,6 +630,7 @@
       contactCount: masterData.contacts.length,
       companyCount: masterData.companies.length,
       templateCount: masterData.scheduledItemTemplates.length,
+      localStorageMirrored,
     };
   }
 
