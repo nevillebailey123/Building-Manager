@@ -633,7 +633,23 @@
             <select id="document-schedule-select" name="scheduleItemId"></select>
 
             <label for="document-file-input">File <span id="document-file-help">(required)</span></label>
-            <input id="document-file-input" name="file" type="file" accept=".pdf,.doc,.docx,image/*" />
+
+            <div id="document-current-file-card" class="document-file-card" style="display: none;">
+              <div class="document-file-thumbnail" aria-hidden="true">PDF</div>
+              <div class="document-file-details">
+                <strong id="document-current-file-name"></strong>
+                <span id="document-current-file-meta" class="lease-helper-text"></span>
+              </div>
+              <div class="document-file-actions">
+                <button id="document-current-file-open" class="btn btn-secondary btn-small" type="button">Open</button>
+                <button id="document-current-file-replace" class="btn btn-secondary btn-small" type="button">Replace File</button>
+              </div>
+            </div>
+
+            <div id="document-file-picker">
+              <input id="document-file-input" name="file" type="file" accept=".pdf,.doc,.docx,image/*" />
+            </div>
+
             <p id="document-current-file" class="lease-helper-text"></p>
 
             <label for="document-notes-input">Notes (optional)</label>
@@ -993,7 +1009,7 @@
     <script src="supabase-storage.js?v=8"></script>
     <script src="indexeddb-storage.js"></script>
     <script src="storage.js"></script>
-    <script src="app.js?v=17"></script>
+    <script src="app.js?v=19"></script>
     <script>
       if ("serviceWorker" in navigator) {
         window.addEventListener("load", async function () {

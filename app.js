@@ -90,6 +90,12 @@
   const documentFileInput = document.getElementById("document-file-input");
   const documentFileHelp = document.getElementById("document-file-help");
   const documentCurrentFile = document.getElementById("document-current-file");
+  const documentCurrentFileCard = document.getElementById("document-current-file-card");
+  const documentCurrentFileName = document.getElementById("document-current-file-name");
+  const documentCurrentFileMeta = document.getElementById("document-current-file-meta");
+  const documentCurrentFileOpen = document.getElementById("document-current-file-open");
+  const documentCurrentFileReplace = document.getElementById("document-current-file-replace");
+  const documentFilePicker = document.getElementById("document-file-picker");
   const documentSaveBtn = document.getElementById("document-save-btn");
   const documentNotesInput = document.getElementById("document-notes-input");
   const documentDeleteBtn = document.getElementById("document-delete-btn");
@@ -5845,6 +5851,11 @@
       const record = entry.record;
       const tenancy = getDocumentRegisterRelatedTenancy(entry);
       const scheduleItem = getDocumentRegisterRelatedScheduleItem(entry);
+      const hasAttachedFile = Boolean(
+        record &&
+        record.storage &&
+        (record.storage.path || record.storage.dataUrl)
+      );
 
       const relationshipParts = [];
       if (!singlePropertySelected) {
@@ -5861,7 +5872,9 @@
             <h3 class="document-register-row-title">${escapeHtml(getDocumentRegisterTitle(record))}</h3>
             <div class="document-register-row-meta">
               <p class="document-item-meta">${escapeHtml(relationshipParts.join(" · "))}</p>
-              ${record.fileName ? `<p class="document-item-meta document-item-filename">${escapeHtml(record.fileName)}</p>` : ""}
+              ${record.fileName
+                ? `<p class="document-item-meta document-item-filename">${escapeHtml(record.fileName)}${hasAttachedFile ? "" : ' · ⚠ File not attached'}</p>`
+                : `<p class="document-item-meta document-item-filename">⚠ File not attached</p>`}
               ${scheduleItem ? `<p class="document-item-meta">Calendar: ${escapeHtml(scheduleItem.taskName || "Calendar Item")}</p>` : ""}
             </div>
           </div>
@@ -5979,15 +5992,86 @@
     renderDocumentFormCategoryOptions(entry ? getDocumentRegisterCategory(entry) : (leaseCategoryFilterValue || DEFAULT_DOCUMENT_CATEGORY));
     renderDocumentFormRelationships(entry ? entry.tenancyId : "", record ? record.scheduleItemId : "");
     documentFileInput.value = "";
-    documentFileInput.required = mode !== "edit";
-    documentFileHelp.textContent = mode === "edit" ? "(leave blank to keep current file)" : "(required)";
-    documentCurrentFile.textContent = record && record.fileName ? `Current file: ${record.fileName}` : "";
+
+    const hasCurrentFile = Boolean(
+      record &&
+      record.fileName &&
+      record.storage &&
+      (record.storage.path || record.storage.dataUrl)
+    );
+
+    documentFileInput.required = !hasCurrentFile;
+
+    if (hasCurrentFile) {
+      documentFileHelp.textContent = "";
+      documentCurrentFile.textContent = "";
+      documentCurrentFileName.textContent = record.fileName;
+
+      const fileSizeMb = Number(record.sizeBytes || 0) / 1024 / 1024;
+      const fileType = String(record.mimeType || "").toLowerCase().includes("pdf")
+        ? "PDF"
+        : "File";
+
+      documentCurrentFileMeta.textContent =
+        fileType + (fileSizeMb > 0 ? ` · ${fileSizeMb.toFixed(2)} MB` : "");
+
+      documentCurrentFileCard.style.display = "flex";
+      documentFilePicker.style.display = "none";
+    } else {
+      const isMissingExistingFile = Boolean(
+        mode === "edit" &&
+        record &&
+        record.fileName
+      );
+
+      documentCurrentFileCard.style.display = "none";
+      documentFilePicker.style.display = "block";
+      documentFileInput.required = true;
+
+      if (isMissingExistingFile) {
+        documentFileHelp.textContent = "(file needs to be re-attached)";
+        documentCurrentFile.textContent =
+          `Missing attachment: ${record.fileName}. Please choose the original file to re-attach it.`;
+      } else {
+        documentFileHelp.textContent = "(required)";
+        documentCurrentFile.textContent = "";
+      }
+
+      documentCurrentFileName.textContent = "";
+      documentCurrentFileMeta.textContent = "";
+    }
     documentSaveBtn.disabled = false;
     documentSaveBtn.textContent = mode === "edit" ? "Save Changes" : "Save Document";
     documentDeleteBtn.style.display = mode === "edit" ? "inline-flex" : "none";
     setLeaseTopLevelControlsVisible(false);
     documentFormCard.style.display = "block";
     showLeaseView();
+  }
+
+  function handleCurrentDocumentFileOpen() {
+    if (!activeDocumentContext || !activeDocumentContext.record) {
+      return;
+    }
+
+    openOrDownloadLeaseDocument(activeDocumentContext.record, false);
+  }
+
+  function handleCurrentDocumentFileReplace() {
+    if (!activeDocumentContext || !activeDocumentContext.record) {
+      return;
+    }
+
+    const currentName = activeDocumentContext.record.fileName || "current file";
+
+    if (!window.confirm(`Replace ${currentName}?\n\nChoose the new file that will replace it.`)) {
+      return;
+    }
+
+    documentCurrentFileCard.style.display = "none";
+    documentFilePicker.style.display = "block";
+    documentFileInput.required = true;
+    documentFileHelp.textContent = "(replacement file)";
+    documentFileInput.click();
   }
 
   function closeDocumentForm() {
@@ -9619,12 +9703,17 @@
       return;
     }
 
-    console.log("DOCUMENT CLICK DEBUG:", {
-      id: entry.record && entry.record.id,
-      title: entry.record && entry.record.title,
-      fileName: entry.record && entry.record.fileName,
-      storage: entry.record && entry.record.storage
-    });
+    const hasAttachedFile = Boolean(
+      entry.record &&
+      entry.record.storage &&
+      (entry.record.storage.path || entry.record.storage.dataUrl)
+    );
+
+    if (!hasAttachedFile) {
+      openDocumentForm("edit", entry);
+      return;
+    }
+
     openOrDownloadLeaseDocument(entry.record, false);
   }
 
@@ -13102,6 +13191,15 @@
   documentForm.addEventListener("submit", handleSaveDocument);
   documentCancelBtn.addEventListener("click", closeDocumentForm);
   documentDeleteBtn.addEventListener("click", handleDeleteDocument);
+
+  if (documentCurrentFileOpen) {
+    documentCurrentFileOpen.addEventListener("click", handleCurrentDocumentFileOpen);
+  }
+
+  if (documentCurrentFileReplace) {
+    documentCurrentFileReplace.addEventListener("click", handleCurrentDocumentFileReplace);
+  }
+
   documentExpiryInput.addEventListener("input", updateDocumentExpiryCalendarToggleState);
   documentBuildingSelect.addEventListener("change", function () {
     renderDocumentFormRelationships(documentTenancySelect.value, documentScheduleSelect.value);
