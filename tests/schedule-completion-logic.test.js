@@ -299,6 +299,69 @@ assert.strictEqual(annual.historyRecords.length, 1);
 assert.strictEqual(annual.historyRecords[0].scheduleItemId, "i-annual");
 assert.notStrictEqual(annual.scheduleItems[0].status, "Completed");
 
+assert.notStrictEqual(annual.scheduleItems[0].status, "Completed");
+
+// TEST A2: A completion attachment is linked to the Calendar occurrence
+// and represented by a Document repository record.
+let attached = buildScheduleBuilding({
+  id: "b-attached",
+  templateId: "t-attached",
+  itemId: "i-attached",
+  taskName: "Annual Fire Inspection",
+  frequency: "Annual",
+  dueDate: "2026-08-10",
+  initialDueDate: "2026-08-10",
+});
+
+attached = api.applyTemplateCompletion(attached, attached.scheduleItems[0], {
+  completedAt: "2026-08-10T10:00:00.000Z",
+  completedBy: "Tester",
+  notes: "Completed with certificate",
+  completionDocument: {
+    id: "doc-completion-1",
+    fileName: "Fire Inspection Certificate.pdf",
+    mimeType: "application/pdf",
+    sizeBytes: 12345,
+    storage: {
+      kind: "supabase",
+      path: "documents/doc-completion-1",
+    },
+  },
+});
+
+const attachedHistory = attached.historyRecords[0];
+
+assert.strictEqual(
+  attached.documents.length,
+  1,
+  "completion attachment must create one Document repository record"
+);
+assert.strictEqual(
+  attached.documents[0].id,
+  "doc-completion-1",
+  "Document repository record must retain the document id"
+);
+assert.strictEqual(
+  attached.documents[0].fileName,
+  "Fire Inspection Certificate.pdf",
+  "Document repository record must retain the file name"
+);
+assert.strictEqual(
+  attached.documents[0].scheduleItemId,
+  "i-attached",
+  "Document repository record must link to the Calendar item"
+);
+assert.strictEqual(
+  attachedHistory.documentId,
+  "doc-completion-1",
+  "History record must link to the completion document"
+);
+assert.strictEqual(
+  attachedHistory.hasAttachments,
+  true,
+  "History must continue to report an attachment"
+);
+
 // TEST B: Monthly progression.
 let monthly = buildScheduleBuilding({
   id: "b-monthly",

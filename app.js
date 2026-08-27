@@ -4774,7 +4774,25 @@
     const completedAt = options.completedAt || new Date().toISOString();
     const completedBy = options.completedBy || "Property Manager";
     const historyId = window.BuildingStorage.createId();
-
+    const completionDocument = options.completionDocument
+      ? {
+          ...options.completionDocument,
+          id: options.completionDocument.id || window.BuildingStorage.createId(),
+          title: options.completionDocument.title || scheduleItem.taskName,
+          description: options.completionDocument.description || scheduleItem.taskName,
+          category: options.completionDocument.category || scheduleItem.category || "General",
+          documentType: options.completionDocument.documentType || "Completion Document",
+          documentDate: completedAt.slice(0, 10),
+          expiryDate: "",
+          addExpiryToCalendar: false,
+          tenancyId: scheduleItem.tenancyId || "",
+          scheduleItemId: scheduleItem.id,
+          uploadedBy: completedBy,
+          uploadedAt: completedAt,
+          lastUpdated: completedAt,
+          notes: options.completionDocument.notes || "",
+        }
+      : null;
     const historyRecord = {
       id: historyId,
       templateId: template.id,
@@ -4788,8 +4806,9 @@
       contactUsed: options.contactUsed || "",
       contactUsedId: options.contactUsedId || "",
       notes: options.notes || "",
-      hasAttachments: Boolean(options.completionDocument),
-      completionDocument: options.completionDocument || null,
+      hasAttachments: Boolean(completionDocument),
+      completionDocument: completionDocument,
+      documentId: completionDocument ? completionDocument.id : "",
       previousDueDate: previousDueDate,
       newDueDate: newDueDate,
       nextDueDate: newDueDate,
@@ -4848,6 +4867,9 @@
       propertyTemplates: updatedPropertyTemplates,
       scheduleItems: updatedScheduleItems,
       historyRecords: (building.historyRecords || []).concat(historyRecord),
+      documents: completionDocument
+        ? (building.documents || []).concat(completionDocument)
+        : (building.documents || []),
       lastUpdated: completedAt,
     };
 
