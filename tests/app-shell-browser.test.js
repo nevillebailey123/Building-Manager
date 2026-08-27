@@ -146,12 +146,31 @@ function moduleButton(page, key) {
     assert.ok(text.includes("Alpha Fire Alarm") && text.includes("Beta Roof Inspection"), "All Properties must show calendar items across all properties");
 
     await moduleButton(page, "Documents").click();
-    assert.strictEqual(await page.locator("[data-document-register-id]").count(), 2, "All Properties must show the whole document repository");
+    assert.strictEqual(
+      await page.locator("[data-document-category-open]").count(),
+      2,
+      "All Properties must show categories for the whole document repository"
+    );
+    assert.deepStrictEqual(
+      (await page.locator("[data-document-category-open]").allTextContents()).map(function (text) {
+        return text.replace(/\s+/g, " ").trim();
+      }),
+      ["Insurance 1 document", "Valuations 1 document"],
+      "All Properties must show document counts by category"
+    );
 
     // 3. Property selection persists while moving Documents -> Calendar -> Contacts -> Tenancies.
     await page.locator("#app-property-selector").selectOption("alpha");
     assert.strictEqual(await isActive(page, "lease-view"), true, "Changing the selector must stay on the current module");
-    assert.strictEqual(await page.locator("[data-document-register-id]").count(), 1, "Documents must scope to the selected property");
+    assert.strictEqual(
+      await page.locator("[data-document-category-open]").count(),
+      1,
+      "Documents must scope categories to the selected property"
+    );
+    assert.ok(
+      (await page.locator("[data-document-category-open]").textContent()).includes("Insurance"),
+      "The selected property must show its Insurance document category"
+    );
 
     await moduleButton(page, "Schedule").click();
     assert.strictEqual(await page.locator("#app-property-selector").inputValue(), "alpha", "Property selection must persist into Calendar");
@@ -237,7 +256,15 @@ function moduleButton(page, key) {
     assert.ok(archivedRecord.documents.length >= 1, "Archiving must keep documents");
 
     await moduleButton(page, "Documents").click();
-    assert.strictEqual(await page.locator("[data-document-register-id]").count(), 1, "Archived property records must leave the operational modules");
+    assert.strictEqual(
+      await page.locator("[data-document-category-open]").count(),
+      1,
+      "Archived property records must leave the operational Documents module"
+    );
+    assert.ok(
+      (await page.locator("[data-document-category-open]").textContent()).includes("Insurance"),
+      "Documents must only show categories belonging to active properties"
+    );
 
     await moduleButton(page, "settings").click();
     await page.locator('[data-settings-property-id="beta"] [data-settings-property-action="edit"]').click();

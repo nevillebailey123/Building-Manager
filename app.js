@@ -530,13 +530,12 @@
       }
       const legacyName = String(legacy.name || legacy.key || "").trim();
       if (legacyName) {
-        return mapToFixedDocumentCategory(legacyName) || legacyName;
+        return mapToFixedDocumentCategory(legacyName) || DEFAULT_DOCUMENT_CATEGORY;
       }
     }
 
     const legacyDocumentType = String(documentRecord.documentType || "").trim();
     return mapToFixedDocumentCategory(legacyDocumentType)
-      || legacyDocumentType
       || DEFAULT_DOCUMENT_CATEGORY;
   }
 
@@ -10913,6 +10912,34 @@
   }
 
   function getScheduleDetailsData(building, scheduleItem) {
+    // Document-generated items have no property template; build synthetic details data.
+    if (scheduleItem.sourceType === "document") {
+      const records = (building.historyRecords || [])
+        .filter(function (record) {
+          return record.scheduleItemId === scheduleItem.id && !record.revertedAt;
+        })
+        .sort(function (left, right) {
+          return new Date(right.completedAt || right.completedDate).getTime() - new Date(left.completedAt || left.completedDate).getTime();
+        });
+
+      return {
+        template: {
+          id: "",
+          name: scheduleItem.taskName || "Document Expiry",
+          category: "Document",
+          defaultFrequency: "One-off",
+          preferredContactId: "",
+          defaultNotes: "",
+          attachments: [],
+        },
+        tenancy: null,
+        records: records,
+        latestRecord: records[0] || null,
+        isTenancyItem: false,
+        isDocumentItem: true,
+      };
+    }
+
     // Tenancy-generated items have no property template; build synthetic details data.
     if (scheduleItem.sourceType === "tenancy") {
       const tenancy = getAllTenanciesForBuilding(building).find(function (t) {
@@ -11740,6 +11767,72 @@
     `;
   }
 
+  function getSourceDocumentForScheduleItem(building, scheduleItem) {
+    if (!building || !scheduleItem || scheduleItem.sourceType !== "document") {
+      return null;
+    }
+
+    const documentId = String(scheduleItem.documentId || "").trim();
+    if (!documentId) {
+      return null;
+    }
+
+    if (scheduleItem.documentSource === "tenancy") {
+      const tenancyId = String(scheduleItem.tenancyId || "").trim();
+      const tenancy = getAllTenanciesForBuilding(building).find(function (item) {
+        return String(item.id || "") === tenancyId;
+      });
+
+      const documents = tenancy && tenancy.lease && Array.isArray(tenancy.lease.documents)
+        ? tenancy.lease.documents
+        : [];
+
+      return documents.find(function (document) {
+        return String(document.id || "") === documentId;
+      }) || null;
+    }
+
+    return (building.documents || []).find(function (document) {
+      return String(document.id || "") === documentId;
+    }) || null;
+  }
+
+  function renderScheduleSourceDocumentSection(building, scheduleItem) {
+    const document = getSourceDocumentForScheduleItem(building, scheduleItem);
+
+    if (!document) {
+      return "";
+    }
+
+    const hasFile = Boolean(
+      document.storage &&
+      (document.storage.path || document.storage.dataUrl)
+    );
+
+    const fileType = String(document.mimeType || "").toLowerCase().includes("pdf")
+      ? "PDF"
+      : "FILE";
+
+    return `
+      <section class="schedule-details-section">
+        <h4>Source Document</h4>
+        <button
+          class="document-file-card schedule-source-document-card"
+          type="button"
+          data-schedule-details-action="open-source-document"
+          data-schedule-source-document="true"
+          ${hasFile ? "" : "disabled"}
+        >
+          <span class="document-file-thumbnail" aria-hidden="true">${escapeHtml(fileType)}</span>
+          <span class="document-file-details">
+            <strong>${escapeHtml(getDocumentRegisterTitle(document))}</strong>
+            <span class="lease-helper-text">${escapeHtml(document.fileName || (hasFile ? "Attached document" : "File not attached"))}</span>
+          </span>
+        </button>
+      </section>
+    `;
+  }
+
   function renderScheduleDetailsDialogHtml(building, scheduleItem, detailsData, mode) {
     const viewMode = mode === "edit" ? "edit" : "details";
     const isTenancyItem = Boolean(detailsData.isTenancyItem);
@@ -11898,7 +11991,9 @@
           </dl>
         </section>
 
-        ${renderPrimaryContactSection(building, scheduleItem, template)}
+        ${scheduleItem.sourceType === "document"
+          ? renderScheduleSourceDocumentSection(building, scheduleItem)
+          : renderPrimaryContactSection(building, scheduleItem, template)}
 
         ${notesValue
           ? `<section class="schedule-details-section"><h4>Notes</h4><p class="schedule-details-notes">${escapeHtml(notesValue)}</p></section>`
@@ -12084,15 +12179,6 @@
 
     const scheduleItem = findScheduleItemById(building, itemId);
     if (!scheduleItem) {
-      return;
-    }
-
-    // Document-generated entries are owned by their source document: open the file, not the generic editor.
-    if (scheduleItem.sourceType === "document") {
-      const sourceDocument = findDocumentForScheduleItem(building, scheduleItem);
-      if (sourceDocument) {
-        openOrDownloadLeaseDocument(sourceDocument, false);
-      }
       return;
     }
 
@@ -12375,6 +12461,15 @@
 
       const target = event.target;
       if (!(target instanceof HTMLElement)) {
+        return;
+      }
+
+      const sourceDocument = target.closest("[data-schedule-source-document]");
+      if (sourceDocument instanceof HTMLElement && viewMode === "details") {
+        const documentEntry = getSourceDocumentForScheduleItem(building, scheduleItem);
+        if (documentEntry) {
+          await openOrDownloadLeaseDocument(documentEntry, false);
+        }
         return;
       }
 

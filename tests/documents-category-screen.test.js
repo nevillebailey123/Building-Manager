@@ -140,15 +140,38 @@ function isVisible(page, selector) {
       return localStorage.getItem("buildingManagerBuildings");
     });
 
-    // All Buildings, All Documents lists the whole repository once.
-    assert.strictEqual(await page.locator("[data-document-register-id]").count(), 3, "All Documents must list every document exactly once");
-    const categoryLabels = await page.locator("[data-document-register-id] .document-item-meta").allTextContents();
-    assert.ok(categoryLabels.includes("Category: Insurance"), "Rows must show their fixed category");
-    assert.ok(categoryLabels.includes("Category: Legal"), "Legacy Legal documents must keep their mapped category");
-    assert.ok(categoryLabels.includes("Property: Ford Onekawa"), "Rows must name their owning Property");
-    assert.ok(categoryLabels.includes("Property: Building B"), "Rows must name their owning Property");
-    assert.strictEqual(categoryLabels.some(function (text) { return /:\s*$/.test(text); }), false, "Rows must not render empty metadata labels");
+    // All Properties opens with a category overview rather than a flat document list.
+    assert.strictEqual(
+      await page.locator("[data-document-register-id]").count(),
+      0,
+      "All Documents landing page must show categories rather than document rows"
+    );
 
+    const categoryCards = page.locator("[data-document-category-open]");
+    assert.strictEqual(
+      await categoryCards.count(),
+      2,
+      "The category overview must show each populated category exactly once"
+    );
+
+    assert.ok(
+      (await page.locator('[data-document-category-open="Insurance"]').textContent()).includes("2 documents"),
+      "Insurance category must show its two documents"
+    );
+
+    assert.ok(
+      (await page.locator('[data-document-category-open="Legal"]').textContent()).includes("1 document"),
+      "Legal category must show its one document"
+    );
+
+    // Opening a category reveals its document rows.
+    await page.locator('[data-document-category-open="Legal"]').click();
+    assert.strictEqual(
+      await page.locator('[data-document-register-id="document-c"]').count(),
+      1,
+      "Opening Legal must reveal the Legal document"
+    );
+    await page.locator("[data-document-category-back]").click();
     // Category filter alone.
     await page.locator("#lease-category-filter").selectOption("Insurance");
     assert.strictEqual(await page.locator("[data-document-register-id]").count(), 2, "Insurance must show both Insurance documents");
@@ -204,10 +227,18 @@ function isVisible(page, selector) {
     await page.locator("#document-cancel-btn").click();
 
     // Row body views the document; Edit only edits.
+    // The Documents landing page is category-first, so open Insurance first.
+    await page.locator('[data-document-category-open="Insurance"]').click();
+
     const documentRow = page.locator("[data-document-register-id=\"document-a\"]");
     await documentRow.locator("h3").click();
     const openedUrls = await page.evaluate(function () { return window.__openedDocumentUrls; });
-    assert.ok(openedUrls.some(function (url) { return url.startsWith("data:application/pdf"); }), "Row body click must view the stored document");
+    assert.ok(
+      openedUrls.some(function (url) {
+        return url.startsWith("blob:") || url.startsWith("data:application/pdf");
+      }),
+      "Row body click must view the stored document"
+    );
     assert.strictEqual(await isVisible(page, "#document-form-card"), false, "Viewing must not open Edit");
 
     await documentRow.locator("[data-document-register-edit=\"true\"]").click();

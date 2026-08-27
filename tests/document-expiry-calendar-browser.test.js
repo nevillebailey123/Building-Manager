@@ -144,24 +144,57 @@ async function setBuildings(page, buildings) {
 
     await seedAndGoto(page, running.url, seedBuildings());
 
-    // ── A: clicking a repository document still opens it directly ────────────
+    // ── A: repository documents remain directly accessible ─────────────────
     await page.locator('#app-module-nav [data-app-module="Documents"]').click();
+
+    // Documents now opens with a category overview. Open Insurance explicitly.
+    await page.locator('[data-document-category-open="Insurance"]').click();
+
     const documentRow = page.locator('[data-document-register-id="doc-expiry-on"]');
     await documentRow.locator("h3").click();
+
     let openedUrls = await page.evaluate(function () { return window.__openedDocumentUrls; });
-    assert.ok(openedUrls.some(function (url) { return url.startsWith("data:application/pdf"); }), "Clicking a document row must open the stored file directly");
-    assert.strictEqual(await isVisible(page, "#document-form-card"), false, "Viewing a document must not open Edit");
+    assert.ok(
+      openedUrls.some(function (url) { return url.startsWith("blob:") || url.startsWith("data:application/pdf"); }),
+      "Clicking a document row must open the stored file directly"
+    );
+    assert.strictEqual(
+      await isVisible(page, "#document-form-card"),
+      false,
+      "Viewing a document must not open Edit"
+    );
 
-    // J/K: Property and Tenancy relationships surface as labelled register rows.
-    const relatedToTexts = await page.locator('[data-document-register-id] .document-item-meta').allTextContents();
-    assert.ok(relatedToTexts.includes("Related to: Property"), "Property-owned documents must be labelled Related to: Property");
-    assert.ok(relatedToTexts.includes("Related to: Tenancy"), "Tenancy-owned documents must be labelled Related to: Tenancy");
+    // Property-owned documents are labelled correctly within their category.
+    const propertyRelatedToTexts = await page.locator('[data-document-register-id] .document-item-meta').allTextContents();
+    assert.ok(
+      propertyRelatedToTexts.some(function (text) { return text.includes("· Property"); }),
+      "Property-owned documents must be identified as Property records"
+    );
 
-    // Related To filter narrows to Tenancy-owned documents only.
+    // Return to the category overview and open Tenancy.
+    await page.locator("[data-document-category-back]").click();
+    await page.locator('[data-document-category-open="Tenancy"]').click();
+
+    assert.strictEqual(
+      await page.locator('[data-document-register-id="lease-doc"]').count(),
+      1,
+      "Tenancy category must show the lease document"
+    );
+    assert.ok(
+      (await page.locator('[data-document-register-id="lease-doc"] .document-item-meta').allTextContents()).some(function (text) { return text.includes("· Tenancy"); }),
+      "Tenancy-owned documents must be labelled Related to: Tenancy"
+    );
+
+    // Related To: Tenancy must retain only tenancy-owned records.
     await page.locator("#lease-related-to-filter").selectOption("Tenancy");
-    assert.strictEqual(await page.locator("[data-document-register-id]").count(), 1, "Related To: Tenancy must show only tenancy documents");
-    assert.strictEqual(await page.locator('[data-document-register-id="lease-doc"]').count(), 1, "Related To: Tenancy must show the lease document");
+    assert.strictEqual(
+      await page.locator("[data-document-register-id]").count(),
+      1,
+      "Related To: Tenancy must show only tenancy documents"
+    );
+
     await page.locator("#lease-related-to-filter").selectOption("");
+    await page.locator("[data-document-category-back]").click();
 
     // Checkbox UX: Add expiry to Calendar is unavailable until an Expiry Date exists.
     await page.locator("#documents-add-btn").click();
@@ -190,11 +223,37 @@ async function setBuildings(page, buildings) {
     assert.ok((await tenancyDocRow.innerText()).includes("Tenancy: Pan Pac"), "Tenancy document expiry must show its Tenancy");
     assert.ok((await tenancyDocRow.innerText()).includes("Source: Document"), "Tenancy document expiry must identify Source: Document");
 
-    // ── L: clicking a document-generated Calendar entry opens the source document, not the editor ──
+    // ── L: document-generated Calendar entries open Calendar Details first ──
     await propertyDocRow.click();
-    openedUrls = await page.evaluate(function () { return window.__openedDocumentUrls; });
-    assert.ok(openedUrls.some(function (url) { return url.startsWith("data:application/pdf"); }), "Clicking a document-generated Calendar row must open the source document");
-    assert.strictEqual(await page.locator(".schedule-details-backdrop").count(), 0, "Clicking a document-generated Calendar row must not open the generic Calendar editor");
+
+    assert.strictEqual(
+      await page.locator(".schedule-details-backdrop").count(),
+      1,
+      "Clicking a document-generated Calendar row must open Calendar Details"
+    );
+    assert.strictEqual(
+      await page.locator("[data-schedule-source-document]").count(),
+      1,
+      "Calendar Details must show the linked source document"
+    );
+
+    const openedBeforeSourceClick = (await page.evaluate(function () {
+      return window.__openedDocumentUrls;
+    })).length;
+
+    await page.locator("[data-schedule-source-document]").click();
+
+    openedUrls = await page.evaluate(function () {
+      return window.__openedDocumentUrls;
+    });
+
+    assert.ok(
+      openedUrls.length > openedBeforeSourceClick,
+      "Clicking the Source Document card must open the stored document"
+    );
+
+    await page.locator('[data-schedule-details-action="close"]').click();
+    await page.locator(".schedule-details-backdrop").waitFor({ state: "detached" });
 
     // A normal Calendar item still opens the generic details dialog.
     await page.locator(".schedule-ops-row", { hasText: "Existing Fire Alarm Service" }).click();
@@ -258,10 +317,20 @@ async function setBuildings(page, buildings) {
     await openCalendar(page);
     assert.strictEqual(await page.locator(".schedule-row-title", { hasText: "Pan Pac Lease Agreement expires" }).count(), 1, "Restoring a backup must keep the document expiry visible in Calendar exactly once");
     await page.locator('#app-module-nav [data-app-module="Documents"]').click();
+
+    // Restored documents are presented through the category-first repository.
+    await page.locator('[data-document-category-open="Tenancy"]').click();
     const restoredRelatedTexts = await page.locator('[data-document-register-id="lease-doc"] .document-item-meta').allTextContents();
-    assert.ok(restoredRelatedTexts.includes("Related to: Tenancy"), "Restoring a backup must preserve the Tenancy relationship");
-    const propertyDocRestored = await page.locator('[data-document-register-id]').count();
-    assert.ok(propertyDocRestored >= 1, "Restoring a backup must preserve Property-owned documents");
+    assert.ok(
+      restoredRelatedTexts.some(function (text) { return text.includes("· Tenancy"); }),
+      "Restoring a backup must preserve the Tenancy relationship"
+    );
+
+    await page.locator("[data-document-category-back]").click();
+    assert.ok(
+      await page.locator('[data-document-category-open="Insurance"]').count() >= 1,
+      "Restoring a backup must preserve Property-owned documents"
+    );
 
     assert.deepStrictEqual(pageErrors, [], "Document expiry Calendar behaviour must not throw a browser exception");
 

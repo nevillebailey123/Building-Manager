@@ -55,6 +55,17 @@ assert.strictEqual(JSON.stringify(backup.buildingManagerMasterData), JSON.string
   contacts: [],
   scheduledItemTemplates: [],
   documents: [],
+  documentCategories: [
+    "Tenancy",
+    "Insurance",
+    "Compliance",
+    "Maintenance",
+    "Financial",
+    "Legal",
+    "Valuations",
+    "Sales",
+    "Miscellaneous",
+  ],
 }));
 
 const restoreOutcome = harness.context.window.BuildingStorage.restoreBackupData(backup);

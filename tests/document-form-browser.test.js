@@ -112,10 +112,24 @@ function summaryValue(page, label) {
     });
     await page.addInitScript(function (buildings) {
       window.__COMPLIANCE_HQ_BROWSER_TEST__ = true;
+
       localStorage.setItem("buildingManagerBuildings", JSON.stringify(buildings));
       localStorage.setItem("buildingManagerCurrentPropertyId", "");
     }, seededBuildings);
     await page.goto(running.url, { waitUntil: "networkidle" });
+
+    // Replace the real Supabase file calls for this isolated browser test.
+    await page.evaluate(function () {
+      window.ComplianceHQSupabase.uploadDocumentFile = async function (file, documentId) {
+        return {
+          kind: "supabase-storage",
+          path: "test-documents/" + documentId + "/" + file.name,
+        };
+      };
+      window.ComplianceHQSupabase.downloadDocumentFile = async function () {
+        return new Blob(["%PDF-1.4\n"], { type: "application/pdf" });
+      };
+    });
 
     // 1. The shared Property selector carries a visible label.
     assert.strictEqual(await page.locator(".app-property-label").textContent(), "Property", "The Property selector must be labelled");
@@ -244,7 +258,7 @@ function summaryValue(page, label) {
     assert.strictEqual(await page.locator("#document-save-btn").textContent(), "Save Changes", "Edit must offer Save Changes");
     assert.strictEqual(await page.locator("#documents-add-btn").isVisible(), false, "Add Document must not be offered while editing");
     assert.strictEqual(await page.locator("#document-type-select").count(), 0, "Document Type must not appear when editing");
-    assert.ok((await page.locator("#document-current-file").textContent()).includes("fire-certificate.pdf"), "Edit must show the current file");
+    assert.ok((await page.locator("#document-current-file-name").textContent()).includes("fire-certificate.pdf"), "Edit must show the current file");
     await page.locator("#document-title-input").fill("Renamed Fire Certificate");
     await page.locator("#document-save-btn").click();
 
@@ -259,7 +273,10 @@ function summaryValue(page, label) {
         .find(function (b) { return b.id === "ford-onekawa"; })
         .documents.find(function (d) { return d.title === "Renamed Fire Certificate"; });
     });
-    assert.ok(editedRecord.storage && editedRecord.storage.dataUrl, "The stored file must survive an edit");
+    assert.ok(
+      editedRecord.storage && (editedRecord.storage.path || editedRecord.storage.dataUrl),
+      "The stored file must survive an edit"
+    );
     assert.strictEqual(editedRecord.category, "Compliance", "The fixed category must survive an edit");
     assert.ok(editedRecord.documentType, "A legacy documentType value must still be written for compatibility");
 

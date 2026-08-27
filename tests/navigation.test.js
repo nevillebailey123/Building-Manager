@@ -349,7 +349,10 @@ assert.strictEqual(indexSource.includes(">Document Type<"), false, "Document Typ
 assert.strictEqual(appSource.includes("documentTypeSelect"), false, "The Document Type control must be fully unwired");
 assert.ok(appSource.includes("documentType: existing && existing.documentType ? existing.documentType : getDocumentFormCategory()"), "Legacy documentType data must be preserved on save");
 assert.ok(appSource.includes("categoryId: String(document.categoryId || \"\")"), "Legacy categoryId data must still be normalised, not dropped");
-assert.ok(appSource.includes("FIXED_DOCUMENT_CATEGORIES.map"), "The fixed categories must still drive the Category field");
+assert.ok(
+  appSource.includes("const categories = getDocumentCategories()"),
+  "The current document categories must still drive the Category field"
+);
 
 // 6 + 7. Focused document form and its actions.
 const documentFormStart = indexSource.indexOf('id="document-form-card"');
@@ -379,7 +382,12 @@ assert.ok(closeDocumentFormSource.includes("renderLeasePage()"), "Cancel must re
 
 // Edit preserves the stored file unless the user chooses a new one.
 const saveDocumentSource = sourceFor("handleSaveDocument", "updateBuildingDocumentsStateForBuilding");
-assert.ok(saveDocumentSource.includes("(existing && existing.storage ? { ...existing.storage } : null)"), "Editing must keep the existing file when none is chosen");
+assert.ok(
+  saveDocumentSource.includes("let storage = existing && existing.storage")
+    && saveDocumentSource.includes("? { ...existing.storage }")
+    && saveDocumentSource.includes(": null;"),
+  "Editing must keep the existing file when none is chosen"
+);
 assert.ok(saveDocumentSource.includes('if (activeDocumentFormMode !== "edit" && !selectedFile)'), "Adding must still require a file");
 assert.ok(saveDocumentSource.includes("fileName: selectedFile ? selectedFile.name : (existing ? existing.fileName : \"\")"), "Editing must keep the existing file name when none is chosen");
 

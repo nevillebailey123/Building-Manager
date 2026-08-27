@@ -46,8 +46,9 @@ const start = appSource.indexOf("function getDocumentRegisterRecords");
 const end = appSource.indexOf("\n\n  function getDocumentFormBuilding", start);
 assert.ok(start >= 0 && end > start, "Document register helpers should exist");
 const registerSource = appSource.slice(start, end);
-assert.ok(registerSource.includes("data-document-register-id"), "Documents must render one flat list of document rows");
-assert.strictEqual(registerSource.includes("data-document-register-category-key"), false, "Documents must not drill into category screens");
+assert.ok(registerSource.includes("data-document-register-id"), "Documents must render document rows within an opened category");
+assert.ok(registerSource.includes("data-document-category-open"), "Documents must provide category-first navigation");
+assert.ok(registerSource.includes("data-document-category-back"), "Opened categories must provide a return to the category overview");
 assert.ok(registerSource.includes("data-document-register-edit=\"true\""), "Document rows must expose a separate Edit action");
 assert.strictEqual(appSource.includes("function handleAddDocumentCategory"), false, "Add Category must be removed");
 assert.strictEqual(appSource.includes("function handleManageDocumentCategory"), false, "Manage Category must be removed");
@@ -55,9 +56,13 @@ assert.strictEqual(appSource.includes("showDocumentCategoryFormDialog"), false, 
 assert.strictEqual(appSource.includes("showDocumentCategoryManageDialog"), false, "Category management dialog must be removed");
 assert.strictEqual(indexSource.includes("documents-add-category-btn"), false, "Add Category button must be removed from the Documents header");
 assert.ok(indexSource.includes('id="lease-category-filter"'), "Documents must expose a fixed category filter");
-assert.ok(indexSource.includes('<option value="">All Documents</option>'), "Category filter must offer All Documents");
+assert.ok(registerSource.includes('<option value="">All Documents</option>'), "Dynamic category filter must offer All Documents");
+
 ["Tenancy", "Insurance", "Compliance", "Maintenance", "Financial", "Legal", "Valuations", "Sales", "Miscellaneous"].forEach(function (category) {
-  assert.ok(indexSource.includes(`<option>${category}</option>`), `Category filter must offer ${category}`);
+  assert.ok(
+    fixedCategoriesSource.includes(`"${category}"`),
+    `Fixed document categories must include ${category}`
+  );
 });
 
 const clickSource = appSource.slice(appSource.indexOf("function activateDocumentRegisterRow"), appSource.indexOf("\n\n  function handleDocumentRegisterKeydown"));
@@ -222,13 +227,23 @@ assert.ok(formSource.includes("renderDocumentFormBuildingOptions(selectedBuildin
 assert.ok(formSource.includes("leaseCategoryFilterValue || DEFAULT_DOCUMENT_CATEGORY"), "Add Document must default to the filtered or Miscellaneous category");
 
 const categoryOptionsSource = appSource.slice(appSource.indexOf("function renderDocumentFormCategoryOptions"), appSource.indexOf("\n\n  function renderDocumentFormBuildingOptions"));
-assert.ok(categoryOptionsSource.includes("FIXED_DOCUMENT_CATEGORIES.map"), "Add Document must only offer the fixed categories");
-assert.ok(categoryOptionsSource.includes("|| DEFAULT_DOCUMENT_CATEGORY"), "Add Document must fall back to Miscellaneous");
+assert.ok(
+  categoryOptionsSource.includes("const categories = getDocumentCategories()"),
+  "Add Document must use the current document categories"
+);
+assert.ok(
+  categoryOptionsSource.includes("categories.map"),
+  "Add Document must render the available document categories"
+);
+assert.ok(
+  categoryOptionsSource.includes("DEFAULT_DOCUMENT_CATEGORY"),
+  "Add Document must fall back to Miscellaneous"
+);
 
 const saveSource = appSource.slice(appSource.indexOf("async function handleSaveDocument"), appSource.indexOf("\n\n  function updateBuildingDocumentsStateForBuilding"));
 assert.ok(saveSource.includes("category: getDocumentFormCategory()"), "Saving a document must store its fixed category");
 
-const normalizeSource = appSource.slice(appSource.indexOf("function resolveFixedCategoryForRecord"), appSource.indexOf("\n\n  const DEFAULT_TEMPLATE_LIBRARY"));
+const normalizeSource = appSource.slice(appSource.indexOf("function resolveDocumentCategoryForRecord"), appSource.indexOf("\n\n  const DEFAULT_TEMPLATE_LIBRARY"));
 assert.ok(normalizeSource.includes("DEFAULT_DOCUMENT_CATEGORY"), "Normalisation must fall back to Miscellaneous");
 assert.strictEqual(appSource.includes("draft.documents = (draft.documents || []).filter(function (documentRecord) {\n          return documentRecord.categoryId !== category.id;"), false, "Category deletion must no longer remove documents");
 
