@@ -184,6 +184,7 @@ async function detailRelationshipsFor(page, contactId) {
     return {
       title: backdrop.querySelector("#contact-details-title").textContent.trim(),
       groups: groups,
+      closeButtonCount: backdrop.querySelectorAll('[data-contact-details-action="close"]').length,
     };
   });
   await page.locator('.contact-details-backdrop [data-contact-details-action="close"]').first().click();
@@ -246,6 +247,7 @@ async function seed(page, url, buildings, propertyId) {
     // --- Detailed relationship management stays in Contact Details -----------
     const jimDetails = await detailRelationshipsFor(page, "c-jim");
     assert.strictEqual(jimDetails.title, "Jim Beveridge", "Clicking a card must open that contact");
+    assert.strictEqual(jimDetails.closeButtonCount, 1, "Contact Details must have exactly one Contacts button");
     assert.deepStrictEqual(
       jimDetails.groups.Property,
       ["Ford Onekawa · Locksmith", "Taradale Chambers · Locksmith"],

@@ -6898,7 +6898,6 @@
       <div class="schedule-details-modal" role="dialog" aria-modal="true" aria-labelledby="contact-details-title">
         <header class="schedule-details-header">
           <h3 id="contact-details-title">${escapeHtml(contact.name || "Contact")}</h3>
-          <button class="btn btn-secondary btn-small" type="button" data-contact-details-action="close">Contacts</button>
         </header>
 
         <section class="schedule-details-section">
