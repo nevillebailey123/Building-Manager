@@ -4196,6 +4196,7 @@
               ? {
                 kind: document.storage.kind || "data-url",
                 dataUrl: document.storage.dataUrl || document.fileDataUrl || "",
+                path: document.storage.path || "",
                 previewStatus: document.storage.previewStatus || "not-generated",
                 ocrStatus: document.storage.ocrStatus || "not-indexed",
               }
@@ -4231,6 +4232,7 @@
                 ? {
                   kind: document.storage.kind || "data-url",
                   dataUrl: document.storage.dataUrl || document.fileDataUrl || "",
+                  path: document.storage.path || "",
                   previewStatus: document.storage.previewStatus || "not-generated",
                   ocrStatus: document.storage.ocrStatus || "not-indexed",
                 }
@@ -4271,6 +4273,7 @@
           ? {
             kind: document.storage.kind || "data-url",
             dataUrl: document.storage.dataUrl || document.fileDataUrl || "",
+            path: document.storage.path || "",
             previewStatus: document.storage.previewStatus || "not-generated",
             ocrStatus: document.storage.ocrStatus || "not-indexed",
           }
@@ -6028,19 +6031,34 @@
       const scheduleItemId = String(documentScheduleSelect.value || "").trim();
       const existing = activeDocumentContext ? activeDocumentContext.record : null;
       const now = new Date().toISOString();
+      const documentId = existing && existing.id
+        ? existing.id
+        : window.BuildingStorage.createId();
 
-      const storage = selectedFile
-        ? {
-          kind: "data-url",
-          dataUrl: await readFileAsDataUrl(selectedFile),
-          previewStatus: "not-generated",
-          ocrStatus: "not-indexed",
+      let storage = existing && existing.storage
+        ? { ...existing.storage }
+        : null;
+
+      if (selectedFile) {
+        if (
+          !window.ComplianceHQSupabase ||
+          typeof window.ComplianceHQSupabase.uploadDocumentFile !== "function"
+        ) {
+          throw new Error("Supabase document storage is unavailable.");
         }
-        : (existing && existing.storage ? { ...existing.storage } : null);
+
+        storage = await window.ComplianceHQSupabase.uploadDocumentFile(
+          selectedFile,
+          documentId
+        );
+
+        storage.previewStatus = "not-generated";
+        storage.ocrStatus = "not-indexed";
+      }
 
       const payload = {
         ...(existing || {}),
-        id: existing && existing.id ? existing.id : window.BuildingStorage.createId(),
+        id: documentId,
         title: title,
         description: title,
         category: getDocumentFormCategory(),
@@ -6379,36 +6397,65 @@
     };
   }
 
-  function openOrDownloadLeaseDocument(documentRecord, shouldDownload) {
-    if (!documentRecord || !documentRecord.storage || !documentRecord.storage.dataUrl) {
+  async function openOrDownloadLeaseDocument(documentRecord, shouldDownload) {
+    if (!documentRecord || !documentRecord.storage) {
       alert("No file is stored for this document.");
       return;
     }
 
     try {
-      const dataUrl = documentRecord.storage.dataUrl;
-      const parts = dataUrl.split(",");
-      const metadata = parts[0] || "";
-      const encodedData = parts.slice(1).join(",");
-      const mimeMatch = metadata.match(/^data:([^;]+)/);
-      const mimeType = mimeMatch ? mimeMatch[1] : documentRecord.mimeType || "application/octet-stream";
-      const binary = metadata.includes(";base64")
-        ? window.atob(encodedData)
-        : decodeURIComponent(encodedData);
-      const bytes = new Uint8Array(binary.length);
+      let blob = null;
 
-      for (let index = 0; index < binary.length; index += 1) {
-        bytes[index] = binary.charCodeAt(index);
+      // New documents: retrieve the file from Supabase Storage.
+      if (documentRecord.storage.path) {
+        if (
+          !window.ComplianceHQSupabase ||
+          typeof window.ComplianceHQSupabase.downloadDocumentFile !== "function"
+        ) {
+          throw new Error("Supabase document storage is unavailable.");
+        }
+
+        blob = await window.ComplianceHQSupabase.downloadDocumentFile(
+          documentRecord.storage.path
+        );
       }
 
-      const blob = new Blob([bytes], { type: mimeType });
+      // Legacy documents: retain support for embedded data URLs.
+      else if (documentRecord.storage.dataUrl) {
+        const dataUrl = documentRecord.storage.dataUrl;
+        const parts = dataUrl.split(",");
+        const metadata = parts[0] || "";
+        const encodedData = parts.slice(1).join(",");
+        const mimeMatch = metadata.match(/^data:([^;]+)/);
+        const mimeType = mimeMatch
+          ? mimeMatch[1]
+          : documentRecord.mimeType || "application/octet-stream";
+
+        const binary = metadata.includes(";base64")
+          ? window.atob(encodedData)
+          : decodeURIComponent(encodedData);
+
+        const bytes = new Uint8Array(binary.length);
+
+        for (let index = 0; index < binary.length; index += 1) {
+          bytes[index] = binary.charCodeAt(index);
+        }
+
+        blob = new Blob([bytes], { type: mimeType });
+      }
+
+      if (!blob) {
+        alert("No file is stored for this document.");
+        return;
+      }
+
       const objectUrl = window.URL.createObjectURL(blob);
       const link = window.document.createElement("a");
 
       link.href = objectUrl;
 
       if (shouldDownload) {
-        link.download = documentRecord.fileName || "lease-document";
+        link.download = documentRecord.fileName || "document";
       } else {
         link.target = "_blank";
         link.rel = "noopener noreferrer";
@@ -6423,7 +6470,11 @@
       }, 60000);
     } catch (error) {
       console.error("Unable to open document:", error);
-      alert("Unable to open this document.");
+      alert(
+        error && error.message
+          ? "Unable to open this document: " + error.message
+          : "Unable to open this document."
+      );
     }
   }
 
@@ -9568,6 +9619,12 @@
       return;
     }
 
+    console.log("DOCUMENT CLICK DEBUG:", {
+      id: entry.record && entry.record.id,
+      title: entry.record && entry.record.title,
+      fileName: entry.record && entry.record.fileName,
+      storage: entry.record && entry.record.storage
+    });
     openOrDownloadLeaseDocument(entry.record, false);
   }
 

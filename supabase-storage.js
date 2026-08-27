@@ -47,6 +47,64 @@
     return result.data.session || null;
   }
 
+  const DOCUMENT_BUCKET = "document-files";
+
+  async function uploadDocumentFile(file, documentId) {
+    if (!file) {
+      throw new Error("No document file was supplied.");
+    }
+
+    const session = await getSession();
+    if (!session) {
+      throw new Error("You must be signed in before uploading a document.");
+    }
+
+    const safeName = String(file.name || "document")
+      .replace(/[^a-zA-Z0-9._-]+/g, "_");
+
+    const path = String(documentId) + "/" + Date.now() + "-" + safeName;
+
+    const result = await client.storage
+      .from(DOCUMENT_BUCKET)
+      .upload(path, file, {
+        contentType: file.type || "application/octet-stream",
+        upsert: false,
+      });
+
+    if (result.error) {
+      throw new Error("Document upload failed: " + result.error.message);
+    }
+
+    return {
+      kind: "supabase",
+      path: result.data.path,
+      bucket: DOCUMENT_BUCKET,
+    };
+  }
+
+  async function downloadDocumentFile(path) {
+    const storagePath = String(path || "").trim();
+
+    if (!storagePath) {
+      throw new Error("This document does not have a stored file path.");
+    }
+
+    const session = await getSession();
+    if (!session) {
+      throw new Error("You must be signed in before opening a document.");
+    }
+
+    const result = await client.storage
+      .from(DOCUMENT_BUCKET)
+      .download(storagePath);
+
+    if (result.error) {
+      throw new Error("Document download failed: " + result.error.message);
+    }
+
+    return result.data;
+  }
+
   async function testConnection() {
     const session = await getSession();
 
@@ -84,6 +142,8 @@
     signOut,
     getSession,
     testConnection,
+    uploadDocumentFile,
+    downloadDocumentFile,
   };
 })();
 
@@ -739,7 +799,7 @@ async function syncCurrentApplicationData() {
           uploaded_at: cleanDate(document.uploadedAt),
           notes: document.notes || "",
           storage_kind: storage.kind || "",
-          storage_path: "",
+          storage_path: storage.path || "",
           preview_status: storage.previewStatus || "",
           ocr_status: storage.ocrStatus || "",
           data: stripEmbeddedFileData(document),
@@ -836,7 +896,7 @@ async function syncCurrentApplicationData() {
         uploaded_at: cleanDate(document.uploadedAt),
         notes: document.notes || "",
         storage_kind: storage.kind || "",
-        storage_path: "",
+        storage_path: storage.path || "",
         preview_status: storage.previewStatus || "",
         ocr_status: storage.ocrStatus || "",
         data: stripEmbeddedFileData(document),
@@ -1086,7 +1146,7 @@ async function migrateExistingBrowserData() {
           uploaded_at: cleanDate(document.uploadedAt),
           notes: document.notes || "",
           storage_kind: storage.kind || "",
-          storage_path: "",
+          storage_path: storage.path || "",
           preview_status: storage.previewStatus || "",
           ocr_status: storage.ocrStatus || "",
           data: stripEmbeddedFileData(document),
@@ -1183,7 +1243,7 @@ async function migrateExistingBrowserData() {
         uploaded_at: cleanDate(document.uploadedAt),
         notes: document.notes || "",
         storage_kind: storage.kind || "",
-        storage_path: "",
+        storage_path: storage.path || "",
         preview_status: storage.previewStatus || "",
         ocr_status: storage.ocrStatus || "",
         data: stripEmbeddedFileData(document),
