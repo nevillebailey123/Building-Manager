@@ -96,11 +96,29 @@
         </section>
 
         <section class="module-content-card section-card" aria-labelledby="settings-templates-title">
-          <h3 id="settings-templates-title">Calendar Templates</h3>
-          <p class="module-placeholder">Maintain the reusable master templates that calendar items are created from.</p>
-          <div class="actions-row actions-row-tight">
+          <div class="contacts-list-header">
+            <h3 id="settings-templates-title">Calendar Templates</h3>
             <button id="settings-templates-btn" class="btn btn-secondary" type="button">Open Calendar Templates</button>
           </div>
+          <p class="module-placeholder">Maintain the reusable master templates that calendar items are created from.</p>
+        </section>
+
+        <section class="module-content-card section-card" aria-labelledby="settings-document-categories-title">
+          <div class="contacts-list-header">
+            <h3 id="settings-document-categories-title">Document Categories</h3>
+            <button id="settings-add-document-category-btn" class="btn btn-primary" type="button">+ Add Category</button>
+          </div>
+          <p class="module-placeholder">Manage the categories used to organise documents throughout Compliance HQ.</p>
+
+          <form id="settings-document-category-form" class="document-category-add-form" style="display: none;">
+            <input id="settings-document-category-input" type="text" placeholder="Category name" autocomplete="off" />
+            <div class="actions-row actions-row-tight">
+              <button id="settings-document-category-cancel-btn" class="btn btn-secondary" type="button">Cancel</button>
+              <button class="btn btn-primary" type="submit">Add Category</button>
+            </div>
+          </form>
+
+          <section id="settings-document-category-list" class="building-list" aria-live="polite"></section>
         </section>
 
         <section class="module-content-card backup-section section-card" aria-labelledby="settings-data-title">
@@ -560,15 +578,6 @@
               <span class="schedule-filter-label">Category</span>
               <select id="lease-category-filter" class="schedule-filter-select">
                 <option value="">All Documents</option>
-                <option>Tenancy</option>
-                <option>Insurance</option>
-                <option>Compliance</option>
-                <option>Maintenance</option>
-                <option>Financial</option>
-                <option>Legal</option>
-                <option>Valuations</option>
-                <option>Sales</option>
-                <option>Miscellaneous</option>
               </select>
             </label>
             <label>
@@ -981,10 +990,10 @@
     </main>
 
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script src="supabase-storage.js?v=4"></script>
+    <script src="supabase-storage.js?v=6"></script>
     <script src="indexeddb-storage.js"></script>
     <script src="storage.js"></script>
-    <script src="app.js"></script>
+    <script src="app.js?v=12"></script>
     <script>
       if ("serviceWorker" in navigator) {
         window.addEventListener("load", async function () {

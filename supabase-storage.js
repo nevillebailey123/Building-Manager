@@ -133,6 +133,7 @@ async function loadApplicationData() {
     readSupabaseTable("documents"),
     readSupabaseTable("document_links"),
     readSupabaseTable("contact_links"),
+    readSupabaseTable("app_settings"),
   ]);
 
   const [
@@ -147,6 +148,7 @@ async function loadApplicationData() {
     documentRows,
     documentLinkRows,
     contactLinkRows,
+    appSettingsRows,
   ] = results;
 
   const companies = companyRows.map(function (row) {
@@ -405,6 +407,15 @@ async function loadApplicationData() {
     };
   });
 
+  const documentCategoriesSetting = appSettingsRows.find(function (row) {
+    return row.id === "document_categories";
+  });
+
+  const documentCategories = documentCategoriesSetting
+    && Array.isArray(documentCategoriesSetting.value)
+    ? documentCategoriesSetting.value
+    : null;
+
   return {
     buildings: buildings,
     masterData: {
@@ -412,6 +423,7 @@ async function loadApplicationData() {
       contacts: contacts,
       scheduledItemTemplates: scheduledItemTemplates,
       documents: [],
+      documentCategories: documentCategories,
     },
     counts: {
       properties: buildings.length,
@@ -497,6 +509,29 @@ function cleanDate(value) {
   return text || null;
 }
 
+function stripEmbeddedFileData(value) {
+  if (!value || typeof value !== "object") {
+    return value;
+  }
+
+  const copy = JSON.parse(JSON.stringify(value));
+
+  function stripRecursively(item) {
+    if (!item || typeof item !== "object") {
+      return;
+    }
+
+    if (item.storage && typeof item.storage === "object") {
+      delete item.storage.dataUrl;
+    }
+
+    Object.values(item).forEach(stripRecursively);
+  }
+
+  stripRecursively(copy);
+  return copy;
+}
+
 function cleanTimestamp(value) {
   const text = String(value || "").trim();
   return text || new Date().toISOString();
@@ -540,6 +575,12 @@ async function syncCurrentApplicationData() {
 
   const buildings = window.BuildingStorage.getBuildings();
   const master = window.BuildingStorage.getMasterData();
+
+  const appSettings = [{
+    id: "document_categories",
+    value: Array.isArray(master.documentCategories) ? master.documentCategories : [],
+    updated_at: new Date().toISOString(),
+  }];
 
   const companies = (master.companies || []).map(function (company) {
     return {
@@ -701,7 +742,7 @@ async function syncCurrentApplicationData() {
           storage_path: "",
           preview_status: storage.previewStatus || "",
           ocr_status: storage.ocrStatus || "",
-          data: document,
+          data: stripEmbeddedFileData(document),
           created_at: cleanTimestamp(document.createdDate || document.uploadedAt),
           updated_at: cleanTimestamp(document.lastUpdated),
         });
@@ -798,7 +839,7 @@ async function syncCurrentApplicationData() {
         storage_path: "",
         preview_status: storage.previewStatus || "",
         ocr_status: storage.ocrStatus || "",
-        data: document,
+        data: stripEmbeddedFileData(document),
         created_at: cleanTimestamp(document.createdDate || document.uploadedAt),
         updated_at: cleanTimestamp(document.lastUpdated),
       });
@@ -825,6 +866,7 @@ async function syncCurrentApplicationData() {
     });
   });
 
+  await upsertMigrationRows("app_settings", appSettings);
   await upsertMigrationRows("companies", companies);
   await upsertMigrationRows("contacts", contacts);
   await upsertMigrationRows("properties", properties);
@@ -1047,7 +1089,7 @@ async function migrateExistingBrowserData() {
           storage_path: "",
           preview_status: storage.previewStatus || "",
           ocr_status: storage.ocrStatus || "",
-          data: document,
+          data: stripEmbeddedFileData(document),
           created_at: cleanTimestamp(document.createdDate || document.uploadedAt),
           updated_at: cleanTimestamp(document.lastUpdated),
         });
@@ -1144,7 +1186,7 @@ async function migrateExistingBrowserData() {
         storage_path: "",
         preview_status: storage.previewStatus || "",
         ocr_status: storage.ocrStatus || "",
-        data: document,
+        data: stripEmbeddedFileData(document),
         created_at: cleanTimestamp(document.createdDate || document.uploadedAt),
         updated_at: cleanTimestamp(document.lastUpdated),
       });

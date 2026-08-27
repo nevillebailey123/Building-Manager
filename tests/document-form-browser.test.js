@@ -161,13 +161,28 @@ function summaryValue(page, label) {
     assert.strictEqual(await summaryValue(page, "Documents"), "4", "All Properties must count the whole operational repository");
 
     await moduleButton(page, "Documents").click();
-    assert.strictEqual(await page.locator("[data-document-register-id]").count(), 4, "The Dashboard count must match the Documents module");
+
+    async function categoryDocumentCount() {
+      const labels = await page.locator("[data-document-category-open] .document-category-card-count").allTextContents();
+      return labels.reduce(function (total, label) {
+        const match = String(label).match(/^(\d+)/);
+        return total + (match ? Number(match[1]) : 0);
+      }, 0);
+    }
+
+    assert.strictEqual(await categoryDocumentCount(), 4, "The category overview total must match the Dashboard count");
+
     await page.locator("#app-property-selector").selectOption("ford-onekawa");
-    assert.strictEqual(await page.locator("[data-document-register-id]").count(), 3, "The Documents module must agree with the property count");
+    assert.strictEqual(await categoryDocumentCount(), 3, "The category overview must agree with the selected property count");
 
     // 5. Legacy documents keep working and map onto the fixed categories.
+    const valuationsCategory = page.locator('[data-document-category-open="Valuations"]');
+    assert.strictEqual(await valuationsCategory.count(), 1, "Legacy valuation documents must appear in the Valuations category");
+    await valuationsCategory.click();
     const legacyRow = page.locator('[data-document-register-id="doc-ford-2"]');
-    assert.ok((await legacyRow.textContent()).includes("Category: Valuations"), "Legacy documentType/categoryId records must map to a fixed category");
+    assert.strictEqual(await legacyRow.count(), 1, "Opening Valuations must reveal the legacy valuation document");
+
+    await page.locator("[data-document-category-back]").click();
 
     // 4 + 6. Add Document opens a focused form.
     await page.locator("#documents-add-btn").click();
@@ -197,7 +212,7 @@ function summaryValue(page, label) {
     await page.locator("#document-cancel-btn").click();
     assert.strictEqual(await page.locator("#lease-repository-card").isVisible(), true, "Cancel must return to the Documents repository");
     assert.strictEqual(await page.locator("#documents-add-btn").isVisible(), true, "Add Document must come back after Cancel");
-    assert.strictEqual(await page.locator("[data-document-register-id]").count(), 3, "Cancel must not add a document");
+    assert.strictEqual(await categoryDocumentCount(), 3, "Cancel must not add a document");
     assert.strictEqual(
       await page.evaluate(function () { return localStorage.getItem("buildingManagerBuildings"); }),
       beforeCancel,
@@ -213,9 +228,14 @@ function summaryValue(page, label) {
     await page.locator("#document-save-btn").click();
     await page.locator("#lease-repository-card").waitFor({ state: "visible" });
     assert.strictEqual(await page.locator("#lease-repository-card").isVisible(), true, "Saving must return to the repository");
-    assert.strictEqual(await page.locator("[data-document-register-id]").count(), 4, "Saving must add the document to the repository");
+    assert.strictEqual(await categoryDocumentCount(), 4, "Saving must add the document to the repository");
+
+    const complianceCategory = page.locator('[data-document-category-open="Compliance"]');
+    assert.strictEqual(await complianceCategory.count(), 1, "The saved Compliance document must appear in the Compliance category");
+    await complianceCategory.click();
+
     const savedRow = page.locator("article", { hasText: "New Fire Certificate" }).first();
-    assert.ok((await savedRow.textContent()).includes("Category: Compliance"), "The saved document must keep its chosen category");
+    assert.strictEqual(await savedRow.count(), 1, "Opening Compliance must reveal the saved document");
     assert.ok((await savedRow.textContent()).includes("fire-certificate.pdf"), "The saved document must keep its file");
 
     // Edit Document preserves the stored file unless it is replaced.
@@ -229,8 +249,11 @@ function summaryValue(page, label) {
     await page.locator("#document-save-btn").click();
 
     const editedRow = page.locator("article", { hasText: "Renamed Fire Certificate" }).first();
-    assert.strictEqual(await page.locator("[data-document-register-id]").count(), 4, "Editing must not duplicate the record");
+    assert.strictEqual(await page.locator("[data-document-register-id]").count(), 1, "The Compliance category must contain the edited document");
     assert.ok((await editedRow.textContent()).includes("fire-certificate.pdf"), "Editing without choosing a file must preserve the stored file");
+
+    await page.locator("[data-document-category-back]").click();
+    assert.strictEqual(await categoryDocumentCount(), 4, "Editing must not duplicate the record");
     const editedRecord = await page.evaluate(function () {
       return JSON.parse(localStorage.getItem("buildingManagerBuildings"))
         .find(function (b) { return b.id === "ford-onekawa"; })

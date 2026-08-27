@@ -20,6 +20,11 @@
   const settingsPropertyList = document.getElementById("settings-property-list");
   const settingsAddPropertyBtn = document.getElementById("settings-add-property-btn");
   const settingsTemplatesBtn = document.getElementById("settings-templates-btn");
+  const settingsDocumentCategoryList = document.getElementById("settings-document-category-list");
+  const settingsAddDocumentCategoryBtn = document.getElementById("settings-add-document-category-btn");
+  const settingsDocumentCategoryForm = document.getElementById("settings-document-category-form");
+  const settingsDocumentCategoryInput = document.getElementById("settings-document-category-input");
+  const settingsDocumentCategoryCancelBtn = document.getElementById("settings-document-category-cancel-btn");
   const editPropertyManagementHelp = document.getElementById("edit-property-management-help");
   const editArchivePropertyBtn = document.getElementById("edit-archive-property-btn");
   const editRestorePropertyBtn = document.getElementById("edit-restore-property-btn");
@@ -500,10 +505,10 @@
   }
 
   // Normalises a stored document onto a fixed category without discarding its original data.
-  function resolveFixedCategoryForRecord(documentRecord, legacyCategories) {
-    const direct = mapToFixedDocumentCategory(documentRecord.category);
-    if (direct) {
-      return direct;
+  function resolveDocumentCategoryForRecord(documentRecord, legacyCategories) {
+    const storedCategory = String(documentRecord.category || "").trim();
+    if (storedCategory) {
+      return storedCategory;
     }
 
     const legacyId = String(documentRecord.categoryId || "").trim();
@@ -512,17 +517,21 @@
         return String(category.id || "") === legacyId || String(category.key || "") === legacyId;
       })
       : null;
+
     if (legacy) {
       if (legacy.source === "lease") {
         return "Tenancy";
       }
-      const mappedLegacy = mapToFixedDocumentCategory(legacy.name) || mapToFixedDocumentCategory(legacy.key);
-      if (mappedLegacy) {
-        return mappedLegacy;
+      const legacyName = String(legacy.name || legacy.key || "").trim();
+      if (legacyName) {
+        return mapToFixedDocumentCategory(legacyName) || legacyName;
       }
     }
 
-    return mapToFixedDocumentCategory(documentRecord.documentType) || DEFAULT_DOCUMENT_CATEGORY;
+    const legacyDocumentType = String(documentRecord.documentType || "").trim();
+    return mapToFixedDocumentCategory(legacyDocumentType)
+      || legacyDocumentType
+      || DEFAULT_DOCUMENT_CATEGORY;
   }
 
   const DEFAULT_TEMPLATE_LIBRARY = [
@@ -642,6 +651,7 @@
 
   function openSettingsView() {
     renderSettingsPropertyList();
+    renderDocumentCategorySettings();
     showSettingsView();
   }
 
@@ -900,6 +910,36 @@
       createdDate: String(template.createdDate || now),
       lastUpdated: String(template.lastUpdated || now),
     };
+  }
+
+  function getDocumentCategories() {
+    const masterData = getMasterData();
+    const stored = Array.isArray(masterData.documentCategories)
+      ? masterData.documentCategories
+      : FIXED_DOCUMENT_CATEGORIES;
+
+    const seen = new Set();
+    const categories = stored
+      .map(function (category) {
+        return String(category || "").trim();
+      })
+      .filter(function (category) {
+        if (!category) return false;
+        const key = category.toLowerCase();
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      });
+
+    return categories.length > 0 ? categories : FIXED_DOCUMENT_CATEGORIES.slice();
+  }
+
+  function saveDocumentCategories(categories) {
+    const masterData = getMasterData();
+    window.BuildingStorage.saveMasterData({
+      ...masterData,
+      documentCategories: categories.slice(),
+    });
   }
 
   function getScheduledItemTemplates() {
@@ -1465,6 +1505,239 @@
       return building.id === savedId;
     });
     setCurrentPropertyId(saved ? saved.id : buildings[0].id);
+  }
+
+  function getDocumentCategoryUsageCount(category) {
+    const targetCategory = String(category || "").trim();
+
+    return getAllBuildingsIncludingArchived().reduce(function (total, building) {
+      const normalized = ensureWorkflowCollections(building);
+      const entries = [];
+
+      (normalized.documents || []).forEach(function (record) {
+        entries.push({
+          building: normalized,
+          record: record,
+          source: "building",
+        });
+      });
+
+      const currentTenancy = normalized.tenancy;
+      const leaseDocuments = currentTenancy
+        && currentTenancy.lease
+        && Array.isArray(currentTenancy.lease.documents)
+        ? currentTenancy.lease.documents
+        : [];
+
+      leaseDocuments.forEach(function (record) {
+        entries.push({
+          building: normalized,
+          record: record,
+          source: "tenancy",
+        });
+      });
+
+      return total + entries.filter(function (entry) {
+        return getDocumentRegisterCategory(entry) === targetCategory;
+      }).length;
+    }, 0);
+  }
+
+  function openDocumentCategoryAddForm() {
+    if (!settingsDocumentCategoryForm || !settingsDocumentCategoryInput) {
+      return;
+    }
+
+    settingsDocumentCategoryForm.style.display = "block";
+    settingsDocumentCategoryInput.value = "";
+    settingsDocumentCategoryInput.focus();
+  }
+
+  function closeDocumentCategoryAddForm() {
+    if (!settingsDocumentCategoryForm || !settingsDocumentCategoryInput) {
+      return;
+    }
+
+    settingsDocumentCategoryForm.style.display = "none";
+    settingsDocumentCategoryInput.value = "";
+  }
+
+  function handleDocumentCategoryAdd(event) {
+    event.preventDefault();
+
+    const category = String(settingsDocumentCategoryInput ? settingsDocumentCategoryInput.value : "").trim();
+    if (!category) {
+      return;
+    }
+
+    const categories = getDocumentCategories();
+    const duplicate = categories.some(function (existing) {
+      return existing.toLowerCase() === category.toLowerCase();
+    });
+
+    if (duplicate) {
+      settingsDocumentCategoryInput.focus();
+      settingsDocumentCategoryInput.select();
+      return;
+    }
+
+    saveDocumentCategories(categories.concat(category));
+    closeDocumentCategoryAddForm();
+    renderDocumentCategorySettings();
+  }
+
+  function renameDocumentCategory(oldCategory, newCategory) {
+    const oldName = String(oldCategory || "").trim();
+    const newName = String(newCategory || "").trim();
+
+    if (!oldName || !newName || oldName === newName) {
+      return;
+    }
+
+    const categories = getDocumentCategories();
+
+    const duplicate = categories.some(function (category) {
+      return category.toLowerCase() === newName.toLowerCase()
+        && category.toLowerCase() !== oldName.toLowerCase();
+    });
+
+    if (duplicate) {
+      return;
+    }
+
+    getAllBuildingsIncludingArchived().forEach(function (building) {
+      const normalized = ensureWorkflowCollections(building);
+      let changed = false;
+
+      (normalized.documents || []).forEach(function (record) {
+        if (getDocumentRegisterCategory({
+          building: normalized,
+          record: record,
+          source: "building",
+        }) === oldName) {
+          record.category = newName;
+          changed = true;
+        }
+      });
+
+      const tenancy = normalized.tenancy;
+      const leaseDocuments = tenancy && tenancy.lease && Array.isArray(tenancy.lease.documents)
+        ? tenancy.lease.documents
+        : [];
+
+      leaseDocuments.forEach(function (record) {
+        if (getDocumentRegisterCategory({
+          building: normalized,
+          record: record,
+          source: "tenancy",
+        }) === oldName) {
+          record.category = newName;
+          changed = true;
+        }
+      });
+
+      if (changed) {
+        window.BuildingStorage.updateBuilding(normalized);
+      }
+    });
+
+    saveDocumentCategories(categories.map(function (category) {
+      return category === oldName ? newName : category;
+    }));
+
+    renderDocumentCategorySettings();
+  }
+
+  function deleteDocumentCategory(category) {
+    if (getDocumentCategoryUsageCount(category) > 0) {
+      return;
+    }
+
+    saveDocumentCategories(getDocumentCategories().filter(function (existing) {
+      return existing !== category;
+    }));
+
+    renderDocumentCategorySettings();
+  }
+
+  function handleDocumentCategoryListClick(event) {
+    const target = event.target;
+    if (!(target instanceof HTMLElement)) {
+      return;
+    }
+
+    const row = target.closest("[data-settings-document-category]");
+    if (!row) {
+      return;
+    }
+
+    const category = String(row.dataset.settingsDocumentCategory || "").trim();
+
+    if (target.closest("[data-document-category-rename=\"true\"]")) {
+      const title = row.querySelector("h3");
+      if (!title) {
+        return;
+      }
+
+      const input = document.createElement("input");
+      input.type = "text";
+      input.value = category;
+      input.className = "document-category-rename-input";
+
+      title.replaceWith(input);
+      input.focus();
+      input.select();
+
+      const finishRename = function () {
+        const newName = String(input.value || "").trim();
+        if (newName && newName !== category) {
+          renameDocumentCategory(category, newName);
+        } else {
+          renderDocumentCategorySettings();
+        }
+      };
+
+      input.addEventListener("keydown", function (keyEvent) {
+        if (keyEvent.key === "Enter") {
+          keyEvent.preventDefault();
+          finishRename();
+        } else if (keyEvent.key === "Escape") {
+          renderDocumentCategorySettings();
+        }
+      });
+
+      input.addEventListener("blur", finishRename, { once: true });
+      return;
+    }
+
+    if (target.closest("[data-document-category-delete=\"true\"]")) {
+      deleteDocumentCategory(category);
+    }
+  }
+
+  function renderDocumentCategorySettings() {
+    if (!settingsDocumentCategoryList) {
+      return;
+    }
+
+    const categories = getDocumentCategories();
+
+    settingsDocumentCategoryList.innerHTML = categories.map(function (category) {
+      const count = getDocumentCategoryUsageCount(category);
+
+      return `
+        <article class="building-card document-category-settings-row" data-settings-document-category="${escapeHtml(category)}">
+          <div>
+            <h3>${escapeHtml(category)}</h3>
+            <p class="document-item-meta">${count} ${count === 1 ? "document" : "documents"}</p>
+          </div>
+          <div class="document-category-settings-actions">
+            <button class="btn btn-secondary" type="button" data-document-category-rename="true">Rename</button>
+            <button class="btn btn-secondary" type="button" data-document-category-delete="true"${count > 0 ? " disabled" : ""}>Delete</button>
+          </div>
+        </article>
+      `;
+    }).join("");
   }
 
   function renderSettingsPropertyList() {
@@ -3980,7 +4253,7 @@
         ...document,
         id: document.id || window.BuildingStorage.createId(),
         categoryId: String(document.categoryId || ""),
-        category: resolveFixedCategoryForRecord(document, next.documentCategories),
+        category: resolveDocumentCategoryForRecord(document, next.documentCategories),
         documentType: document.documentType || document.type || "Document",
         version: document.version || `v${index + 1}`,
         documentDate: document.documentDate || document.date || uploadedAt.slice(0, 10),
@@ -5404,9 +5677,12 @@
 
   function getDocumentRegisterCategory(entry) {
     if (entry.source === "tenancy") {
-      return mapToFixedDocumentCategory(entry.record.category) || "Tenancy";
+      return "Tenancy";
     }
-    return resolveFixedCategoryForRecord(entry.record, getDocumentsModuleCategories(ensureWorkflowCollections(entry.building)));
+    return resolveDocumentCategoryForRecord(
+      entry.record,
+      getDocumentsModuleCategories(ensureWorkflowCollections(entry.building))
+    );
   }
 
   function getDocumentRegisterRelatedToLabel(entry) {
@@ -5479,7 +5755,67 @@
   }
 
   function renderDocumentRegister() {
+    if (leaseCategoryFilter) {
+      const selectedCategory = leaseCategoryFilterValue;
+      leaseCategoryFilter.innerHTML =
+        '<option value="">All Documents</option>' +
+        getDocumentCategories().map(function (category) {
+          return `<option value="${escapeHtml(category)}">${escapeHtml(category)}</option>`;
+        }).join("");
+
+      leaseCategoryFilter.value = getDocumentCategories().includes(selectedCategory)
+        ? selectedCategory
+        : "";
+    }
+
     const entries = getFilteredDocumentRegisterEntries();
+
+    // The default Documents view is a category overview rather than one long
+    // undifferentiated document list. Search results and selected categories
+    // continue to use the normal document register.
+    if (!leaseCategoryFilterValue && !leaseSearchQuery.trim()) {
+      const allEntries = getDocumentRegisterRecords().filter(function (entry) {
+        const buildingFilterId = getBuildingFilterId();
+        return !buildingFilterId || String(entry.building.id) === String(buildingFilterId);
+      });
+
+      const categoryCounts = getDocumentCategories().map(function (category) {
+        return {
+          category: category,
+          count: allEntries.filter(function (entry) {
+            return getDocumentRegisterCategory(entry) === category;
+          }).length,
+        };
+      }).filter(function (item) {
+        return item.count > 0;
+      });
+
+      leaseCategoryGrid.classList.remove("document-register-list");
+      leaseCategoryGrid.classList.add("document-category-overview");
+
+      if (categoryCounts.length === 0) {
+        leaseCategoryGrid.innerHTML = `<p class="module-placeholder">${escapeHtml(getDocumentRegisterEmptyMessage())}</p>`;
+        return;
+      }
+
+      leaseCategoryGrid.innerHTML = categoryCounts.map(function (item) {
+        return `
+          <button
+            class="document-category-card"
+            type="button"
+            data-document-category-open="${escapeHtml(item.category)}"
+            aria-label="Open ${escapeHtml(item.category)} documents"
+          >
+            <span class="document-category-card-name">${escapeHtml(item.category)}</span>
+            <span class="document-category-card-count">${item.count} ${item.count === 1 ? "document" : "documents"}</span>
+          </button>
+        `;
+      }).join("");
+
+      return;
+    }
+
+    leaseCategoryGrid.classList.remove("document-category-overview");
 
     if (entries.length === 0) {
       leaseCategoryGrid.classList.add("document-register-list");
@@ -5488,25 +5824,46 @@
     }
 
     leaseCategoryGrid.classList.add("document-register-list");
-    leaseCategoryGrid.innerHTML = entries.map(function (entry) {
+
+    const singlePropertySelected = Boolean(getBuildingFilterId());
+    const categoryHeader = leaseCategoryFilterValue
+      ? `
+        <div class="document-category-header">
+          <button class="btn btn-secondary document-category-back" type="button" data-document-category-back="true">← All Documents</button>
+          <div>
+            <h3>${escapeHtml(leaseCategoryFilterValue)}</h3>
+            <p class="document-item-meta">${entries.length} ${entries.length === 1 ? "document" : "documents"}</p>
+          </div>
+        </div>
+      `
+      : "";
+
+    leaseCategoryGrid.innerHTML = categoryHeader + entries.map(function (entry) {
       const record = entry.record;
       const tenancy = getDocumentRegisterRelatedTenancy(entry);
       const scheduleItem = getDocumentRegisterRelatedScheduleItem(entry);
+
+      const relationshipParts = [];
+      if (!singlePropertySelected) {
+        relationshipParts.push(entry.building.buildingName || "Property not set");
+      }
+      relationshipParts.push(getDocumentRegisterRelatedToLabel(entry));
+      if (tenancy) {
+        relationshipParts.push(tenancy.tradingName || tenancy.companyName || "Tenancy");
+      }
+
       return `
         <article class="building-card document-register-row" data-document-register-id="${escapeHtml(record.id)}" data-document-register-building-id="${escapeHtml(entry.building.id)}" data-document-register-source="${entry.source}" role="button" tabindex="0" aria-label="Open document ${escapeHtml(getDocumentRegisterTitle(record))}">
           <div class="document-register-row-main">
             <h3 class="document-register-row-title">${escapeHtml(getDocumentRegisterTitle(record))}</h3>
             <div class="document-register-row-meta">
-              <p class="document-item-meta">Category: ${escapeHtml(getDocumentRegisterCategory(entry))}</p>
-              <p class="document-item-meta">Property: ${escapeHtml(entry.building.buildingName || "Not set")}</p>
-              <p class="document-item-meta">Related to: ${escapeHtml(getDocumentRegisterRelatedToLabel(entry))}</p>
-              ${tenancy ? `<p class="document-item-meta">Related Tenancy: ${escapeHtml(tenancy.tradingName || tenancy.companyName || "Tenancy")}</p>` : ""}
-              ${scheduleItem ? `<p class="document-item-meta">Related Calendar Item: ${escapeHtml(scheduleItem.taskName || "Calendar Item")}</p>` : ""}
-              ${record.fileName ? `<p class="document-item-meta document-item-filename">File: ${escapeHtml(record.fileName)}</p>` : ""}
+              <p class="document-item-meta">${escapeHtml(relationshipParts.join(" · "))}</p>
+              ${record.fileName ? `<p class="document-item-meta document-item-filename">${escapeHtml(record.fileName)}</p>` : ""}
+              ${scheduleItem ? `<p class="document-item-meta">Calendar: ${escapeHtml(scheduleItem.taskName || "Calendar Item")}</p>` : ""}
             </div>
           </div>
           <div class="document-register-row-dates">
-            ${record.documentDate ? `<p class="document-item-meta">Date: ${escapeHtml(formatDate(record.documentDate))}</p>` : ""}
+            ${record.documentDate ? `<p class="document-item-meta">${escapeHtml(formatDate(record.documentDate))}</p>` : ""}
             ${record.expiryDate ? `<p class="document-item-meta document-item-expiry">Expires ${escapeHtml(formatDate(record.expiryDate))}</p>` : ""}
           </div>
 
@@ -5523,17 +5880,27 @@
   }
 
   function getDocumentFormCategory() {
-    return mapToFixedDocumentCategory(documentCategorySelect ? documentCategorySelect.value : "") || DEFAULT_DOCUMENT_CATEGORY;
+    const value = String(documentCategorySelect ? documentCategorySelect.value : "").trim();
+    return value || DEFAULT_DOCUMENT_CATEGORY;
   }
 
   function renderDocumentFormCategoryOptions(selectedCategory) {
     if (!documentCategorySelect) {
       return;
     }
-    documentCategorySelect.innerHTML = FIXED_DOCUMENT_CATEGORIES.map(function (category) {
+
+    const categories = getDocumentCategories();
+    const requestedCategory = String(selectedCategory || "").trim();
+    const legacyCategory = mapToFixedDocumentCategory(requestedCategory);
+    const selected = categories.includes(requestedCategory)
+      ? requestedCategory
+      : (categories.includes(legacyCategory) ? legacyCategory : DEFAULT_DOCUMENT_CATEGORY);
+
+    documentCategorySelect.innerHTML = categories.map(function (category) {
       return `<option value="${escapeHtml(category)}">${escapeHtml(category)}</option>`;
     }).join("");
-    documentCategorySelect.value = mapToFixedDocumentCategory(selectedCategory) || DEFAULT_DOCUMENT_CATEGORY;
+
+    documentCategorySelect.value = selected;
   }
 
   function renderDocumentFormBuildingOptions(selectedId) {
@@ -9166,7 +9533,7 @@
   }
 
   function handleLeaseCategoryFilterChange() {
-    leaseCategoryFilterValue = mapToFixedDocumentCategory(leaseCategoryFilter ? leaseCategoryFilter.value : "");
+    leaseCategoryFilterValue = String(leaseCategoryFilter ? leaseCategoryFilter.value : "").trim();
     renderLeasePage();
   }
 
@@ -9207,6 +9574,26 @@
   function handleLeaseCategoryGridClick(event) {
     const target = event.target;
     if (!(target instanceof HTMLElement)) {
+      return;
+    }
+
+    const categoryBack = target.closest("[data-document-category-back]");
+    if (categoryBack) {
+      leaseCategoryFilterValue = "";
+      if (leaseCategoryFilter) {
+        leaseCategoryFilter.value = "";
+      }
+      renderDocumentRegister();
+      return;
+    }
+
+    const categoryCard = target.closest("[data-document-category-open]");
+    if (categoryCard) {
+      leaseCategoryFilterValue = String(categoryCard.dataset.documentCategoryOpen || "");
+      if (leaseCategoryFilter) {
+        leaseCategoryFilter.value = leaseCategoryFilterValue;
+      }
+      renderDocumentRegister();
       return;
     }
 
@@ -12628,6 +13015,22 @@
   settingsPropertyList.addEventListener("click", handleSettingsPropertyListClick);
   settingsAddPropertyBtn.addEventListener("click", showForm);
   settingsTemplatesBtn.addEventListener("click", openTemplateLibrary);
+
+  if (settingsAddDocumentCategoryBtn) {
+    settingsAddDocumentCategoryBtn.addEventListener("click", openDocumentCategoryAddForm);
+  }
+
+  if (settingsDocumentCategoryForm) {
+    settingsDocumentCategoryForm.addEventListener("submit", handleDocumentCategoryAdd);
+  }
+
+  if (settingsDocumentCategoryCancelBtn) {
+    settingsDocumentCategoryCancelBtn.addEventListener("click", closeDocumentCategoryAddForm);
+  }
+
+  if (settingsDocumentCategoryList) {
+    settingsDocumentCategoryList.addEventListener("click", handleDocumentCategoryListClick);
+  }
   leaseCategoryGrid.addEventListener("click", handleLeaseCategoryGridClick);
   leaseCategoryGrid.addEventListener("keydown", handleDocumentRegisterKeydown);
   if (leaseCategoryFilter) {

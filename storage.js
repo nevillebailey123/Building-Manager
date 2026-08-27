@@ -160,12 +160,29 @@
     return indexedDBMirror;
   }
 
+  const DEFAULT_DOCUMENT_CATEGORIES = [
+    "Tenancy",
+    "Insurance",
+    "Compliance",
+    "Maintenance",
+    "Financial",
+    "Legal",
+    "Valuations",
+    "Sales",
+    "Miscellaneous",
+  ];
+
+  function getDefaultDocumentCategories() {
+    return DEFAULT_DOCUMENT_CATEGORIES.slice();
+  }
+
   function defaultMasterData() {
     return {
       companies: [],
       contacts: [],
       scheduledItemTemplates: [],
       documents: [],
+      documentCategories: getDefaultDocumentCategories(),
     };
   }
 
@@ -187,6 +204,9 @@
         contacts: Array.isArray(parsed.contacts) ? parsed.contacts : [],
         scheduledItemTemplates: Array.isArray(parsed.scheduledItemTemplates) ? parsed.scheduledItemTemplates : [],
         documents: Array.isArray(parsed.documents) ? parsed.documents : [],
+        documentCategories: Array.isArray(parsed.documentCategories)
+          ? parsed.documentCategories
+          : getDefaultDocumentCategories(),
       };
       return cachedMasterData;
     } catch (error) {
@@ -245,6 +265,9 @@
           contacts: Array.isArray(indexedMasterData.contacts) ? indexedMasterData.contacts : [],
           scheduledItemTemplates: Array.isArray(indexedMasterData.scheduledItemTemplates) ? indexedMasterData.scheduledItemTemplates : [],
           documents: Array.isArray(indexedMasterData.documents) ? indexedMasterData.documents : [],
+          documentCategories: Array.isArray(indexedMasterData.documentCategories)
+            ? indexedMasterData.documentCategories
+            : getDefaultDocumentCategories(),
         };
         localStorage.setItem(MASTER_KEY, JSON.stringify(cachedMasterData));
       }
@@ -350,6 +373,9 @@
           contacts: masterData.contacts,
           scheduledItemTemplates: masterData.scheduledItemTemplates,
           documents: masterData.documents,
+          documentCategories: Array.isArray(masterData.documentCategories)
+            ? masterData.documentCategories
+            : getDefaultDocumentCategories(),
         },
       },
     };
@@ -606,6 +632,9 @@
       documents: Array.isArray(suppliedMasterData.documents)
         ? suppliedMasterData.documents
         : [],
+      documentCategories: Array.isArray(suppliedMasterData.documentCategories)
+        ? suppliedMasterData.documentCategories
+        : getDefaultDocumentCategories(),
     };
 
     cachedBuildings = buildings;
