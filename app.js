@@ -13,6 +13,15 @@
   const placeholderView = document.getElementById("placeholder-view");
   const editView = document.getElementById("edit-view");
   const settingsView = document.getElementById("settings-view");
+  const settingsPropertiesView = document.getElementById("settings-properties-view");
+  const settingsDocumentCategoriesView = document.getElementById("settings-document-categories-view");
+  const settingsBackupView = document.getElementById("settings-backup-view");
+  const settingsPropertiesBtn = document.getElementById("settings-properties-btn");
+  const settingsDocumentCategoriesBtn = document.getElementById("settings-document-categories-btn");
+  const settingsBackupBtn = document.getElementById("settings-backup-btn");
+  const settingsPropertiesBackBtn = document.getElementById("settings-properties-back-btn");
+  const settingsDocumentCategoriesBackBtn = document.getElementById("settings-document-categories-back-btn");
+  const settingsBackupBackBtn = document.getElementById("settings-backup-back-btn");
   const appShellHeader = document.getElementById("app-shell-header");
   const appBrandBtn = document.getElementById("app-brand-btn");
   const appPropertySelector = document.getElementById("app-property-selector");
@@ -118,7 +127,6 @@
   const contactsListCard = document.getElementById("contacts-list-card");
   const contactsList = document.getElementById("contacts-list");
   const contactsSearch = document.getElementById("contacts-search");
-  const contactsRelationshipFilter = document.getElementById("contacts-relationship-filter");
   const contactsCreateBtn = document.getElementById("contacts-create-btn");
   const contactFormCard = document.getElementById("contact-form-card");
   const contactFormTitle = document.getElementById("contact-form-title");
@@ -226,7 +234,6 @@
   let contactFormFilterBuildingId = "";
   let activeContactId = "";
   let contactsSearchQuery = "";
-  let contactsRelationshipFilterValue = "";
   let companyFormMode = "add";
   let activeCompanyId = "";
   let templateFormMode = "add";
@@ -633,6 +640,15 @@
     if (settingsView) {
       settingsView.classList.remove("is-active");
     }
+    if (settingsPropertiesView) {
+      settingsPropertiesView.classList.remove("is-active");
+    }
+    if (settingsDocumentCategoriesView) {
+      settingsDocumentCategoriesView.classList.remove("is-active");
+    }
+    if (settingsBackupView) {
+      settingsBackupView.classList.remove("is-active");
+    }
     setAppShellVisible(true);
     renderAllBuildingFilterSelects();
   }
@@ -655,9 +671,39 @@
   }
 
   function openSettingsView() {
-    renderSettingsPropertyList();
-    renderDocumentCategorySettings();
     showSettingsView();
+  }
+
+  function openSettingsProperties() {
+    renderSettingsPropertyList();
+    hideAllViews();
+    settingsPropertiesView.classList.add("is-active");
+    setActiveAppModule("settings");
+    setBreadcrumbs([
+      { label: "Settings", onClick: openSettingsView },
+      { label: "Properties", onClick: openSettingsProperties },
+    ]);
+  }
+
+  function openSettingsDocumentCategories() {
+    renderDocumentCategorySettings();
+    hideAllViews();
+    settingsDocumentCategoriesView.classList.add("is-active");
+    setActiveAppModule("settings");
+    setBreadcrumbs([
+      { label: "Settings", onClick: openSettingsView },
+      { label: "Document Categories", onClick: openSettingsDocumentCategories },
+    ]);
+  }
+
+  function openSettingsBackup() {
+    hideAllViews();
+    settingsBackupView.classList.add("is-active");
+    setActiveAppModule("settings");
+    setBreadcrumbs([
+      { label: "Settings", onClick: openSettingsView },
+      { label: "Backup & Restore", onClick: openSettingsBackup },
+    ]);
   }
 
   function showDashboard() {
@@ -6576,15 +6622,6 @@
         };
       })
       .filter(function (entry) {
-        if (contactsRelationshipFilterValue) {
-          const hasType = entry.relationships.some(function (relationship) {
-            return relationship.type === contactsRelationshipFilterValue;
-          });
-          if (!hasType) {
-            return false;
-          }
-        }
-
         if (!query) {
           return true;
         }
@@ -6596,6 +6633,7 @@
           entry.contact.officePhone,
           entry.contact.email,
           entry.contact.responsibility,
+          entry.contact.notes,
           entry.relationships.map(function (relationship) {
             return `${relationship.targetName} ${relationship.role}`;
           }).join(" "),
@@ -6635,13 +6673,25 @@
       const emailLink = contact.email
         ? `<a class="inline-link contact-email-link" href="mailto:${escapeHtml(contact.email)}">${escapeHtml(contact.email)}</a>`
         : "Not provided";
+      const notes = String(contact.notes || "").trim();
+
       return `
         <article class="building-card clickable-card contact-card" data-contact-id="${contact.id}" role="button" tabindex="0" aria-label="Open contact ${escapeHtml(contact.name)}">
-          <h3 class="contact-card-name">${escapeHtml(contact.name)}</h3>
-          <p class="contact-card-company">${escapeHtml(entry.companyName)}</p>
-          <p><strong>Phone:</strong> ${mobileLink}</p>
-          <p><strong>Email:</strong> ${emailLink}</p>
-          ${renderLinkedSummary(entry)}
+          <div class="contact-card-layout">
+            <div class="contact-card-column">
+              <h3 class="contact-card-name">${escapeHtml(contact.name)}</h3>
+              <p class="contact-card-company">${escapeHtml(entry.companyName)}</p>
+              <p><strong>Phone:</strong> ${mobileLink}</p>
+              <p><strong>Email:</strong> ${emailLink}</p>
+              ${renderLinkedSummary(entry)}
+            </div>
+            ${notes
+              ? `<div class="contact-card-column contact-card-notes">
+                  <p class="contact-card-notes-heading">Notes</p>
+                  <p class="contact-card-notes-text">${escapeHtml(notes)}</p>
+                </div>`
+              : ""}
+          </div>
         </article>
       `;
     }
@@ -9656,11 +9706,6 @@
     renderContactSectionState("list");
   }
 
-  function handleContactsRelationshipFilterChange() {
-    const value = String(contactsRelationshipFilter ? contactsRelationshipFilter.value : "").trim();
-    contactsRelationshipFilterValue = CONTACT_RELATIONSHIP_TYPES.indexOf(value) === -1 ? "" : value;
-    renderContactSectionState("list");
-  }
 
   function handleAddDocument() {
     openDocumentForm("add", null);
@@ -13243,9 +13288,6 @@
   contactForm.addEventListener("submit", handleSaveContact);
   contactForm.elements.companyId.addEventListener("change", handleContactCompanyChange);
   contactsSearch.addEventListener("input", handleContactSearch);
-  if (contactsRelationshipFilter) {
-    contactsRelationshipFilter.addEventListener("change", handleContactsRelationshipFilterChange);
-  }
   companyForm.addEventListener("submit", handleSaveCompany);
   templateForm.addEventListener("submit", handleSaveTemplate);
   completeTaskForm.addEventListener("submit", handleSaveCompleteTask);
@@ -13255,7 +13297,37 @@
   appPropertySelector.addEventListener("change", handleAppPropertySelectorChange);
   settingsPropertyList.addEventListener("click", handleSettingsPropertyListClick);
   settingsAddPropertyBtn.addEventListener("click", showForm);
-  settingsTemplatesBtn.addEventListener("click", openTemplateLibrary);
+
+  function activateSettingsTile(tile, action) {
+    if (!tile) {
+      return;
+    }
+
+    tile.addEventListener("click", action);
+    tile.addEventListener("keydown", function (event) {
+      if (event.key === "Enter" || event.key === " ") {
+        event.preventDefault();
+        action();
+      }
+    });
+  }
+
+  activateSettingsTile(settingsPropertiesBtn, openSettingsProperties);
+  activateSettingsTile(settingsDocumentCategoriesBtn, openSettingsDocumentCategories);
+  activateSettingsTile(settingsTemplatesBtn, openTemplateLibrary);
+  activateSettingsTile(settingsBackupBtn, openSettingsBackup);
+
+  if (settingsPropertiesBackBtn) {
+    settingsPropertiesBackBtn.addEventListener("click", openSettingsView);
+  }
+
+  if (settingsDocumentCategoriesBackBtn) {
+    settingsDocumentCategoriesBackBtn.addEventListener("click", openSettingsView);
+  }
+
+  if (settingsBackupBackBtn) {
+    settingsBackupBackBtn.addEventListener("click", openSettingsView);
+  }
 
   if (settingsAddDocumentCategoryBtn) {
     settingsAddDocumentCategoryBtn.addEventListener("click", openDocumentCategoryAddForm);

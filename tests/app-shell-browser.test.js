@@ -199,30 +199,51 @@ function moduleButton(page, key) {
     assert.strictEqual(await page.locator("#dashboard-view #backup-export-btn").count(), 0, "Backup must not live on the Dashboard");
     assert.strictEqual(await page.locator("#dashboard-view [data-settings-property-action]").count(), 0, "Property administration must not live on the Dashboard");
 
-    // 9 + 11 + 12. Settings structure.
+    // 9 + 11 + 12. Settings is a landing page for the four administration areas.
     await moduleButton(page, "settings").click();
     assert.strictEqual(await isActive(page, "settings-view"), true, "Settings must open from the shell");
-    assert.strictEqual(await page.locator("#settings-add-property-btn").isVisible(), true, "Settings must offer Add Property");
+    assert.strictEqual(await page.locator("#settings-properties-btn").isVisible(), true, "Settings must offer Properties");
+    assert.strictEqual(await page.locator("#settings-document-categories-btn").isVisible(), true, "Settings must offer Document Categories");
     assert.strictEqual(await page.locator("#settings-templates-btn").isVisible(), true, "Settings must offer Calendar Templates");
-    assert.strictEqual(await page.locator("#backup-export-btn").isVisible(), true, "Settings must offer Export Backup");
-    assert.strictEqual(await page.locator("#backup-restore-btn").isVisible(), true, "Settings must offer Restore Backup");
-    assert.strictEqual(await page.locator("[data-settings-property-id]").count(), 2, "Settings must list every property");
+    assert.strictEqual(await page.locator("#settings-backup-btn").isVisible(), true, "Settings must offer Backup & Restore");
+
+    await page.locator("#settings-properties-btn").click();
+    assert.strictEqual(await isActive(page, "settings-properties-view"), true, "Settings must open Properties");
+    assert.strictEqual(await page.locator("#settings-add-property-btn").isVisible(), true, "Properties must offer Add Property");
+    assert.strictEqual(await page.locator("[data-settings-property-id]").count(), 2, "Properties must list every property");
+    await page.locator("#settings-properties-back-btn").click();
+    assert.strictEqual(await isActive(page, "settings-view"), true, "Properties must return to Settings");
+
+    await page.locator("#settings-document-categories-btn").click();
+    assert.strictEqual(await isActive(page, "settings-document-categories-view"), true, "Settings must open Document Categories");
+    assert.strictEqual(await page.locator("#settings-add-document-category-btn").isVisible(), true, "Document Categories must offer Add Category");
+    await page.locator("#settings-document-categories-back-btn").click();
+    assert.strictEqual(await isActive(page, "settings-view"), true, "Document Categories must return to Settings");
 
     await page.locator("#settings-templates-btn").click();
     assert.strictEqual(await isActive(page, "template-library-view"), true, "Settings must open the Calendar Template library");
     await page.locator("#template-library-back-btn").click();
     assert.strictEqual(await isActive(page, "settings-view"), true, "Calendar Templates must return to Settings");
 
+    await page.locator("#settings-backup-btn").click();
+    assert.strictEqual(await isActive(page, "settings-backup-view"), true, "Settings must open Backup & Restore");
+    assert.strictEqual(await page.locator("#backup-export-btn").isVisible(), true, "Backup & Restore must offer Export Backup");
+    assert.strictEqual(await page.locator("#backup-restore-btn").isVisible(), true, "Backup & Restore must offer Restore Backup");
+    await page.locator("#settings-backup-back-btn").click();
+    assert.strictEqual(await isActive(page, "settings-view"), true, "Backup & Restore must return to Settings");
+
     // 13. The Setup wizard still runs, and Cancel returns to Settings.
+    await page.locator("#settings-properties-btn").click();
     await page.locator("#settings-add-property-btn").click();
     assert.strictEqual(await isActive(page, "form-view"), true, "Add Property must open the existing Setup wizard");
     assert.strictEqual(await page.locator("#app-shell-header").isVisible(), false, "Focused workflows must hide the shell");
     await page.locator("#setup-cancel-btn").click();
     assert.strictEqual(await isActive(page, "settings-view"), true, "Cancelling Setup must return to Settings");
 
-    // 6. Settings cards only route to Edit Property; management lives inside the editor.
+    // 6. Property cards only route to Edit Property; management lives inside the editor.
+    await page.locator("#settings-properties-btn").click();
     ["archive", "unarchive", "delete"].forEach(async function (action) {
-      assert.strictEqual(await page.locator(`[data-settings-property-action="${action}"]`).count(), 0, `Settings cards must not offer ${action}`);
+      assert.strictEqual(await page.locator(`[data-settings-property-action="${action}"]`).count(), 0, `Property cards must not offer ${action}`);
     });
     await page.locator('[data-settings-property-id="beta"] [data-settings-property-action="edit"]').click();
     assert.strictEqual(await isActive(page, "edit-view"), true, "Settings must open Edit Property");
@@ -233,6 +254,7 @@ function moduleButton(page, key) {
     assert.strictEqual(await isActive(page, "settings-view"), true, "Edit Property Cancel must return to Settings");
 
     // 10. Archive from Edit Property, exclusion from the operational selector, and restore.
+    await page.locator("#settings-properties-btn").click();
     await page.locator('[data-settings-property-id="beta"] [data-settings-property-action="edit"]').click();
     await page.locator("#edit-archive-property-btn").click();
     assert.strictEqual(await isActive(page, "settings-view"), true, "Archiving must return to Settings");
@@ -241,7 +263,8 @@ function moduleButton(page, key) {
       ["All Properties", "Alpha House"],
       "Archived properties must be excluded from the operational selector"
     );
-    assert.strictEqual(await page.locator("[data-settings-property-id]").count(), 2, "Settings must still manage archived properties");
+    await page.locator("#settings-properties-btn").click();
+    assert.strictEqual(await page.locator("[data-settings-property-id]").count(), 2, "Properties must still manage archived properties");
     assert.ok(
       (await page.locator('[data-settings-property-id="beta"]').textContent()).includes("Archived"),
       "Settings must mark the property as archived"
@@ -267,6 +290,7 @@ function moduleButton(page, key) {
     );
 
     await moduleButton(page, "settings").click();
+    await page.locator("#settings-properties-btn").click();
     await page.locator('[data-settings-property-id="beta"] [data-settings-property-action="edit"]').click();
     assert.strictEqual(await page.locator("#edit-restore-property-btn").isVisible(), true, "An archived property must offer Restore Property");
     assert.strictEqual(await page.locator("#edit-archive-property-btn").isVisible(), false, "An archived property must not offer Archive Property");
@@ -285,6 +309,7 @@ function moduleButton(page, key) {
 
     // 10. Permanent deletion stays behind an in-app confirmation and only inside Edit Property.
     const deleteConfirm = page.locator("[data-property-delete-confirm]");
+    await page.locator("#settings-properties-btn").click();
     await page.locator('[data-settings-property-id="beta"] [data-settings-property-action="edit"]').click();
     await page.locator("#edit-delete-property-btn").click();
     await deleteConfirm.waitFor({ state: "visible" });
@@ -292,6 +317,7 @@ function moduleButton(page, key) {
     await deleteConfirm.locator('[data-property-delete-action="cancel"]').click();
     assert.strictEqual(await isActive(page, "edit-view"), true, "Dismissing the confirmation must stay in Edit Property");
     await page.locator("#cancel-edit-btn").click();
+    await page.locator("#settings-properties-btn").click();
     assert.strictEqual(await page.locator("[data-settings-property-id]").count(), 2, "Dismissing the confirmation must keep the property");
 
     await page.locator('[data-settings-property-id="beta"] [data-settings-property-action="edit"]').click();
@@ -302,6 +328,7 @@ function moduleButton(page, key) {
       return document.getElementById("settings-view").classList.contains("is-active");
     });
     assert.strictEqual(await isActive(page, "settings-view"), true, "Confirmed deletion must return to Settings");
+    await page.locator("#settings-properties-btn").click();
     assert.strictEqual(await page.locator("[data-settings-property-id]").count(), 1, "Confirming must permanently delete the property");
     assert.deepStrictEqual(
       await page.locator("#app-property-selector option").allTextContents(),

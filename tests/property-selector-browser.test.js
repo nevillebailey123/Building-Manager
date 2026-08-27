@@ -158,20 +158,21 @@ async function assertSelectorVisible(page, context, expectedValue) {
     await moduleButton(page, "dashboard").click();
     await assertSelectorVisible(page, "back on Dashboard with a selected property", "alpha");
 
-    // Settings may show the selector, but must never filter its property list.
+    // Properties may show the selector, but it must never filter its property list.
     await moduleButton(page, "settings").click();
     const settingsState = await selectorState(page);
     assert.strictEqual(settingsState.count, 1, "Settings must not introduce a second Property selector");
+    await page.locator("#settings-properties-btn").click();
     assert.strictEqual(
       await page.locator("[data-settings-property-id]").count(),
       3,
-      "Settings must list every property regardless of the Property selector"
+      "Properties must list every property regardless of the Property selector"
     );
     await page.locator("#app-property-selector").selectOption("beta");
     assert.strictEqual(
       await page.locator("[data-settings-property-id]").count(),
       3,
-      "Changing the Property selector must not filter the Settings property list"
+      "Changing the Property selector must not filter the Properties list"
     );
     await page.locator("#app-property-selector").selectOption("alpha");
 
@@ -198,12 +199,14 @@ async function assertSelectorVisible(page, context, expectedValue) {
 
     // Focused workflows that deliberately hide the shell must restore it on the way back.
     await moduleButton(page, "settings").click();
+    await page.locator("#settings-properties-btn").click();
     await page.locator("#settings-add-property-btn").click();
     assert.strictEqual(await isActive(page, "form-view"), true, "Add Property must open the Setup wizard");
     assert.strictEqual(await page.locator("#app-shell-header").isVisible(), false, "Setup deliberately hides the shell");
     await page.locator("#setup-cancel-btn").click();
     await assertSelectorVisible(page, "after cancelling Setup", "alpha");
 
+    await page.locator("#settings-properties-btn").click();
     await page.locator('[data-settings-property-id="beta"] [data-settings-property-action="edit"]').click();
     assert.strictEqual(await isActive(page, "edit-view"), true, "Edit Property must open");
     assert.strictEqual(await page.locator("#app-shell-header").isVisible(), false, "Edit Property deliberately hides the shell");

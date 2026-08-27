@@ -78,6 +78,7 @@ function storedBuildings(page) {
     // ------------------------------------------------------------
 
     await page.locator('#app-module-nav [data-app-module="settings"]').click();
+    await page.locator("#settings-properties-btn").click();
     await page.locator("#settings-add-property-btn").click();
 
     assert.strictEqual(
@@ -185,14 +186,15 @@ function storedBuildings(page) {
       "partial new-company tenancy entry must survive Save & Exit"
     );
 
-    // Settings must show the incomplete setup and Resume Setup action.
+    // Properties must show the incomplete setup and Resume Setup action.
+    await page.locator("#settings-properties-btn").click();
     const propertyCard = page.locator(
       `[data-settings-property-id="${propertyId}"]`
     );
 
     assert.ok(
       (await propertyCard.textContent()).includes("Setup:"),
-      "Settings must identify the property as incomplete"
+      "Properties must identify the property as incomplete"
     );
 
     assert.strictEqual(
@@ -208,6 +210,7 @@ function storedBuildings(page) {
     await page.reload({ waitUntil: "networkidle" });
 
     await page.locator('#app-module-nav [data-app-module="settings"]').click();
+    await page.locator("#settings-properties-btn").click();
 
     const reloadedCard = page.locator(
       `[data-settings-property-id="${propertyId}"]`

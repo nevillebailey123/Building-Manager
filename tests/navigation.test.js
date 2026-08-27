@@ -189,14 +189,28 @@ assert.ok(applySelectionSource.includes("isBuildingArchived(target)"), "An archi
 
 // --- Settings -----------------------------------------------------------------
 
-assert.ok(indexSource.includes('id="settings-view"'), "A Settings screen must exist");
-assert.ok(indexSource.includes('id="settings-property-list"'), "Settings must list existing properties");
-assert.ok(indexSource.includes('id="settings-add-property-btn"'), "Settings must offer Add Property");
+assert.ok(indexSource.includes('id="settings-view"'), "A Settings landing screen must exist");
+assert.ok(indexSource.includes('id="settings-properties-btn"'), "Settings must offer Properties");
+assert.ok(indexSource.includes('id="settings-document-categories-btn"'), "Settings must offer Document Categories");
 assert.ok(indexSource.includes('id="settings-templates-btn"'), "Settings must offer Calendar Templates");
-assert.ok(indexSource.includes('id="backup-export-btn"'), "Settings must offer Export Backup");
-assert.ok(indexSource.includes('id="backup-restore-btn"'), "Settings must offer Restore Backup");
-assert.ok(appSource.includes('settingsTemplatesBtn.addEventListener("click", openTemplateLibrary)'), "Settings must open the Calendar Template library");
-assert.ok(appSource.includes('settingsAddPropertyBtn.addEventListener("click", showForm)'), "Settings Add Property must reuse the existing Setup wizard");
+assert.ok(indexSource.includes('id="settings-backup-btn"'), "Settings must offer Backup & Restore");
+
+assert.ok(indexSource.includes('id="settings-properties-view"'), "A Properties settings screen must exist");
+assert.ok(indexSource.includes('id="settings-property-list"'), "Properties must list existing properties");
+assert.ok(indexSource.includes('id="settings-add-property-btn"'), "Properties must offer Add Property");
+
+assert.ok(indexSource.includes('id="settings-document-categories-view"'), "A Document Categories settings screen must exist");
+assert.ok(indexSource.includes('id="settings-add-document-category-btn"'), "Document Categories must offer Add Category");
+
+assert.ok(indexSource.includes('id="settings-backup-view"'), "A Backup & Restore settings screen must exist");
+assert.ok(indexSource.includes('id="backup-export-btn"'), "Backup & Restore must offer Export Backup");
+assert.ok(indexSource.includes('id="backup-restore-btn"'), "Backup & Restore must offer Restore Backup");
+
+assert.ok(appSource.includes('activateSettingsTile(settingsPropertiesBtn, openSettingsProperties)'), "Settings must open Properties");
+assert.ok(appSource.includes('activateSettingsTile(settingsDocumentCategoriesBtn, openSettingsDocumentCategories)'), "Settings must open Document Categories");
+assert.ok(appSource.includes('activateSettingsTile(settingsTemplatesBtn, openTemplateLibrary)'), "Settings must open the Calendar Template library");
+assert.ok(appSource.includes('activateSettingsTile(settingsBackupBtn, openSettingsBackup)'), "Settings must open Backup & Restore");
+assert.ok(appSource.includes('settingsAddPropertyBtn.addEventListener("click", showForm)'), "Properties Add Property must reuse the existing Setup wizard");
 
 const settingsListSource = sourceFor("renderSettingsPropertyList", "getPortfolioSummaryCounts");
 assert.ok(settingsListSource.includes('data-settings-property-action="edit"'), "Settings cards must offer Edit Property");

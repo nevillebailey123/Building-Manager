@@ -54,9 +54,9 @@ function contactRecord(id, name, mobile, email, companyId) {
 
 const MASTER_DATA = {
   contacts: [
-    contactRecord("c-jim", "Jim Beveridge", "027 833 3030", "admin@jimslocksmithnz.com"),
+    { ...contactRecord("c-jim", "Jim Beveridge", "027 833 3030", "admin@jimslocksmithnz.com"), notes: "Responsible for cleaning gutters and fire systems check" },
     // The same master record stored twice must still render one card and one company link.
-    contactRecord("c-jim", "Jim Beveridge", "027 833 3030", "admin@jimslocksmithnz.com"),
+    { ...contactRecord("c-jim", "Jim Beveridge", "027 833 3030", "admin@jimslocksmithnz.com"), notes: "Responsible for cleaning gutters and fire systems check" },
     contactRecord("c-pat", "Pat Painter", "021 222 2222", "pat@example.com", "company-paint"),
     contactRecord("c-sue", "Sue Surveyor", "021 333 3333", "sue@example.com", "company-survey"),
     contactRecord("c-orphan", "Orphan Olive", "021 999 9999", "olive@example.com", "company-olive"),
@@ -286,33 +286,30 @@ async function seed(page, url, buildings, propertyId) {
     }
 
     // --- Search --------------------------------------------------------------
-    for (const term of ["Jim Beveridge", "Jims Locksmiths Ltd", "027 833 3030", "admin@jimslocksmithnz.com"]) {
+    for (const term of ["Jim Beveridge", "Jims Locksmiths Ltd", "027 833 3030", "admin@jimslocksmithnz.com", "cleaning gutters", "fire systems"]) {
       await page.locator("#contacts-search").fill(term);
       assert.strictEqual(await cardFor(page, "c-jim").count(), 1, `Search must match on "${term}"`);
       assert.strictEqual(await page.locator("[data-contact-id]").count(), 1, `Search on "${term}" must exclude other contacts`);
     }
     await page.locator("#contacts-search").fill("");
 
-    // --- Relationship filter -------------------------------------------------
-    await page.locator("#contacts-relationship-filter").selectOption("Tenancy");
-    let visible = await page.locator("[data-contact-id]").evaluateAll(function (nodes) {
-      return nodes.map(function (node) { return node.getAttribute("data-contact-id"); });
-    });
-    assert.deepStrictEqual(visible.sort(), ["c-jim", "c-sue"], "The Tenancy filter must show only tenancy-linked contacts");
+    // --- Main tile notes / simplified filters -------------------------------
+    assert.strictEqual(
+      await page.locator("#contacts-relationship-filter").count(),
+      0,
+      "Contacts must not show the redundant Relationship filter"
+    );
 
-    await page.locator("#contacts-relationship-filter").selectOption("Calendar");
-    visible = await page.locator("[data-contact-id]").evaluateAll(function (nodes) {
-      return nodes.map(function (node) { return node.getAttribute("data-contact-id"); });
-    });
-    assert.deepStrictEqual(visible, ["c-jim"], "The Calendar filter must show only calendar-linked contacts");
-    assert.strictEqual(await cardFor(page, "c-jim").count(), 1, "Filtering must not duplicate a contact card");
-
-    await page.locator("#contacts-relationship-filter").selectOption("Property");
-    visible = await page.locator("[data-contact-id]").evaluateAll(function (nodes) {
-      return nodes.map(function (node) { return node.getAttribute("data-contact-id"); });
-    });
-    assert.deepStrictEqual(visible.sort(), ["c-jim", "c-pat"], "The Property filter must show only property-linked contacts");
-    await page.locator("#contacts-relationship-filter").selectOption("");
+    const jimCardText = await cardFor(page, "c-jim").innerText();
+    assert.ok(
+      jimCardText.includes("Responsible for cleaning gutters and fire systems check"),
+      "Existing Notes must be visible on the main contact tile"
+    );
+    assert.strictEqual(
+      await cardFor(page, "c-pat").locator(".contact-card-notes").count(),
+      0,
+      "A contact without Notes must not show an empty Notes area"
+    );
 
     // --- Property scoping ----------------------------------------------------
     await page.locator("#app-property-selector").selectOption("taradale");

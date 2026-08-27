@@ -2869,6 +2869,27 @@ h3.document-register-row-title {
   overflow-wrap: anywhere;
 }
 
+.contact-card-notes {
+  align-content: start;
+  padding-top: 0.1rem;
+}
+
+.contact-card-notes-heading {
+  margin: 0 0 0.25rem;
+  color: var(--text-main);
+  font-size: var(--type-meta-contacts);
+  font-weight: 600;
+}
+
+.contact-card-notes-text {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: var(--type-meta-contacts);
+  line-height: 1.45;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
 .contact-details-relationships .contact-relationship-group + .contact-relationship-group {
   margin-top: 0.45rem;
 }

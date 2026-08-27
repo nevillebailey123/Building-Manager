@@ -296,6 +296,7 @@ function summaryValue(page, label) {
 
     // 8. Property management and permanent deletion live inside Edit Property.
     await moduleButton(page, "settings").click();
+    await page.locator("#settings-properties-btn").click();
     const betaCard = page.locator('[data-settings-property-id="beta"]');
     assert.deepStrictEqual(
       await betaCard.locator("[data-settings-property-action]").allTextContents(),
@@ -320,6 +321,7 @@ function summaryValue(page, label) {
     assert.ok((await deleteConfirm.textContent()).includes("Permanently delete"), "Permanent deletion must still confirm");
     await deleteConfirm.locator('[data-property-delete-action="cancel"]').click();
     await page.locator("#cancel-edit-btn").click();
+    await page.locator("#settings-properties-btn").click();
     assert.strictEqual(await page.locator("[data-settings-property-id]").count(), 2, "Dismissing the confirmation must keep the property");
 
     // Cancel and Save Changes keep working from the editor.
@@ -327,6 +329,7 @@ function summaryValue(page, label) {
     await page.locator("#editBuildingName").fill("Beta Tower Renamed");
     await page.locator("#save-edit-btn").click();
     assert.strictEqual(await isActive(page, "settings-view"), true, "Save Changes must return to Settings");
+    await page.locator("#settings-properties-btn").click();
     assert.ok((await betaCard.textContent()).includes("Beta Tower Renamed"), "Save Changes must persist the edit");
 
     assert.deepStrictEqual(pageErrors, [], "The polished UI must not throw a browser exception");

@@ -115,6 +115,7 @@ function selectorOptions(page) {
 
 async function openEditProperty(page, propertyId) {
   await page.locator('#app-module-nav [data-app-module="settings"]').click();
+  await page.locator("#settings-properties-btn").click();
   await page.locator(`[data-settings-property-id="${propertyId}"] [data-settings-property-action="edit"]`).click();
   assert.strictEqual(
     await page.locator("#edit-view").evaluate(function (element) { return element.classList.contains("is-active"); }),

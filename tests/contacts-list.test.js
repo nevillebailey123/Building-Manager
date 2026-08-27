@@ -15,8 +15,6 @@ const context = {
   contactsList: { innerHTML: "" },
   activeBuildingId: "building-1",
   contactsSearchQuery: "",
-  contactsRelationshipFilterValue: "",
-  CONTACT_RELATIONSHIP_TYPES: ["Property", "Tenancy", "Calendar", "Company"],
   findBuildingById() {
     return { id: "building-1" };
   },
@@ -62,9 +60,9 @@ vm.runInContext(summarySource, context);
 vm.runInContext(renderContactListSource, context);
 
 const contacts = [
-  { id: "c2", name: "Zed Example", companyId: "company-a", mobile: "", email: "" },
-  { id: "c1", name: "Amy Example", companyId: "company-b", mobile: "021 111 1111", email: "amy@example.com" },
-  { id: "c3", name: "Solo Example", companyId: "company-a", mobile: "", email: "" },
+  { id: "c2", name: "Zed Example", companyId: "company-a", mobile: "", email: "", notes: "" },
+  { id: "c1", name: "Amy Example", companyId: "company-b", mobile: "021 111 1111", email: "amy@example.com", notes: "Responsible for cleaning gutters and fire systems check" },
+  { id: "c3", name: "Solo Example", companyId: "company-a", mobile: "", email: "", notes: "" },
 ];
 
 context.contacts = contacts;
@@ -110,6 +108,20 @@ assert.ok(rendered.indexOf("Amy Example") < rendered.indexOf("Zed Example"), "Co
 assert.ok(rendered.includes('href="tel:021 111 1111"'), "Phone numbers must remain clickable");
 assert.ok(rendered.includes('href="mailto:amy@example.com"'), "Email addresses must remain clickable");
 assert.ok(rendered.includes('class="building-card clickable-card contact-card"'), "The whole card must be clickable");
+assert.ok(rendered.includes("contact-card-notes"), "A contact with notes must render a notes area");
+assert.ok(rendered.includes("Responsible for cleaning gutters and fire systems check"), "Existing contact notes must appear on the main contact tile");
+
+function cardForContact(html, contactId) {
+  const cardStart = html.indexOf(`data-contact-id="${contactId}"`);
+  const cardEnd = html.indexOf("</article>", cardStart);
+  return html.slice(cardStart, cardEnd);
+}
+
+assert.strictEqual(
+  cardForContact(rendered, "c2").includes("contact-card-notes"),
+  false,
+  "Contacts without notes must not render an empty Notes area"
+);
 
 // Search covers name, company, phone and email.
 [
@@ -118,6 +130,8 @@ assert.ok(rendered.includes('class="building-card clickable-card contact-card"')
   ["021 111", "c1"],
   ["amy@example.com", "c1"],
   ["annual security", "c1"],
+  ["cleaning gutters", "c1"],
+  ["fire systems", "c1"],
 ].forEach(function (testCase) {
   context.contactsSearchQuery = testCase[0];
   vm.runInContext("renderContactList(contacts);", context);
@@ -127,25 +141,12 @@ assert.ok(rendered.includes('class="building-card clickable-card contact-card"')
 });
 context.contactsSearchQuery = "";
 
-// The relationship filter narrows by relationship type without duplicating contacts.
-["Property", "Tenancy", "Calendar"].forEach(function (type) {
-  context.contactsRelationshipFilterValue = type;
-  vm.runInContext("renderContactList(contacts);", context);
-  const html = context.contactsList.innerHTML;
-  assert.strictEqual((html.match(/data-contact-id="c1"/g) || []).length, 1, `${type} filter must keep one card for c1`);
-  assert.strictEqual(html.includes('data-contact-id="c2"'), false, `${type} filter must exclude the unlinked contact`);
-  assert.strictEqual(
-    html.includes('data-contact-id="c3"'),
-    type === "Calendar",
-    `${type} filter must only keep contacts holding that relationship`
-  );
-});
-context.contactsRelationshipFilterValue = "";
+// With no Relationship filter, the repository always shows every contact once when search is empty.
 vm.runInContext("renderContactList(contacts);", context);
 assert.strictEqual(
   (context.contactsList.innerHTML.match(/data-contact-id=/g) || []).length,
   3,
-  "The All filter must show every contact exactly once"
+  "Contacts repository must show every contact exactly once when search is empty"
 );
 
 console.log("contacts list regression test passed");

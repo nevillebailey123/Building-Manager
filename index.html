@@ -83,32 +83,86 @@
       <section id="settings-view" class="view" aria-labelledby="settings-title">
         <header class="view-header">
           <h1 id="settings-title">Settings</h1>
-          <p class="tagline">Administer properties, calendar templates and your data.</p>
+          <p class="tagline">Manage Compliance HQ configuration and data.</p>
         </header>
 
-        <section class="module-content-card section-card section-card-primary" aria-labelledby="settings-properties-title">
+        <section class="building-list settings-management-grid" aria-label="Settings">
+          <article id="settings-properties-btn" class="building-card clickable-card" role="button" tabindex="0">
+            <h3>Properties</h3>
+            <p class="module-placeholder">Add, edit, archive and manage properties.</p>
+          </article>
+
+          <article id="settings-document-categories-btn" class="building-card clickable-card" role="button" tabindex="0">
+            <h3>Document Categories</h3>
+            <p class="module-placeholder">Manage the categories used to organise documents.</p>
+          </article>
+
+          <article id="settings-templates-btn" class="building-card clickable-card" role="button" tabindex="0">
+            <h3>Calendar Templates</h3>
+            <p class="module-placeholder">Manage reusable calendar item templates.</p>
+          </article>
+
+          <article id="settings-backup-btn" class="building-card clickable-card" role="button" tabindex="0">
+            <h3>Backup &amp; Restore</h3>
+            <p class="module-placeholder">Export or restore your Compliance HQ data.</p>
+          </article>
+        </section>
+      </section>
+
+      <section id="settings-backup-view" class="view" aria-labelledby="settings-data-title">
+        <div class="view-nav-row">
+          <button id="settings-backup-back-btn" class="btn btn-secondary view-nav-btn" type="button">← Settings</button>
+        </div>
+
+        <header class="view-header">
+          <h1 id="settings-data-title">Backup &amp; Restore</h1>
+          <p class="tagline">Export or restore your Compliance HQ data.</p>
+        </header>
+
+        <section class="module-content-card backup-section section-card">
+          <h3>Data Backup</h3>
+          <p class="module-placeholder">Export your Compliance HQ data locally, or restore it from a previously saved backup file.</p>
+          <div class="actions-row actions-row-tight">
+            <button id="backup-export-btn" class="btn btn-primary" type="button">Export Backup</button>
+            <button id="backup-restore-btn" class="btn btn-secondary" type="button">Restore Backup</button>
+          </div>
+          <input id="backup-restore-input" class="visually-hidden" type="file" accept="application/json,.json" />
+        </section>
+      </section>
+
+      <section id="settings-properties-view" class="view" aria-labelledby="settings-properties-title">
+        <div class="view-nav-row">
+          <button id="settings-properties-back-btn" class="btn btn-secondary view-nav-btn" type="button">← Settings</button>
+        </div>
+        <header class="view-header">
+          <h1 id="settings-properties-title">Properties</h1>
+          <p class="tagline">Add, edit, archive and manage properties.</p>
+        </header>
+
+        <section class="module-content-card section-card section-card-primary">
           <div class="contacts-list-header">
-            <h3 id="settings-properties-title">Properties</h3>
+            <h3>Property Directory</h3>
             <button id="settings-add-property-btn" class="btn btn-primary" type="button">+ Add Property</button>
           </div>
           <p class="module-placeholder">Select a property to edit, archive or permanently delete it. Archiving keeps every record and only hides the property from the operational selector.</p>
           <section id="settings-property-list" class="building-list" aria-live="polite"></section>
         </section>
+      </section>
 
-        <section class="module-content-card section-card" aria-labelledby="settings-templates-title">
-          <div class="contacts-list-header">
-            <h3 id="settings-templates-title">Calendar Templates</h3>
-            <button id="settings-templates-btn" class="btn btn-secondary" type="button">Open Calendar Templates</button>
-          </div>
-          <p class="module-placeholder">Maintain the reusable master templates that calendar items are created from.</p>
-        </section>
+      <section id="settings-document-categories-view" class="view" aria-labelledby="settings-document-categories-title">
+        <div class="view-nav-row">
+          <button id="settings-document-categories-back-btn" class="btn btn-secondary view-nav-btn" type="button">← Settings</button>
+        </div>
+        <header class="view-header">
+          <h1 id="settings-document-categories-title">Document Categories</h1>
+          <p class="tagline">Manage the categories used to organise documents throughout Compliance HQ.</p>
+        </header>
 
-        <section class="module-content-card section-card" aria-labelledby="settings-document-categories-title">
+        <section class="module-content-card section-card">
           <div class="contacts-list-header">
-            <h3 id="settings-document-categories-title">Document Categories</h3>
+            <h3>Category Directory</h3>
             <button id="settings-add-document-category-btn" class="btn btn-primary" type="button">+ Add Category</button>
           </div>
-          <p class="module-placeholder">Manage the categories used to organise documents throughout Compliance HQ.</p>
 
           <form id="settings-document-category-form" class="document-category-add-form" style="display: none;">
             <input id="settings-document-category-input" type="text" placeholder="Category name" autocomplete="off" />
@@ -119,16 +173,6 @@
           </form>
 
           <section id="settings-document-category-list" class="building-list" aria-live="polite"></section>
-        </section>
-
-        <section class="module-content-card backup-section section-card" aria-labelledby="settings-data-title">
-          <h3 id="settings-data-title">Data / Backup &amp; Restore</h3>
-          <p class="module-placeholder">Export your Compliance HQ data locally, or restore it from a previously saved backup file.</p>
-          <div class="actions-row actions-row-tight">
-            <button id="backup-export-btn" class="btn btn-primary" type="button">Export Backup</button>
-            <button id="backup-restore-btn" class="btn btn-secondary" type="button">Restore Backup</button>
-          </div>
-          <input id="backup-restore-input" class="visually-hidden" type="file" accept="application/json,.json" />
         </section>
       </section>
 
@@ -693,15 +737,6 @@
                 placeholder="Search by name, company, phone or email"
               />
             </label>
-            <label>
-              <span class="schedule-filter-label">Relationship</span>
-              <select id="contacts-relationship-filter" class="schedule-filter-select">
-                <option value="">All</option>
-                <option>Property</option>
-                <option>Tenancy</option>
-                <option>Calendar</option>
-              </select>
-            </label>
           </div>
           <section id="contacts-list" class="building-list" aria-live="polite"></section>
         </section>
@@ -1009,7 +1044,7 @@
     <script src="supabase-storage.js?v=8"></script>
     <script src="indexeddb-storage.js"></script>
     <script src="storage.js"></script>
-    <script src="app.js?v=22"></script>
+    <script src="app.js?v=23"></script>
     <script>
       if ("serviceWorker" in navigator) {
         window.addEventListener("load", async function () {
