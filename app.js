@@ -12066,13 +12066,6 @@
           : ""}
 
         <section class="schedule-details-section">
-          <h4>Documents</h4>
-          <div class="schedule-document-grid">
-            ${renderScheduleDocumentTiles(template.attachments || [])}
-          </div>
-        </section>
-
-        <section class="schedule-details-section">
           <h4>Completion History</h4>
           ${renderScheduleHistoryTable(detailsData.records)}
         </section>
