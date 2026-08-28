@@ -692,7 +692,7 @@
     setActiveAppModule("settings");
     setBreadcrumbs([
       { label: "Settings", onClick: openSettingsView },
-      { label: "Document Categories", onClick: openSettingsDocumentCategories },
+      { label: "Categories", onClick: openSettingsDocumentCategories },
     ]);
   }
 
@@ -1560,8 +1560,9 @@
 
   function getDocumentCategoryUsageCount(category) {
     const targetCategory = String(category || "").trim();
+    let count = 0;
 
-    return getAllBuildingsIncludingArchived().reduce(function (total, building) {
+    getAllBuildingsIncludingArchived().forEach(function (building) {
       const normalized = ensureWorkflowCollections(building);
       const entries = [];
 
@@ -1588,12 +1589,21 @@
         });
       });
 
-      return total + entries.filter(function (entry) {
+      count += entries.filter(function (entry) {
         return getDocumentRegisterCategory(entry) === targetCategory;
       }).length;
-    }, 0);
-  }
 
+      count += (normalized.scheduleItems || []).filter(function (item) {
+        return String(item.category || "").trim() === targetCategory;
+      }).length;
+    });
+
+    count += getScheduledItemTemplates().filter(function (template) {
+      return String(template.category || "").trim() === targetCategory;
+    }).length;
+
+    return count;
+  }
   function openDocumentCategoryAddForm() {
     if (!settingsDocumentCategoryForm || !settingsDocumentCategoryInput) {
       return;
@@ -1687,10 +1697,37 @@
         }
       });
 
+      (normalized.scheduleItems || []).forEach(function (item) {
+        if (String(item.category || "").trim() === oldName) {
+          item.category = newName;
+          changed = true;
+        }
+      });
+
       if (changed) {
         window.BuildingStorage.updateBuilding(normalized);
       }
     });
+
+    const templates = getScheduledItemTemplates();
+    let templatesChanged = false;
+
+    const updatedTemplates = templates.map(function (template) {
+      if (String(template.category || "").trim() !== oldName) {
+        return template;
+      }
+
+      templatesChanged = true;
+      return {
+        ...template,
+        category: newName,
+        lastUpdated: new Date().toISOString(),
+      };
+    });
+
+    if (templatesChanged) {
+      saveScheduledItemTemplates(updatedTemplates);
+    }
 
     saveDocumentCategories(categories.map(function (category) {
       return category === oldName ? newName : category;
@@ -1698,7 +1735,6 @@
 
     renderDocumentCategorySettings();
   }
-
   function deleteDocumentCategory(category) {
     if (getDocumentCategoryUsageCount(category) > 0) {
       return;
@@ -1780,7 +1816,7 @@
         <article class="building-card document-category-settings-row" data-settings-document-category="${escapeHtml(category)}">
           <div>
             <h3>${escapeHtml(category)}</h3>
-            <p class="document-item-meta">${count} ${count === 1 ? "document" : "documents"}</p>
+            <p class="document-item-meta">${count} ${count === 1 ? "item" : "items"} using this category</p>
           </div>
           <div class="document-category-settings-actions">
             <button class="btn btn-secondary" type="button" data-document-category-rename="true">Rename</button>
@@ -4551,11 +4587,7 @@
   }
 
   function renderScheduleFilterOptions(buildings, rows) {
-    const categories = Array.from(new Set(rows.map(function (row) {
-      return row.category;
-    }))).sort(function (left, right) {
-      return String(left).localeCompare(String(right), undefined, { sensitivity: "base" });
-    });
+    const categories = getDocumentCategories();
 
     renderAllBuildingFilterSelects();
 
@@ -7127,10 +7159,18 @@
   }
 
   function populateTemplateFormOptions(categoryValue, frequencyValue) {
-    templateForm.elements.category.innerHTML = TEMPLATE_CATEGORY_OPTIONS
+    const categories = getDocumentCategories();
+    const requestedCategory = String(categoryValue || "").trim();
+    const selectedCategory = categories.includes(requestedCategory)
+      ? requestedCategory
+      : (categories.includes(DEFAULT_DOCUMENT_CATEGORY)
+        ? DEFAULT_DOCUMENT_CATEGORY
+        : (categories[0] || ""));
+
+    templateForm.elements.category.innerHTML = categories
       .map(function (option) {
-        const selected = option === categoryValue ? " selected" : "";
-        return `<option value="${option}"${selected}>${option}</option>`;
+        const selected = option === selectedCategory ? " selected" : "";
+        return `<option value="${escapeHtml(option)}"${selected}>${escapeHtml(option)}</option>`;
       })
       .join("");
 
@@ -7146,7 +7186,7 @@
     templateForm.reset();
     templateForm.elements.templateId.value = "";
     templateForm.elements.description.value = "";
-    populateTemplateFormOptions("General", "Annual");
+    populateTemplateFormOptions(DEFAULT_DOCUMENT_CATEGORY, "Annual");
     templateForm.elements.nextDueDate.value = "";
     templateForm.elements.defaultReminderPeriod.value = "30 days before";
     templateForm.elements.active.value = "Yes";
@@ -7427,7 +7467,7 @@
       id: existingTemplate && existingTemplate.id ? existingTemplate.id : window.BuildingStorage.createId(),
       name: String(formData.get("name") || "").trim(),
       description: String(formData.get("description") || "").trim(),
-      category: String(formData.get("category") || "General").trim(),
+      category: String(formData.get("category") || DEFAULT_DOCUMENT_CATEGORY).trim(),
       defaultFrequency: String(formData.get("defaultFrequency") || "Annual").trim(),
       nextDueDate: String(formData.get("nextDueDate") || "").trim(),
       defaultReminderPeriod: String(formData.get("defaultReminderPeriod") || "30 days before").trim(),
