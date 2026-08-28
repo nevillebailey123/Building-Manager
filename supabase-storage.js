@@ -230,6 +230,7 @@ async function loadApplicationData() {
     return {
       id: row.id,
       companyId: row.company_id || "",
+      companyName: row.company_name || "",
       name: row.name,
       contactType: row.contact_type,
       responsibility: row.responsibility,
@@ -671,6 +672,7 @@ async function syncCurrentApplicationData() {
     return {
       id: String(contact.id),
       company_id: contact.companyId || null,
+      company_name: contact.companyName || "",
       name: contact.name || "",
       contact_type: contact.contactType || "",
       responsibility: contact.responsibility || "",
@@ -1014,6 +1016,7 @@ async function migrateExistingBrowserData() {
     return {
       id: String(contact.id),
       company_id: contact.companyId || null,
+      company_name: contact.companyName || "",
       name: contact.name || "",
       contact_type: contact.contactType || "",
       responsibility: contact.responsibility || "",
