@@ -3293,3 +3293,49 @@ h3.document-register-row-title {
   border-color: var(--accent);
   color: white;
 }
+
+/* Contacts search layout */
+#contacts-list-card .documents-filter-row {
+  margin-bottom: 24px;
+}
+
+#contacts-list-card .documents-filter-row label {
+  width: min(100%, 600px);
+}
+
+#contacts-search {
+  width: 100%;
+  max-width: 600px;
+}
+
+/* Contacts search width override */
+#contacts-list-card .documents-filter-row {
+  display: block;
+  margin-bottom: 24px;
+}
+
+#contacts-list-card .documents-filter-row > label {
+  display: block;
+  width: 100%;
+  max-width: 600px;
+}
+
+#contacts-list-card #contacts-search {
+  display: block;
+  width: 100%;
+  max-width: none;
+  box-sizing: border-box;
+}
+
+/* Contact cards: details left, notes right */
+@media (min-width: 700px) {
+  .contact-card-layout {
+    grid-template-columns: minmax(0, 2fr) minmax(0, 3fr);
+    column-gap: 2rem;
+  }
+
+  .contact-card-notes {
+    border-left: 1px solid var(--border);
+    padding-left: 1.5rem;
+  }
+}
