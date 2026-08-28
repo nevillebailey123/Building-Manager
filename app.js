@@ -325,18 +325,6 @@
     General: "Other",
   };
 
-  const TEMPLATE_CATEGORY_OPTIONS = [
-    "Compliance",
-    "Maintenance",
-    "Insurance",
-    "Financial",
-    "Safety",
-    "Tenancy",
-    "Utilities",
-    "Grounds",
-    "General",
-  ];
-
   const TENANCY_RENT_REVIEW_FREQUENCY_OPTIONS = [
     "Annual",
     "2 Yearly",
@@ -874,7 +862,7 @@
 
   function normalizeTemplateRecord(template) {
     const now = new Date().toISOString();
-    const category = TEMPLATE_CATEGORY_OPTIONS.includes(template.category) ? template.category : "General";
+    const category = String(template.category || "").trim() || DEFAULT_DOCUMENT_CATEGORY;
     const frequency = TEMPLATE_FREQUENCY_OPTIONS.includes(template.defaultFrequency)
       ? template.defaultFrequency
       : (TEMPLATE_FREQUENCY_OPTIONS.includes(template.frequency) ? template.frequency : "Annual");
@@ -902,7 +890,7 @@
 
   function normalizePropertyTemplateRecord(template) {
     const now = new Date().toISOString();
-    const category = TEMPLATE_CATEGORY_OPTIONS.includes(template.category) ? template.category : "General";
+    const category = String(template.category || "").trim() || DEFAULT_DOCUMENT_CATEGORY;
     const frequency = TEMPLATE_FREQUENCY_OPTIONS.includes(template.defaultFrequency)
       ? template.defaultFrequency
       : (TEMPLATE_FREQUENCY_OPTIONS.includes(template.frequency) ? template.frequency : "Annual");
@@ -9905,8 +9893,8 @@
           </label>
           <label>
             <span>Category</span>
-            <select name="category">${TEMPLATE_CATEGORY_OPTIONS.map(function (option) {
-              return `<option value="${option}">${option}</option>`;
+            <select name="category">${getDocumentCategories().map(function (option) {
+              return `<option value="${escapeHtml(option)}">${escapeHtml(option)}</option>`;
             }).join("")}</select>
           </label>
           <label>
@@ -9954,7 +9942,7 @@
             id: window.BuildingStorage.createId(),
             name: String(formData.get("name") || "").trim(),
             description: String(formData.get("description") || "").trim(),
-            category: String(formData.get("category") || "General").trim(),
+            category: String(formData.get("category") || DEFAULT_DOCUMENT_CATEGORY).trim(),
             defaultFrequency: String(formData.get("defaultFrequency") || "Annual").trim(),
             nextDueDate: "",
             defaultReminderPeriod: "",
@@ -10018,8 +10006,8 @@
           </label>
           <label>
             <span>Category</span>
-            <select name="category">${TEMPLATE_CATEGORY_OPTIONS.map(function (option) {
-              return `<option value="${option}"${option === template.category ? " selected" : ""}>${option}</option>`;
+            <select name="category">${getDocumentCategories().map(function (option) {
+              return `<option value="${escapeHtml(option)}"${option === template.category ? " selected" : ""}>${escapeHtml(option)}</option>`;
             }).join("")}</select>
           </label>
           <label>
@@ -12046,9 +12034,9 @@
               </label>
               <label>Category
                 <select name="category">
-                  ${TEMPLATE_CATEGORY_OPTIONS.map(function (option) {
+                  ${getDocumentCategories().map(function (option) {
                     const selected = option === categoryValue ? " selected" : "";
-                    return `<option value="${option}"${selected}>${option}</option>`;
+                    return `<option value="${escapeHtml(option)}"${selected}>${escapeHtml(option)}</option>`;
                   }).join("")}
                 </select>
               </label>
