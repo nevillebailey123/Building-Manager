@@ -2344,10 +2344,11 @@ h3.document-register-row-title {
   border: 1px solid var(--border);
   border-radius: 0.8rem;
   background: linear-gradient(180deg, #1a2431 0%, #141c27 100%);
-  padding: 0.72rem;
-  display: grid;
-  min-height: 220px;
-  grid-template-rows: 1fr;
+  padding: 1rem;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  min-height: 110px;
   cursor: pointer;
   transition: transform 0.14s ease, border-color 0.14s ease, box-shadow 0.14s ease;
 }
@@ -3338,4 +3339,161 @@ h3.document-register-row-title {
     border-left: 1px solid var(--border);
     padding-left: 1.5rem;
   }
+}
+
+/* =========================================================
+   Shared page spacing and layout refinement
+   ========================================================= */
+
+/* Give page introductions consistent breathing room */
+.view-header {
+  margin-bottom: 1.75rem;
+}
+
+.view-header .tagline {
+  margin-bottom: 0;
+}
+
+/* Main module panels */
+.module-content-card,
+.section-card {
+  padding: 1.6rem;
+}
+
+/* Keep major content blocks comfortably separated */
+.building-list,
+.schedule-list,
+.document-register-grid {
+  gap: 1.5rem;
+}
+
+/* Settings cards */
+#settings-view .settings-management-grid {
+  gap: 1.5rem;
+}
+
+#settings-view .settings-management-grid .building-card {
+  padding: 1.6rem;
+}
+
+#settings-view .settings-management-grid .building-card h3 {
+  margin-bottom: 0.8rem;
+}
+
+/* Contacts */
+#contacts-list-card {
+  padding: 1.6rem;
+}
+
+#contacts-list-card .documents-filter-row {
+  margin-bottom: 2rem;
+}
+
+/* Calendar */
+#schedule-view .module-content-card {
+  padding: 1.6rem;
+}
+
+#schedule-view .documents-filter-row {
+  margin-bottom: 1.5rem;
+}
+
+/* Tenancies */
+#tenancy-view .module-content-card {
+  padding: 1.6rem;
+}
+
+/* Dashboard */
+#dashboard-view .module-content-card {
+  padding: 1.6rem;
+}
+
+/* =========================================================
+   Documents
+   ========================================================= */
+
+#documents-view .module-content-card {
+  padding: 1.6rem;
+}
+
+/* Category and Search on one row */
+.documents-toolbar {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: 1.5rem;
+  width: 100%;
+}
+
+.documents-category-control {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 0.5rem;
+  flex: 0 0 auto;
+}
+
+.documents-category-control .schedule-filter-select {
+  width: 200px;
+}
+
+.documents-toolbar-search {
+  display: block;
+  width: 420px !important;
+  max-width: 420px;
+  flex: 0 0 420px;
+  margin: 0;
+  box-sizing: border-box;
+}
+
+/* Space before category tiles */
+#documents-view #lease-dashboard-panel {
+  margin-top: 32px;
+}
+
+/* Category tile grid */
+#documents-view .document-category-overview {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1rem;
+  margin: 0;
+}
+
+#documents-view .document-category-card {
+  min-height: 110px;
+  height: auto;
+  padding: 1rem 1.1rem;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  box-sizing: border-box;
+}
+
+@media (max-width: 850px) {
+  #documents-view .document-category-overview {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+
+@media (max-width: 600px) {
+  #documents-view .document-category-overview {
+    grid-template-columns: 1fr;
+  }
+}
+
+
+/* Documents category tile definition */
+.document-category-card {
+  background: #1b2635;
+  border: 1px solid #344357;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.18);
+}
+
+.document-category-card:hover,
+.document-category-card:focus-visible {
+  background: #202d3d;
+  border-color: var(--accent);
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.22);
 }

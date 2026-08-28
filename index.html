@@ -613,35 +613,17 @@
         </header>
 
         <section id="lease-repository-card" class="module-content-card lease-documents-card section-card">
-          <div id="lease-search-tools" class="lease-dashboard-tools">
-            <label class="visually-hidden" for="lease-search">Search documents</label>
-            <input id="lease-search" class="search-input lease-search-input" type="search" placeholder="Search documents" />
-          </div>
-          <div class="building-filter-row documents-filter-row" aria-label="Document filters">
-            <label>
+          <div class="documents-toolbar" aria-label="Document filters">
+            <label class="documents-category-control">
               <span class="schedule-filter-label">Category</span>
               <select id="lease-category-filter" class="schedule-filter-select">
                 <option value="">All Documents</option>
               </select>
             </label>
-            <label>
-              <span class="schedule-filter-label">Related To</span>
-              <select id="lease-related-to-filter" class="schedule-filter-select">
-                <option value="">All</option>
-                <option value="Property">Property</option>
-                <option value="Tenancy">Tenancy</option>
-              </select>
-            </label>
-            <label>
-              <span class="schedule-filter-label">Sort</span>
-              <select id="lease-sort-select" class="schedule-filter-select">
-                <option value="newest">Newest</option>
-                <option value="oldest">Oldest</option>
-              </select>
-            </label>
+            <input id="lease-search" class="search-input lease-search-input documents-toolbar-search" type="search" placeholder="Search documents" aria-label="Search documents" />
           </div>
 
-          <section id="lease-dashboard-panel">
+          <section id="lease-dashboard-panel" style="margin-top: 32px;">
             <section id="lease-category-grid" class="document-register-list" aria-live="polite"></section>
           </section>
         </section>
