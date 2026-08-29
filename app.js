@@ -862,7 +862,7 @@
 
   function normalizeTemplateRecord(template) {
     const now = new Date().toISOString();
-    const category = String(template.category || "").trim() || DEFAULT_DOCUMENT_CATEGORY;
+    const category = String(template.category || "").trim() || getDocumentCategories()[0] || "";
     const frequency = TEMPLATE_FREQUENCY_OPTIONS.includes(template.defaultFrequency)
       ? template.defaultFrequency
       : (TEMPLATE_FREQUENCY_OPTIONS.includes(template.frequency) ? template.frequency : "Annual");
@@ -890,7 +890,7 @@
 
   function normalizePropertyTemplateRecord(template) {
     const now = new Date().toISOString();
-    const category = String(template.category || "").trim() || DEFAULT_DOCUMENT_CATEGORY;
+    const category = String(template.category || "").trim() || getDocumentCategories()[0] || "";
     const frequency = TEMPLATE_FREQUENCY_OPTIONS.includes(template.defaultFrequency)
       ? template.defaultFrequency
       : (TEMPLATE_FREQUENCY_OPTIONS.includes(template.frequency) ? template.frequency : "Annual");
@@ -4136,20 +4136,20 @@
         propertyId: propertyId,
         propertyTemplateId: "",
         templateId: "",
-        taskName: title + " expires",
-        category: "Document",
-        frequency: "One-off",
+        taskName: existing && existing.taskName ? existing.taskName : title + " expires",
+        category: existing && existing.category ? existing.category : "Document",
+        frequency: existing && existing.frequency ? existing.frequency : "One-off",
         dueDate: expiryDate,
         initialDueDate: expiryDate,
-        lastCompletedDate: "",
-        lastCompletionHistoryId: "",
-        preferredCompany: "",
-        preferredCompanyId: "",
-        preferredContactId: "",
-        notes: "",
+        lastCompletedDate: existing ? existing.lastCompletedDate || "" : "",
+        lastCompletionHistoryId: existing ? existing.lastCompletionHistoryId || "" : "",
+        preferredCompany: existing ? existing.preferredCompany || "" : "",
+        preferredCompanyId: existing ? existing.preferredCompanyId || "" : "",
+        preferredContactId: existing ? existing.preferredContactId || "" : "",
+        notes: existing ? existing.notes || "" : "",
         status: "",
         createdDate: existing ? existing.createdDate : now,
-        lastUpdated: now,
+        lastUpdated: existing ? existing.lastUpdated || now : now,
       };
       item.status = getScheduleStatusText(item);
       generated.push(item);
@@ -4175,6 +4175,26 @@
     const completedAt = options.completedAt || new Date().toISOString();
     const completedBy = options.completedBy || "Property Manager";
     const historyId = window.BuildingStorage.createId();
+    const completionDocument = options.completionDocument
+      ? {
+          ...options.completionDocument,
+          id: options.completionDocument.id || window.BuildingStorage.createId(),
+          title: options.completionDocument.title || scheduleItem.taskName,
+          description: options.completionDocument.description || scheduleItem.taskName,
+          category: options.completionDocument.category || getDocumentCategories()[0] || "",
+          documentType: options.completionDocument.documentType || "Completion Document",
+          documentDate: completedAt.slice(0, 10),
+          expiryDate: "",
+          addExpiryToCalendar: false,
+          tenancyId: scheduleItem.tenancyId || "",
+          scheduleItemId: scheduleItem.id,
+          completionHistoryId: historyId,
+          uploadedBy: completedBy,
+          uploadedAt: completedAt,
+          lastUpdated: completedAt,
+          notes: options.completionDocument.notes || "",
+        }
+      : null;
 
     const historyRecord = {
       id: historyId,
@@ -4191,8 +4211,9 @@
       contactUsed: options.contactUsed || "",
       contactUsedId: options.contactUsedId || "",
       notes: options.notes || "",
-      hasAttachments: false,
-      completionDocument: null,
+      hasAttachments: Boolean(completionDocument),
+      completionDocument: completionDocument,
+      documentId: completionDocument ? completionDocument.id : "",
       previousDueDate: previousDueDate,
       newDueDate: newDueDate,
       nextDueDate: newDueDate,
@@ -4237,6 +4258,9 @@
       ...building,
       scheduleItems: updatedScheduleItems,
       historyRecords: (building.historyRecords || []).concat(historyRecord),
+      documents: completionDocument
+        ? (building.documents || []).concat(completionDocument)
+        : (building.documents || []),
       lastUpdated: completedAt,
     };
 
@@ -4807,6 +4831,7 @@
           addExpiryToCalendar: false,
           tenancyId: scheduleItem.tenancyId || "",
           scheduleItemId: scheduleItem.id,
+          completionHistoryId: historyId,
           uploadedBy: completedBy,
           uploadedAt: completedAt,
           lastUpdated: completedAt,
@@ -5984,7 +6009,7 @@
 
   function getDocumentFormCategory() {
     const value = String(documentCategorySelect ? documentCategorySelect.value : "").trim();
-    return value || DEFAULT_DOCUMENT_CATEGORY;
+    return value || getDocumentCategories()[0] || "";
   }
 
   function renderDocumentFormCategoryOptions(selectedCategory) {
@@ -5994,10 +6019,9 @@
 
     const categories = getDocumentCategories();
     const requestedCategory = String(selectedCategory || "").trim();
-    const legacyCategory = mapToFixedDocumentCategory(requestedCategory);
     const selected = categories.includes(requestedCategory)
       ? requestedCategory
-      : (categories.includes(legacyCategory) ? legacyCategory : DEFAULT_DOCUMENT_CATEGORY);
+      : (categories[0] || "");
 
     documentCategorySelect.innerHTML = categories.map(function (category) {
       return `<option value="${escapeHtml(category)}">${escapeHtml(category)}</option>`;
@@ -6076,7 +6100,11 @@
     updateDocumentExpiryCalendarToggleState();
     documentNotesInput.value = record ? String(record.notes || "") : "";
     renderDocumentFormBuildingOptions(selectedBuildingId);
-    renderDocumentFormCategoryOptions(entry ? getDocumentRegisterCategory(entry) : (leaseCategoryFilterValue || DEFAULT_DOCUMENT_CATEGORY));
+    renderDocumentFormCategoryOptions(
+      entry
+        ? getDocumentRegisterCategory(entry)
+        : (leaseCategoryFilterValue || getDocumentCategories()[0] || "")
+    );
     renderDocumentFormRelationships(entry ? entry.tenancyId : "", record ? record.scheduleItemId : "");
     documentFileInput.value = "";
 
@@ -7151,9 +7179,7 @@
     const requestedCategory = String(categoryValue || "").trim();
     const selectedCategory = categories.includes(requestedCategory)
       ? requestedCategory
-      : (categories.includes(DEFAULT_DOCUMENT_CATEGORY)
-        ? DEFAULT_DOCUMENT_CATEGORY
-        : (categories[0] || ""));
+      : (categories[0] || "");
 
     templateForm.elements.category.innerHTML = categories
       .map(function (option) {
@@ -7174,7 +7200,7 @@
     templateForm.reset();
     templateForm.elements.templateId.value = "";
     templateForm.elements.description.value = "";
-    populateTemplateFormOptions(DEFAULT_DOCUMENT_CATEGORY, "Annual");
+    populateTemplateFormOptions(getDocumentCategories()[0] || "", "Annual");
     templateForm.elements.nextDueDate.value = "";
     templateForm.elements.defaultReminderPeriod.value = "30 days before";
     templateForm.elements.active.value = "Yes";
@@ -7455,7 +7481,7 @@
       id: existingTemplate && existingTemplate.id ? existingTemplate.id : window.BuildingStorage.createId(),
       name: String(formData.get("name") || "").trim(),
       description: String(formData.get("description") || "").trim(),
-      category: String(formData.get("category") || DEFAULT_DOCUMENT_CATEGORY).trim(),
+      category: String(formData.get("category") || getDocumentCategories()[0] || "").trim(),
       defaultFrequency: String(formData.get("defaultFrequency") || "Annual").trim(),
       nextDueDate: String(formData.get("nextDueDate") || "").trim(),
       defaultReminderPeriod: String(formData.get("defaultReminderPeriod") || "30 days before").trim(),
@@ -9686,6 +9712,29 @@
       return;
     }
 
+    const completionDocumentButton = target.closest("[data-completion-document-id]");
+    if (completionDocumentButton instanceof HTMLElement) {
+      const documentId = String(
+        completionDocumentButton.getAttribute("data-completion-document-id") || ""
+      ).trim();
+
+      const documentRecord = getBuildings()
+        .flatMap(function (building) {
+          return Array.isArray(building.documents) ? building.documents : [];
+        })
+        .find(function (document) {
+          return String(document.id || "") === documentId;
+        });
+
+      if (!documentRecord) {
+        window.alert("The document linked to this completion could not be found.");
+        return;
+      }
+
+      openOrDownloadLeaseDocument(documentRecord, false);
+      return;
+    }
+
     if (!target.closest(".current-tenant-link")) {
       return;
     }
@@ -9942,7 +9991,7 @@
             id: window.BuildingStorage.createId(),
             name: String(formData.get("name") || "").trim(),
             description: String(formData.get("description") || "").trim(),
-            category: String(formData.get("category") || DEFAULT_DOCUMENT_CATEGORY).trim(),
+            category: String(formData.get("category") || getDocumentCategories()[0] || "").trim(),
             defaultFrequency: String(formData.get("defaultFrequency") || "Annual").trim(),
             nextDueDate: "",
             defaultReminderPeriod: "",
@@ -11077,7 +11126,7 @@
     };
   }
 
-  function renderScheduleHistoryTable(records) {
+  function renderScheduleHistoryTable(records, building) {
     if (!records || records.length === 0) {
       return '<p class="module-placeholder">No completion records yet.</p>';
     }
@@ -11090,16 +11139,34 @@
               <th>Due Date</th>
               <th>Completed Date</th>
               <th>Completed By</th>
+              <th>Document</th>
               <th>Notes</th>
             </tr>
           </thead>
           <tbody>
             ${records.map(function (record) {
+              const linkedDocuments = building && Array.isArray(building.documents)
+                ? building.documents.filter(function (document) {
+                    return String(document.completionHistoryId || "") === String(record.id || "");
+                  })
+                : [];
+
+              const documentMarkup = linkedDocuments.length > 0
+                ? linkedDocuments.map(function (document) {
+                    return `<button
+                      type="button"
+                      class="schedule-history-document"
+                      data-completion-document-id="${escapeHtml(document.id)}"
+                    >${escapeHtml(document.fileName || document.title || "Open Document")}</button>`;
+                  }).join("<br>")
+                : "";
+
               return `
                 <tr>
                   <td>${formatDate(record.previousDueDate || record.nextDueDate)}</td>
                   <td>${formatDate(record.completedDate)}</td>
                   <td>${escapeHtml(record.completedBy || "Not recorded")}</td>
+                  <td>${documentMarkup}</td>
                   <td>${escapeHtml(record.notes || "")}</td>
                 </tr>
               `;
@@ -11334,7 +11401,9 @@
         customRecurringDates: Array.isArray(resolvedUpdates.customRecurringDates)
           ? resolvedUpdates.customRecurringDates
           : getRecurringDatesFromTemplate(template),
-        preferredContactId: String(template.preferredContactId || "").trim(),
+        preferredContactId: Object.prototype.hasOwnProperty.call(resolvedUpdates, "preferredContactId")
+          ? String(resolvedUpdates.preferredContactId || "").trim()
+          : String(template.preferredContactId || "").trim(),
         defaultNotes: Object.prototype.hasOwnProperty.call(resolvedUpdates, "defaultNotes")
           ? String(resolvedUpdates.defaultNotes || "").trim()
           : String(template.defaultNotes || "").trim(),
@@ -11984,7 +12053,7 @@
           ${tenancyContactSection}
           <section class="schedule-details-section">
             <h4>Completion History</h4>
-            ${renderScheduleHistoryTable(detailsData.records)}
+            ${renderScheduleHistoryTable(detailsData.records, building)}
           </section>
           <section class="schedule-details-bottom-actions" data-schedule-details-confirmation-anchor aria-label="Calendar actions">
             <div class="schedule-details-bottom-actions-left">
@@ -12095,7 +12164,7 @@
 
         <section class="schedule-details-section">
           <h4>Completion History</h4>
-          ${renderScheduleHistoryTable(detailsData.records)}
+          ${renderScheduleHistoryTable(detailsData.records, building)}
         </section>
 
         <section class="schedule-details-bottom-actions" data-schedule-details-confirmation-anchor aria-label="Calendar actions">
@@ -12126,8 +12195,16 @@
             <label>Completed Date<input name="completedDate" type="date" value="${now}" required /></label>
             <label>Completed By<input name="completedBy" type="text" value="Property Manager" required /></label>
             <label>Notes<textarea name="notes" rows="3"></textarea></label>
+            <label>Document Category
+              <select name="documentCategory" class="schedule-filter-select">
+                <option value="" selected>Select Category</option>
+                ${getDocumentCategories().map(function (category) {
+                  return `<option value="${escapeHtml(category)}">${escapeHtml(category)}</option>`;
+                }).join("")}
+              </select>
+            </label>
             <div class="schedule-complete-upload-row">
-              <button type="button" class="btn btn-secondary btn-small" data-schedule-complete-upload>Upload Optional Document</button>
+              <button type="button" class="btn btn-secondary btn-small" data-schedule-complete-upload>Upload Document</button>
               <span data-schedule-complete-file-name>No file selected</span>
             </div>
             <div class="schedule-complete-actions">
@@ -12180,20 +12257,58 @@
         form.addEventListener("submit", async function (event) {
           event.preventDefault();
           const formData = new FormData(form);
-          const completionDocument = selectedFile
-            ? {
-              id: window.BuildingStorage.createId(),
-              fileName: selectedFile.name,
-              mimeType: selectedFile.type || "application/octet-stream",
-              sizeBytes: selectedFile.size || 0,
-              storage: {
-                kind: "data-url",
-                dataUrl: await readFileAsDataUrl(selectedFile),
-                previewStatus: "not-generated",
-                ocrStatus: "not-indexed",
-              },
+          const selectedCategory = String(formData.get("documentCategory") || "").trim();
+
+          if (selectedFile && !selectedCategory) {
+            const categorySelect = form.elements.namedItem("documentCategory");
+            if (categorySelect instanceof HTMLSelectElement) {
+              categorySelect.setCustomValidity("Please select a document category.");
+              categorySelect.reportValidity();
+              categorySelect.setCustomValidity("");
             }
-            : null;
+            return;
+          }
+
+          let completionDocument = null;
+
+          if (selectedFile) {
+            if (
+              !window.ComplianceHQSupabase
+              || typeof window.ComplianceHQSupabase.uploadDocumentFile !== "function"
+            ) {
+              window.alert("Supabase document storage is unavailable.");
+              return;
+            }
+
+            const documentId = window.BuildingStorage.createId();
+
+            try {
+              const storage = await window.ComplianceHQSupabase.uploadDocumentFile(
+                selectedFile,
+                documentId
+              );
+
+              storage.previewStatus = "not-generated";
+              storage.ocrStatus = "not-indexed";
+
+              completionDocument = {
+                id: documentId,
+                fileName: selectedFile.name,
+                mimeType: selectedFile.type || "application/octet-stream",
+                sizeBytes: selectedFile.size || 0,
+                category: selectedCategory,
+                storage: storage,
+              };
+            } catch (error) {
+              console.error("Unable to upload completion document:", error);
+              window.alert(
+                error && error.message
+                  ? error.message
+                  : "Unable to upload the document. Please try again."
+              );
+              return;
+            }
+          }
 
           close({
             completedDate: String(formData.get("completedDate") || "").trim(),
@@ -12231,6 +12346,7 @@
         completedAt: completedAt,
         completedBy: result.completedBy,
         notes: result.notes,
+        completionDocument: result.completionDocument,
       });
     } else {
       const companyUsedId = scheduleItem.preferredCompanyId || "";
@@ -12251,6 +12367,22 @@
 
     if (!updated) {
       return;
+    }
+
+    if (
+      window.BuildingStorage
+      && typeof window.BuildingStorage.waitForSupabaseSync === "function"
+    ) {
+      try {
+        await window.BuildingStorage.waitForSupabaseSync();
+      } catch (error) {
+        console.error("Calendar completion could not be saved to Supabase:", error);
+        window.alert(
+          "The Calendar item was updated in this browser, but could not be saved to Compliance HQ. " +
+          "Please check your connection and try again before refreshing the page."
+        );
+        return;
+      }
     }
 
     renderBuildings();
@@ -12557,6 +12689,25 @@
         if (documentEntry) {
           await openOrDownloadLeaseDocument(documentEntry, false);
         }
+        return;
+      }
+
+      const completionDocumentButton = target.closest("[data-completion-document-id]");
+      if (completionDocumentButton instanceof HTMLElement && viewMode === "details") {
+        const documentId = String(
+          completionDocumentButton.getAttribute("data-completion-document-id") || ""
+        ).trim();
+
+        const documentEntry = (building.documents || []).find(function (document) {
+          return String(document.id || "") === documentId;
+        });
+
+        if (!documentEntry) {
+          window.alert("The document linked to this completion could not be found.");
+          return;
+        }
+
+        await openOrDownloadLeaseDocument(documentEntry, false);
         return;
       }
 

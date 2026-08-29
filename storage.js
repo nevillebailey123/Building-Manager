@@ -675,6 +675,9 @@
     setSupabaseSyncSuppressed,
     initializeFromIndexedDB,
     syncToIndexedDB,
+    waitForSupabaseSync: function () {
+      return supabaseSyncPromise;
+    },
     createBackupPayload,
     validateBackupData,
     restoreBackupData,

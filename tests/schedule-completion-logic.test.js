@@ -352,6 +352,11 @@ assert.strictEqual(
   "Document repository record must link to the Calendar item"
 );
 assert.strictEqual(
+  attached.documents[0].completionHistoryId,
+  attachedHistory.id,
+  "Document repository record must link to the exact completion history record"
+);
+assert.strictEqual(
   attachedHistory.documentId,
   "doc-completion-1",
   "History record must link to the completion document"

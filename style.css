@@ -3847,3 +3847,20 @@ h3.document-register-row-title {
   font-weight: 400;
 }
 
+
+.schedule-history-document {
+  appearance: none;
+  border: 0;
+  padding: 0;
+  margin: 0;
+  background: none;
+  color: #8fc5ff;
+  font: inherit;
+  text-align: left;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.schedule-history-document:hover {
+  text-decoration-thickness: 2px;
+}
