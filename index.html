@@ -52,15 +52,15 @@
           <div class="app-shell-property">
             <label class="app-property-label" for="app-property-selector">Property</label>
             <select id="app-property-selector" class="schedule-filter-select app-property-select"></select>
+            <button id="app-settings-btn" class="app-settings-btn" type="button" aria-label="Settings" title="Settings">⚙</button>
           </div>
         </div>
         <nav id="app-module-nav" class="app-module-nav" aria-label="Main navigation">
-          <button class="app-module-btn" type="button" data-app-module="dashboard">Dashboard</button>
+          <button class="app-module-btn" type="button" data-app-module="Properties">Properties</button>
+          <button class="app-module-btn" type="button" data-app-module="Schedule">Calendar</button>
           <button class="app-module-btn" type="button" data-app-module="Tenancy">Tenancies</button>
           <button class="app-module-btn" type="button" data-app-module="Contacts">Contacts</button>
-          <button class="app-module-btn" type="button" data-app-module="Schedule">Calendar</button>
           <button class="app-module-btn" type="button" data-app-module="Documents">Documents</button>
-          <button class="app-module-btn app-module-btn-settings" type="button" data-app-module="settings">Settings</button>
         </nav>
       </header>
 
@@ -131,21 +131,22 @@
       </section>
 
       <section id="settings-properties-view" class="view" aria-labelledby="settings-properties-title">
-        <div class="view-nav-row">
-          <button id="settings-properties-back-btn" class="btn btn-secondary view-nav-btn" type="button">← Settings</button>
-        </div>
-        <header class="view-header">
-          <h1 id="settings-properties-title">Properties</h1>
-          <p class="tagline">Add, edit, archive and manage properties.</p>
+        <header class="view-header overview-header">
+          <div>
+            <h1 id="settings-properties-title">Properties</h1>
+            <p class="tagline">View and manage your properties.</p>
+          </div>
+          <div class="top-right-actions">
+            <button id="settings-add-property-btn" class="btn btn-primary" type="button">+ Add Property</button>
+          </div>
         </header>
 
         <section class="module-content-card section-card section-card-primary">
-          <div class="contacts-list-header">
-            <h3>Property Directory</h3>
-            <button id="settings-add-property-btn" class="btn btn-primary" type="button">+ Add Property</button>
+          <div class="tab-row" role="tablist" aria-label="Property status">
+            <button id="properties-tab-active" class="tab-btn is-active" type="button">Active</button>
+            <button id="properties-tab-archived" class="tab-btn" type="button">Archived</button>
           </div>
-          <p class="module-placeholder">Select a property to edit, archive or permanently delete it. Archiving keeps every record and only hides the property from the operational selector.</p>
-          <section id="settings-property-list" class="building-list" aria-live="polite"></section>
+          <section id="settings-property-list" class="building-list properties-list" aria-live="polite"></section>
         </section>
       </section>
 

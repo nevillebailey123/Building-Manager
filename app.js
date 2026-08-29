@@ -25,6 +25,7 @@
   const appShellHeader = document.getElementById("app-shell-header");
   const appBrandBtn = document.getElementById("app-brand-btn");
   const appPropertySelector = document.getElementById("app-property-selector");
+  const appSettingsBtn = document.getElementById("app-settings-btn");
   const appModuleNav = document.getElementById("app-module-nav");
   const settingsPropertyList = document.getElementById("settings-property-list");
   const settingsAddPropertyBtn = document.getElementById("settings-add-property-btn");
@@ -569,9 +570,24 @@
     return building.buildingName;
   }
 
+  function openPropertiesView() {
+    const building = getActiveBuilding();
+
+    if (building) {
+      renderOverview(building);
+      showOverview();
+      return;
+    }
+
+    renderSettingsPropertyList();
+    hideAllViews();
+    settingsPropertiesView.classList.add("is-active");
+    setActiveAppModule("Properties");
+    setBreadcrumbs([]);
+  }
+
   function goToDashboard() {
-    showDashboard();
-    renderBuildings();
+    openPropertiesView();
   }
 
   function setBreadcrumbs(items) {
@@ -586,7 +602,7 @@
   }
 
   // Shared application shell: one nav definition drives every module page.
-  const APP_MODULE_KEYS = ["dashboard", "Tenancy", "Contacts", "Schedule", "Documents", "settings"];
+  const APP_MODULE_KEYS = ["Properties", "Schedule", "Tenancy", "Contacts", "Documents", "settings"];
 
   function setActiveAppModule(moduleKey) {
     activeAppModule = APP_MODULE_KEYS.indexOf(moduleKey) === -1 ? "" : moduleKey;
@@ -663,14 +679,7 @@
   }
 
   function openSettingsProperties() {
-    renderSettingsPropertyList();
-    hideAllViews();
-    settingsPropertiesView.classList.add("is-active");
-    setActiveAppModule("settings");
-    setBreadcrumbs([
-      { label: "Settings", onClick: openSettingsView },
-      { label: "Properties", onClick: openSettingsProperties },
-    ]);
+    openPropertiesView();
   }
 
   function openSettingsDocumentCategories() {
@@ -708,14 +717,16 @@
     startSetupWorkflow();
   }
 
-  // Property Details is not currently reachable: the Dashboard now renders the per-property
-  // overview and Settings owns property administration. Retained pending a decision.
   function showOverview() {
     hideAllViews();
     overviewView.classList.add("is-active");
-    setActiveAppModule("dashboard");
+    setActiveAppModule("Properties");
     setBreadcrumbs([
-      { label: "Dashboard", onClick: goToDashboard },
+      { label: "Properties", onClick: function () {
+        setCurrentPropertyId("");
+        renderAllBuildingFilterSelects();
+        openPropertiesView();
+      } },
       { label: getActiveBuildingName(), onClick: function () { openOverviewById(activeBuildingId); } },
     ]);
   }
@@ -1815,14 +1826,59 @@
     }).join("");
   }
 
+  let propertiesListMode = "active";
+
+  function getCurrentTenancyForProperty(building) {
+    const tenancies = getAllTenanciesForBuilding(building);
+    if (tenancies.length === 0) {
+      return null;
+    }
+
+    const today = toDateStart(new Date().toISOString().slice(0, 10)).getTime();
+
+    const current = tenancies.find(function (tenancy) {
+      const start = tenancy.leaseStart ? toDateStart(tenancy.leaseStart).getTime() : null;
+      const end = tenancy.leaseEnd ? toDateStart(tenancy.leaseEnd).getTime() : null;
+      const started = start === null || start <= today;
+      const notEnded = end === null || end >= today;
+      return started && notEnded;
+    });
+
+    return current || null;
+  }
+
+  function getNextScheduleItemForProperty(building) {
+    const items = Array.isArray(building.scheduleItems) ? building.scheduleItems : [];
+    const today = toDateStart(new Date().toISOString().slice(0, 10)).getTime();
+
+    return items
+      .filter(function (item) {
+        if (!item.dueDate) {
+          return false;
+        }
+        return toDateStart(item.dueDate).getTime() >= today;
+      })
+      .slice()
+      .sort(function (left, right) {
+        return toDateStart(left.dueDate).getTime() - toDateStart(right.dueDate).getTime();
+      })[0] || null;
+  }
+
   function renderSettingsPropertyList() {
     if (!settingsPropertyList) {
       return;
     }
 
-    const buildings = getAllBuildingsIncludingArchived();
+    const buildings = getAllBuildingsIncludingArchived().filter(function (building) {
+      return propertiesListMode === "archived"
+        ? isBuildingArchived(building)
+        : !isBuildingArchived(building);
+    });
+
     if (buildings.length === 0) {
-      settingsPropertyList.innerHTML = '<p class="module-placeholder">No properties have been added yet.</p>';
+      settingsPropertyList.innerHTML = propertiesListMode === "archived"
+        ? '<p class="module-placeholder">No archived properties.</p>'
+        : '<p class="module-placeholder">No active properties have been added yet.</p>';
       return;
     }
 
@@ -1830,16 +1886,44 @@
       const archived = isBuildingArchived(building);
       const incomplete = building.setupIncomplete === true;
       const address = [building.streetAddress, building.city].filter(Boolean).join(", ");
-      const setupStep = Math.max(1, Math.min(5, Number(building.setupStep || 1)));
+      const currentTenancy = getCurrentTenancyForProperty(building);
+      const tenantName = currentTenancy ? getTenancyDisplayName(currentTenancy) : "None";
+      const leaseExpiry = currentTenancy && currentTenancy.leaseEnd
+        ? formatDate(currentTenancy.leaseEnd)
+        : "—";
+      const manager = String(building.propertyManager || "").trim() || "Not assigned";
+      const scheduleItems = Array.isArray(building.scheduleItems) ? building.scheduleItems : [];
+      const overdueCount = scheduleItems.filter(function (item) {
+        return item.dueDate && getScheduleBucket(item) === "overdue";
+      }).length;
+      const nextItem = getNextScheduleItemForProperty(building);
+      const nextDue = nextItem
+        ? `${escapeHtml(nextItem.taskName || "Calendar Item")} · ${escapeHtml(formatDate(nextItem.dueDate))}`
+        : "None scheduled";
+
       return `
-        <article class="building-card settings-property-card${archived ? " is-archived" : ""}" data-settings-property-id="${escapeHtml(building.id)}">
-          <h3>${escapeHtml(building.buildingName || "Untitled Property")}</h3>
-          ${address ? `<p>${escapeHtml(address)}</p>` : ""}
-          <p><strong>Status:</strong> ${archived ? "Archived" : escapeHtml(building.status || "Active")}</p>
-          ${incomplete ? `<p><strong>Setup:</strong> Incomplete · Step ${setupStep} of 5</p>` : ""}
+        <article class="building-card property-workspace-card${archived ? " is-archived" : ""}" data-settings-property-id="${escapeHtml(building.id)}">
+          <div class="property-card-heading">
+            <div>
+              <h3>${escapeHtml(building.buildingName || "Untitled Property")}</h3>
+              ${address ? `<p class="property-card-address">${escapeHtml(address)}</p>` : ""}
+            </div>
+            <span class="property-status-label">${archived ? "Archived" : escapeHtml(building.status || "Active")}</span>
+          </div>
+
+          <dl class="property-card-details">
+            <div><dt>Property Manager</dt><dd>${escapeHtml(manager)}</dd></div>
+            <div><dt>Current Tenant</dt><dd>${escapeHtml(tenantName)}</dd></div>
+            <div><dt>Lease Expiry</dt><dd>${escapeHtml(leaseExpiry)}</dd></div>
+            <div><dt>Next Due</dt><dd>${nextDue}</dd></div>
+            <div><dt>Overdue</dt><dd>${overdueCount}</dd></div>
+          </dl>
+
+          ${incomplete ? '<p class="property-setup-warning">Property setup is incomplete.</p>' : ""}
+
           <div class="document-item-actions settings-property-actions">
-            ${incomplete && !archived ? '<button class="btn btn-primary lease-tile-btn" type="button" data-settings-property-action="resume-setup">Resume Setup</button>' : ""}
-            <button class="btn btn-secondary lease-tile-btn" type="button" data-settings-property-action="edit">Edit Property</button>
+            ${incomplete && !archived ? '<button class="btn btn-secondary lease-tile-btn" type="button" data-settings-property-action="resume-setup">Resume Setup</button>' : ""}
+            <button class="btn btn-primary lease-tile-btn" type="button" data-settings-property-action="view">View Property</button>
           </div>
         </article>
       `;
@@ -13138,12 +13222,8 @@
 
   // One handler serves the shared shell navigation on every module page.
   function openAppModule(moduleKey) {
-    if (moduleKey === "dashboard") {
-      goToDashboard();
-      return;
-    }
-    if (moduleKey === "settings") {
-      openSettingsView();
+    if (moduleKey === "Properties") {
+      openPropertiesView();
       return;
     }
     if (moduleKey === "Tenancy") {
@@ -13204,6 +13284,13 @@
 
     if (action === "resume-setup") {
       resumeSetupWorkflow(building);
+      return;
+    }
+
+    if (action === "view") {
+      setCurrentPropertyId(building.id);
+      renderOverview(building);
+      showOverview();
       return;
     }
 
@@ -13488,8 +13575,34 @@
   appModuleNav.addEventListener("click", handleAppModuleNavClick);
   appBrandBtn.addEventListener("click", goToDashboard);
   appPropertySelector.addEventListener("change", handleAppPropertySelectorChange);
+  appSettingsBtn.addEventListener("click", openSettingsView);
   settingsPropertyList.addEventListener("click", handleSettingsPropertyListClick);
   settingsAddPropertyBtn.addEventListener("click", showForm);
+
+  const propertiesTabActive = document.getElementById("properties-tab-active");
+  const propertiesTabArchived = document.getElementById("properties-tab-archived");
+
+  if (propertiesTabActive) {
+    propertiesTabActive.addEventListener("click", function () {
+      propertiesListMode = "active";
+      propertiesTabActive.classList.add("is-active");
+      if (propertiesTabArchived) {
+        propertiesTabArchived.classList.remove("is-active");
+      }
+      renderSettingsPropertyList();
+    });
+  }
+
+  if (propertiesTabArchived) {
+    propertiesTabArchived.addEventListener("click", function () {
+      propertiesListMode = "archived";
+      propertiesTabArchived.classList.add("is-active");
+      if (propertiesTabActive) {
+        propertiesTabActive.classList.remove("is-active");
+      }
+      renderSettingsPropertyList();
+    });
+  }
 
   function activateSettingsTile(tile, action) {
     if (!tile) {
