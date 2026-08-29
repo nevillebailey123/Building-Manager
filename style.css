@@ -3497,3 +3497,353 @@ h3.document-register-row-title {
   border-color: var(--accent);
   box-shadow: 0 4px 10px rgba(0, 0, 0, 0.22);
 }
+
+/* =========================================================
+   Contacts compact layout
+   ========================================================= */
+
+#contacts-list {
+  gap: 1rem;
+}
+
+#contacts-list .building-card {
+  padding: 1.15rem 1.25rem;
+}
+
+/* Reduce vertical spacing within contact details */
+#contacts-list .contact-card-layout {
+  row-gap: 0.6rem;
+}
+
+#contacts-list .contact-card-main {
+  display: grid;
+  gap: 0.45rem;
+}
+
+#contacts-list .contact-card-main h3,
+#contacts-list .contact-card-main p,
+#contacts-list .contact-card-notes p {
+  margin-top: 0;
+  margin-bottom: 0;
+}
+
+#contacts-list .contact-card-notes {
+  display: grid;
+  align-content: start;
+  gap: 0.45rem;
+}
+
+/* Give contact details more room and move divider right */
+@media (min-width: 700px) {
+  #contacts-list .contact-card-layout {
+    grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);
+    column-gap: 1.5rem;
+  }
+
+  #contacts-list .contact-card-notes {
+    padding-left: 1.5rem;
+  }
+}
+
+
+/* Contacts final compact spacing */
+#contacts-list .building-card {
+  padding-top: 0.9rem;
+  padding-bottom: 0.9rem;
+}
+
+#contacts-list .contact-card-main {
+  gap: 0.3rem;
+}
+
+#contacts-list .contact-card-main h3 {
+  margin-bottom: 0.2rem;
+}
+
+#contacts-list .contact-card-notes {
+  gap: 0.3rem;
+}
+
+
+/* Contacts extra compact layout */
+#contacts-list {
+  gap: 0.7rem;
+}
+
+#contacts-list .building-card {
+  padding: 0.7rem 1.1rem;
+}
+
+#contacts-list .contact-card-layout {
+  min-height: 0;
+}
+
+#contacts-list .contact-card-main {
+  gap: 0.15rem;
+  line-height: 1.25;
+}
+
+#contacts-list .contact-card-main h3 {
+  margin: 0 0 0.15rem;
+  line-height: 1.15;
+}
+
+#contacts-list .contact-card-main p {
+  margin: 0.1rem 0;
+  line-height: 1.25;
+}
+
+#contacts-list .contact-card-notes {
+  gap: 0.15rem;
+  line-height: 1.25;
+}
+
+#contacts-list .contact-card-notes p {
+  margin: 0.1rem 0;
+  line-height: 1.25;
+}
+
+
+/* Contacts final list positioning */
+#contacts-list-card .documents-filter-row {
+  margin-bottom: 1.25rem;
+}
+
+#contacts-list {
+  margin-top: 0;
+}
+
+
+/* Contacts genuinely compact tiles */
+#contacts-list .building-card {
+  padding: 0.55rem 1.1rem;
+}
+
+#contacts-list .contact-card-layout {
+  gap: 0 1.5rem;
+}
+
+#contacts-list .contact-card-column {
+  gap: 0.08rem;
+}
+
+#contacts-list .contact-card-main {
+  gap: 0.08rem;
+  line-height: 1.15;
+}
+
+#contacts-list .contact-card-main h3 {
+  margin: 0 0 0.1rem;
+  line-height: 1.1;
+}
+
+#contacts-list .contact-card-main p {
+  margin: 0;
+  line-height: 1.15;
+}
+
+#contacts-list .contact-card-relationships {
+  gap: 0.15rem;
+}
+
+#contacts-list .contact-relationship-group {
+  gap: 0;
+}
+
+#contacts-list .contact-relationship-heading,
+#contacts-list .contact-relationship-type {
+  margin: 0;
+  line-height: 1.15;
+}
+
+#contacts-list .contact-card-notes {
+  gap: 0.08rem;
+  line-height: 1.15;
+}
+
+#contacts-list .contact-card-notes p {
+  margin: 0;
+  line-height: 1.15;
+}
+
+
+/* Contacts compact actual card structure */
+#contacts-list .contact-card {
+  padding-top: 0.45rem;
+  padding-bottom: 0.45rem;
+}
+
+#contacts-list .contact-card-column {
+  gap: 0.05rem;
+  align-content: start;
+}
+
+#contacts-list .contact-card-column h3 {
+  margin: 0 0 0.1rem;
+  line-height: 1.1;
+}
+
+#contacts-list .contact-card-column p {
+  margin: 0;
+  line-height: 1.15;
+}
+
+#contacts-list .contact-card-linked {
+  margin: 0;
+}
+
+#contacts-list .contact-card-notes {
+  gap: 0.05rem;
+}
+
+
+/* Contacts final breathing room */
+#contacts-list .contact-card {
+  padding-top: 0.6rem;
+  padding-bottom: 0.6rem;
+}
+
+#contacts-list .contact-card-column {
+  gap: 0.12rem;
+}
+
+#contacts-list .contact-card-column p {
+  line-height: 1.2;
+}
+
+#contacts-list .contact-card-notes {
+  gap: 0.12rem;
+}
+
+
+/* =========================================================
+   Shared module visual standard
+   Calendar is the reference
+   ========================================================= */
+
+/* Main content panels */
+#contacts-view .module-content-card,
+#tenancy-view .module-content-card,
+#documents-view .module-content-card,
+#settings-view .module-content-card,
+#schedule-view .module-content-card {
+  padding: 1.6rem;
+}
+
+/* Standard field labels */
+#contacts-view label,
+#tenancy-view label,
+#documents-view label,
+#settings-view label,
+#schedule-view label,
+#contacts-view .schedule-filter-label,
+#tenancy-view .schedule-filter-label,
+#documents-view .schedule-filter-label,
+#settings-view .schedule-filter-label {
+  font-size: var(--type-label-contacts);
+  line-height: 1.35;
+}
+
+/* Standard form controls */
+#contacts-view input,
+#contacts-view select,
+#tenancy-view input,
+#tenancy-view select,
+#documents-view input,
+#documents-view select,
+#settings-view input,
+#settings-view select {
+  font-size: var(--type-body-contacts);
+}
+
+/* Standard card typography */
+#contacts-view .building-card,
+#tenancy-view .building-card,
+#documents-view .building-card,
+#settings-view .building-card {
+  font-size: var(--type-body-contacts);
+  line-height: 1.35;
+}
+
+#contacts-view .building-card h3,
+#tenancy-view .building-card h3,
+#documents-view .building-card h3,
+#settings-view .building-card h3 {
+  font-size: var(--type-heading-contacts);
+  line-height: 1.35;
+  margin-top: 0;
+}
+
+#contacts-view .building-card p,
+#tenancy-view .building-card p,
+#documents-view .building-card p,
+#settings-view .building-card p {
+  font-size: var(--type-meta-contacts);
+  line-height: 1.35;
+}
+
+/* Contacts: retain its two-column layout but use Calendar rhythm */
+#contacts-list .contact-card {
+  padding: 0.72rem;
+}
+
+#contacts-list .contact-card-column {
+  gap: 0.18rem;
+}
+
+#contacts-list .contact-card-column h3 {
+  margin: 0;
+  font-size: var(--type-body-contacts);
+  font-weight: 700;
+  line-height: 1.35;
+}
+
+#contacts-list .contact-card-column p {
+  margin: 0;
+  font-size: var(--type-meta-contacts);
+  line-height: 1.35;
+}
+
+#contacts-list .contact-card-notes {
+  gap: 0.18rem;
+}
+
+#contacts-list .contact-card-notes-heading {
+  font-weight: 700;
+}
+
+/* Standard card/list separation */
+#contacts-list,
+#tenancy-view .building-list,
+#settings-view .building-list {
+  gap: var(--spacing-stack-contacts);
+}
+
+
+/* Contacts typography aligned with Calendar */
+#contacts-list .contact-card-column h3 {
+  font-weight: 700;
+}
+
+#contacts-list .contact-card-column p {
+  font-weight: 400;
+}
+
+#contacts-list .contact-card-column p strong,
+#contacts-list .contact-card-linked strong {
+  font-weight: 400;
+}
+
+#contacts-list .contact-card-notes-heading {
+  font-weight: 600;
+}
+
+#contacts-list .contact-card-notes-text {
+  font-weight: 400;
+}
+
+#contacts-list .contact-phone-link,
+#contacts-list .contact-email-link {
+  font-weight: 400;
+}
+
