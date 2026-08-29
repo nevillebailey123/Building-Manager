@@ -3864,3 +3864,169 @@ h3.document-register-row-title {
 .schedule-history-document:hover {
   text-decoration-thickness: 2px;
 }
+
+/* =========================================================
+   Calendar fixed workspace layout
+   Keep page heading and filters visible; scroll calendar items only
+   ========================================================= */
+
+#schedule-view.is-active {
+  display: flex;
+  flex-direction: column;
+  height: calc(100dvh - 150px);
+  min-height: 0;
+  overflow: hidden;
+}
+
+#schedule-view > .view-header {
+  flex: 0 0 auto;
+}
+
+#schedule-view > .schedule-operations-card {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+#schedule-view .schedule-filter-row {
+  flex: 0 0 auto;
+}
+
+#schedule-view .schedule-ops-list {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* =========================================================
+   Contacts fixed workspace layout
+   Keep heading, Add Contact and search visible
+   ========================================================= */
+
+#contacts-view.is-active {
+  display: flex;
+  flex-direction: column;
+  height: calc(100dvh - 150px);
+  min-height: 0;
+  overflow: hidden;
+}
+
+#contacts-view > .view-header {
+  flex: 0 0 auto;
+}
+
+#contacts-view > #contacts-empty-state {
+  flex: 0 0 auto;
+}
+
+#contacts-view > #contacts-list-card {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+#contacts-view #contacts-list-card > .building-filter-row {
+  flex: 0 0 auto;
+}
+
+#contacts-view #contacts-list {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+}
+
+
+/* =========================================================
+   Documents fixed workspace layout
+   Keep heading, Add Document and filters visible
+   ========================================================= */
+
+#lease-view.is-active {
+  display: flex;
+  flex-direction: column;
+  height: calc(100dvh - 150px);
+  min-height: 0;
+  overflow: hidden;
+}
+
+#lease-view > .view-header {
+  flex: 0 0 auto;
+}
+
+#lease-view > #lease-repository-card {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+#lease-view .documents-toolbar {
+  flex: 0 0 auto;
+}
+
+#lease-view #lease-dashboard-panel {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Fix operational list scrolling */
+
+#contacts-view #contacts-list-card {
+  overflow: hidden;
+}
+
+#contacts-view #contacts-list {
+  display: block;
+  height: 100%;
+  overflow-y: auto;
+}
+
+#lease-view #lease-repository-card {
+  overflow: hidden;
+}
+
+#lease-view #lease-dashboard-panel {
+  height: 100%;
+  overflow-y: auto;
+}
+
+/* =========================================================
+   Tenancies fixed workspace layout
+   Keep heading, Add Tenancy and Current/History tabs visible
+   ========================================================= */
+
+#tenancy-view.is-active {
+  display: flex;
+  flex-direction: column;
+  height: calc(100dvh - 150px);
+  min-height: 0;
+  overflow: hidden;
+}
+
+#tenancy-view > .view-header {
+  flex: 0 0 auto;
+}
+
+#tenancy-view > .module-content-card:first-of-type {
+  flex: 0 0 auto;
+}
+
+#tenancy-view > .tab-panel.is-active {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+}
