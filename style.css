@@ -4138,3 +4138,75 @@ html {
 html {
   scrollbar-gutter: stable;
 }
+
+/* Standardise main workspace headers and Add buttons */
+#settings-properties-view > .view-header,
+#schedule-view > .view-header,
+#tenancy-view > .view-header,
+#contacts-view > .view-header,
+#lease-view > .view-header {
+  flex-direction: row;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+#settings-properties-view > .view-header .top-right-actions,
+#schedule-view > .view-header .top-right-actions,
+#tenancy-view > .view-header .top-right-actions,
+#contacts-view > .view-header .top-right-actions,
+#lease-view > .view-header .top-right-actions {
+  display: flex;
+  justify-content: flex-end;
+  align-items: flex-start;
+  width: 180px;
+  min-width: 180px;
+  margin: 0;
+}
+
+#settings-add-property-btn,
+#manage-templates-btn,
+#add-tenancy-btn,
+#contacts-create-btn,
+#documents-add-btn {
+  width: 180px;
+  min-width: 180px;
+  height: 42px;
+  margin: 0;
+  padding: 0 0.85rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  font-size: 0.92rem;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+@media (max-width: 560px) {
+  #settings-properties-view > .view-header,
+  #schedule-view > .view-header,
+  #tenancy-view > .view-header,
+  #contacts-view > .view-header,
+  #lease-view > .view-header {
+    flex-direction: column;
+  }
+
+  #settings-properties-view > .view-header .top-right-actions,
+  #schedule-view > .view-header .top-right-actions,
+  #tenancy-view > .view-header .top-right-actions,
+  #contacts-view > .view-header .top-right-actions,
+  #lease-view > .view-header .top-right-actions {
+    width: 100%;
+    min-width: 0;
+  }
+
+  #settings-add-property-btn,
+  #manage-templates-btn,
+  #add-tenancy-btn,
+  #contacts-create-btn,
+  #documents-add-btn {
+    width: 100%;
+    min-width: 0;
+  }
+}
