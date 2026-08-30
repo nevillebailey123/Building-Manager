@@ -87,11 +87,6 @@
         </header>
 
         <section class="building-list settings-management-grid" aria-label="Settings">
-          <article id="settings-properties-btn" class="building-card clickable-card" role="button" tabindex="0">
-            <h3>Properties</h3>
-            <p class="module-placeholder">Add, edit, archive and manage properties.</p>
-          </article>
-
           <article id="settings-document-categories-btn" class="building-card clickable-card" role="button" tabindex="0">
             <h3>Categories</h3>
             <p class="module-placeholder">Manage the categories used by Documents and Calendar.</p>
@@ -455,6 +450,7 @@
             <p class="overview-building-detail"><strong>Street Address:</strong> <span id="overview-street-address"></span></p>
             <p class="overview-building-detail"><strong>City:</strong> <span id="overview-city"></span></p>
             <p class="overview-building-detail"><strong>Status:</strong> <span id="overview-status"></span></p>
+            <p class="overview-building-detail"><strong>Property Manager:</strong> <span id="overview-property-manager"></span></p>
           </div>
           <div class="top-right-actions">
             <button id="edit-building-btn" class="btn btn-secondary" type="button">✏ Edit Property</button>
@@ -462,32 +458,10 @@
         </header>
 
         <section class="module-content-card dashboard-summary-card" aria-live="polite">
-          <h3 id="module-content-title">Dashboard Summary</h3>
+          <h3 id="module-content-title">Compliance Summary</h3>
           <div id="module-content-body"></div>
         </section>
 
-        <section id="module-nav" class="overview-grid" aria-label="Property modules">
-          <button class="module-nav-card" type="button" data-module="Tenancy">
-            <span class="module-nav-title">👥 Tenancy</span>
-            <span class="module-nav-desc">Current and historical tenancy information.</span>
-            <span class="chevron">&gt;</span>
-          </button>
-          <button class="module-nav-card" type="button" data-module="Contacts">
-            <span class="module-nav-title">📞 Contacts</span>
-            <span class="module-nav-desc">Master contacts linked to this property.</span>
-            <span class="chevron">&gt;</span>
-          </button>
-          <button class="module-nav-card" type="button" data-module="Schedule">
-            <span class="module-nav-title">📅 Calendar</span>
-            <span class="module-nav-desc">Upcoming tasks and completed work.</span>
-            <span class="chevron">&gt;</span>
-          </button>
-          <button class="module-nav-card" type="button" data-module="Documents">
-            <span class="module-nav-title">📄 Documents</span>
-            <span class="module-nav-desc">Lease documentation, versions and notes.</span>
-            <span class="chevron">&gt;</span>
-          </button>
-        </section>
       </section>
 
       <section id="tenancy-view" class="view" aria-labelledby="tenancy-title">

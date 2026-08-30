@@ -68,7 +68,7 @@
   const overviewStreetAddress = document.getElementById("overview-street-address");
   const overviewCity = document.getElementById("overview-city");
   const overviewStatus = document.getElementById("overview-status");
-  const moduleNav = document.getElementById("module-nav");
+  const overviewPropertyManager = document.getElementById("overview-property-manager");
   const moduleContentTitle = document.getElementById("module-content-title");
   const moduleContentBody = document.getElementById("module-content-body");
   const tenancyBuildingName = document.getElementById("tenancy-building-name");
@@ -8665,56 +8665,75 @@
 
   function renderOverviewModule(moduleName, building) {
     const normalized = ensureWorkflowCollections(building);
-    const currentTenant = normalized.tenancy ? normalized.tenancy.companyName : "None";
-    const currentTenantDisplay = normalized.tenancy
-      ? `<button type="button" class="inline-link current-tenant-link">${currentTenant}</button>`
-      : "None";
-    const overdueCount = normalized.scheduleItems.filter(function (item) {
-      return getScheduleBucket(item) === "overdue";
-    }).length;
-    const nextItem = normalized.scheduleItems
-      .slice()
-      .sort(function (a, b) {
-        return new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime();
-      })[0] || null;
-    const nextScheduledItem = nextItem ? `${nextItem.taskName} (${formatDate(nextItem.dueDate)})` : "None scheduled";
-    const documentsCount = normalized.tenancy && normalized.tenancy.lease && Array.isArray(normalized.tenancy.lease.documents)
-      ? normalized.tenancy.lease.documents.length
-      : 0;
-    const lastActivity = formatDateTime(normalized.lastUpdated);
-    const address = `${normalized.streetAddress}, ${normalized.city}`;
+    const currentTenancy = getCurrentTenancyForProperty(normalized);
+    const scheduleItems = Array.isArray(normalized.scheduleItems)
+      ? normalized.scheduleItems
+      : [];
 
-    moduleContentTitle.textContent = "Dashboard Summary";
+    const overdueCount = scheduleItems.filter(function (item) {
+      return item.dueDate && getScheduleBucket(item) === "overdue";
+    }).length;
+
+    const dueSoonCount = scheduleItems.filter(function (item) {
+      if (!item.dueDate) {
+        return false;
+      }
+
+      const bucket = getScheduleBucket(item);
+      return bucket === "today" || bucket === "week";
+    }).length;
+
+    const nextItem = getNextScheduleItemForProperty(normalized);
+    const nextScheduledItem = nextItem
+      ? `${escapeHtml(nextItem.taskName || "Calendar Item")} · ${escapeHtml(formatDate(nextItem.dueDate))}`
+      : "None scheduled";
+
+    const tenantName = currentTenancy
+      ? escapeHtml(getTenancyDisplayName(currentTenancy))
+      : "None";
+
+    const leaseStart = currentTenancy && currentTenancy.leaseStart
+      ? escapeHtml(formatDate(currentTenancy.leaseStart))
+      : "—";
+
+    const leaseExpiry = currentTenancy && currentTenancy.leaseEnd
+      ? escapeHtml(formatDate(currentTenancy.leaseEnd))
+      : "—";
+
+    const tenancyStatus = currentTenancy
+      ? escapeHtml(currentTenancy.status || "Current")
+      : "Vacant";
+
+    moduleContentTitle.textContent = "Compliance Summary";
     moduleContentBody.innerHTML = `
       <dl class="snapshot-list dashboard-snapshot-list">
-        <div><dt>Property Name</dt><dd>${normalized.buildingName}</dd></div>
-        <div><dt>Address</dt><dd>${address}</dd></div>
-        <div><dt>Property Health</dt><dd>${getHealthLabel(normalized)}</dd></div>
-        <div><dt>Current Tenant</dt><dd>${currentTenantDisplay}</dd></div>
-        <div><dt>Next Calendar Item</dt><dd>${nextScheduledItem}</dd></div>
+        <div><dt>Property Health</dt><dd>${escapeHtml(getHealthLabel(normalized))}</dd></div>
         <div><dt>Overdue Items</dt><dd>${overdueCount}</dd></div>
-        <div><dt>Document Count</dt><dd>${documentsCount}</dd></div>
-        <div><dt>Last Activity</dt><dd>${lastActivity}</dd></div>
+        <div><dt>Due Soon</dt><dd>${dueSoonCount}</dd></div>
+        <div><dt>Next Calendar Item</dt><dd>${nextScheduledItem}</dd></div>
       </dl>
+
+      <div class="property-tenancy-summary">
+        <h3>Tenancy Summary</h3>
+        <dl class="snapshot-list dashboard-snapshot-list">
+          <div><dt>Current Tenant</dt><dd>${tenantName}</dd></div>
+          <div><dt>Lease Start</dt><dd>${leaseStart}</dd></div>
+          <div><dt>Lease Expiry</dt><dd>${leaseExpiry}</dd></div>
+          <div><dt>Tenancy Status</dt><dd>${tenancyStatus}</dd></div>
+        </dl>
+      </div>
     `;
   }
 
-  function setActiveModuleButton(moduleName) {
-    const buttons = moduleNav.querySelectorAll(".module-nav-card");
-    buttons.forEach(function (button) {
-      const isActive = button.getAttribute("data-module") === moduleName;
-      button.classList.toggle("is-active", isActive);
-    });
-  }
 
   function renderOverview(building) {
     overviewBuildingName.textContent = building.buildingName;
     overviewStreetAddress.textContent = building.streetAddress;
     overviewCity.textContent = building.city;
     overviewStatus.textContent = building.status;
+    overviewPropertyManager.textContent = String(building.propertyManager || "").trim() || "Not assigned";
 
-    setActiveModuleButton(activeModule);
-    renderOverviewModule("Dashboard", building);
+    renderOverviewModule("Compliance", building);
   }
 
   function openOverviewById(buildingId) {
@@ -8724,8 +8743,8 @@
     }
 
     setCurrentPropertyId(buildingId);
-    showDashboard();
-    renderBuildings();
+    renderOverview(building);
+    showOverview();
   }
 
   function populateEditForm(building) {
@@ -13560,7 +13579,6 @@
   }
   cancelTemplateBtn.addEventListener("click", handleCancelTemplate);
   cancelCompleteTaskBtn.addEventListener("click", handleCancelCompleteTask);
-  moduleNav.addEventListener("click", handleModuleNavigationClick);
   buildingForm.addEventListener("submit", handleSetupStepOneSubmit);
   editBuildingForm.addEventListener("submit", handleEditSave);
   tenancyForm.addEventListener("submit", handleSaveTenancy);
