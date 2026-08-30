@@ -57,8 +57,6 @@
   const deleteTenancyBtn = document.getElementById("delete-tenancy-btn");
   const tenancyDangerSection = document.getElementById("tenancy-danger-section");
   const overviewBuildingName = document.getElementById("overview-building-name");
-  const overviewStreetAddress = document.getElementById("overview-street-address");
-  const overviewCity = document.getElementById("overview-city");
   const overviewStatus = document.getElementById("overview-status");
   const overviewPropertyManager = document.getElementById("overview-property-manager");
   const moduleContentTitle = document.getElementById("module-content-title");
@@ -8649,10 +8647,12 @@
 
 
   function renderOverview(building) {
-    overviewBuildingName.textContent = building.buildingName;
-    overviewStreetAddress.textContent = building.streetAddress;
-    overviewCity.textContent = building.city;
-    overviewStatus.textContent = building.status;
+    const currentTenancy = getCurrentTenancyForProperty(building);
+    const address = [building.streetAddress, building.city].filter(Boolean).join(", ");
+
+    document.getElementById("overview-title").textContent = building.buildingName || "Property";
+    overviewBuildingName.textContent = address;
+    overviewStatus.textContent = currentTenancy ? "Occupied" : "Vacant";
     overviewPropertyManager.textContent = String(building.propertyManager || "").trim() || "Not assigned";
 
     renderOverviewModule("Compliance", building);
