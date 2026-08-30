@@ -4298,3 +4298,11 @@ html {
   font-size: var(--type-meta-contacts);
   font-weight: 400;
 }
+
+
+/* Contacts list spacing */
+#contacts-view #contacts-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}

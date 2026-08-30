@@ -66,6 +66,7 @@
   const overviewPropertyManager = document.getElementById("overview-property-manager");
   const moduleContentTitle = document.getElementById("module-content-title");
   const moduleContentBody = document.getElementById("module-content-body");
+  const overviewTenancySummary = document.getElementById("overview-tenancy-summary");
   const tenancyBuildingName = document.getElementById("tenancy-building-name");
   const leaseTenantName = document.getElementById("lease-tenant-name");
   const leasePropertyName = document.getElementById("lease-property-name");
@@ -8624,16 +8625,15 @@
         <div><dt>Due Soon</dt><dd>${dueSoonCount}</dd></div>
         <div><dt>Next Calendar Item</dt><dd>${nextScheduledItem}</dd></div>
       </dl>
+    `;
 
-      <div class="property-tenancy-summary">
-        <h3>Tenancy Summary</h3>
-        <dl class="snapshot-list dashboard-snapshot-list">
-          <div><dt>Current Tenant</dt><dd>${tenantName}</dd></div>
-          <div><dt>Lease Start</dt><dd>${leaseStart}</dd></div>
-          <div><dt>Lease Expiry</dt><dd>${leaseExpiry}</dd></div>
-          <div><dt>Tenancy Status</dt><dd>${tenancyStatus}</dd></div>
-        </dl>
-      </div>
+    overviewTenancySummary.innerHTML = `
+      <dl class="snapshot-list dashboard-snapshot-list">
+        <div><dt>Current Tenant</dt><dd>${tenantName}</dd></div>
+        <div><dt>Lease Start</dt><dd>${leaseStart}</dd></div>
+        <div><dt>Lease Expiry</dt><dd>${leaseExpiry}</dd></div>
+        <div><dt>Tenancy Status</dt><dd>${tenancyStatus}</dd></div>
+      </dl>
     `;
   }
 

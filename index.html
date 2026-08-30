@@ -432,10 +432,6 @@
           <div>
             <h1 id="overview-title">Property Details</h1>
             <p id="overview-building-name" class="overview-building-name visually-hidden"></p>
-            <p class="overview-building-detail">Street Address: <span id="overview-street-address"></span></p>
-            <p class="overview-building-detail">City: <span id="overview-city"></span></p>
-            <p class="overview-building-detail">Status: <span id="overview-status"></span></p>
-            <p class="overview-building-detail">Property Manager: <span id="overview-property-manager"></span></p>
           </div>
           <div class="top-right-actions">
             <button id="edit-building-btn" class="btn btn-secondary" type="button">✏ Edit Property</button>
@@ -443,8 +439,23 @@
         </header>
 
         <section class="module-content-card dashboard-summary-card" aria-live="polite">
+          <h3>Property Information</h3>
+          <dl class="snapshot-list dashboard-snapshot-list">
+            <div><dt>Street Address</dt><dd id="overview-street-address"></dd></div>
+            <div><dt>City</dt><dd id="overview-city"></dd></div>
+            <div><dt>Status</dt><dd id="overview-status"></dd></div>
+            <div><dt>Property Manager</dt><dd id="overview-property-manager"></dd></div>
+          </dl>
+        </section>
+
+        <section class="module-content-card dashboard-summary-card" aria-live="polite">
           <h3 id="module-content-title">Compliance Summary</h3>
           <div id="module-content-body"></div>
+        </section>
+
+        <section class="module-content-card dashboard-summary-card" aria-live="polite">
+          <h3>Tenancy Summary</h3>
+          <div id="overview-tenancy-summary"></div>
         </section>
 
       </section>
@@ -671,7 +682,6 @@
         <section id="contacts-list-card" class="module-content-card section-card">
           <div class="building-filter-row documents-filter-row" aria-label="Contact filters">
             <label>
-              <span class="schedule-filter-label">Search contacts</span>
               <input
                 id="contacts-search"
                 class="search-input"
