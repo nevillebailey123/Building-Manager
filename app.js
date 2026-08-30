@@ -8628,10 +8628,10 @@
     moduleContentTitle.textContent = "Compliance Summary";
     moduleContentBody.innerHTML = `
       <dl class="snapshot-list dashboard-snapshot-list">
-        <div><dt>Property Health</dt><dd>${escapeHtml(getHealthLabel(normalized))}</dd></div>
         <div><dt>Overdue Items</dt><dd>${overdueCount}</dd></div>
         <div><dt>Due Soon</dt><dd>${dueSoonCount}</dd></div>
         <div><dt>Next Calendar Item</dt><dd>${nextScheduledItem}</dd></div>
+        <div><dt>Calendar Items</dt><dd>${scheduleItems.length}</dd></div>
       </dl>
     `;
 
