@@ -3403,11 +3403,6 @@ h3.document-register-row-title {
   padding: 1.6rem;
 }
 
-/* Dashboard */
-#dashboard-view .module-content-card {
-  padding: 1.6rem;
-}
-
 /* =========================================================
    Documents
    ========================================================= */
@@ -4134,10 +4129,6 @@ html {
   scrollbar-gutter: stable;
 }
 
-/* Keep the application shell horizontally stable between views */
-html {
-  scrollbar-gutter: stable;
-}
 
 /* Standardise main workspace headers and Add buttons */
 #settings-properties-view > .view-header,
@@ -4305,4 +4296,61 @@ html {
   display: flex;
   flex-direction: column;
   gap: 0.6rem;
+}
+
+/* =========================================================
+   Tenancies list refinement
+   Align tenancy tiles with Calendar / Contacts visual rhythm
+   ========================================================= */
+
+#tenancy-details-card {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+}
+
+#tenancy-details-card > h3 {
+  flex: 0 0 auto;
+  margin-top: 0;
+}
+
+#tenancy-details-list {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  gap: 0.6rem;
+}
+
+#tenancy-details-list .tenancy-list-card {
+  padding: 0.72rem;
+}
+
+#tenancy-details-list .tenancy-card-main {
+  gap: 0.18rem;
+}
+
+#tenancy-details-list .tenancy-list-card h4 {
+  margin: 0;
+  font-size: var(--type-body-contacts);
+  font-weight: 700;
+  line-height: 1.35;
+}
+
+#tenancy-details-list .tenancy-list-card p {
+  margin: 0;
+  font-size: var(--type-meta-contacts);
+  font-weight: 400;
+  line-height: 1.35;
+}
+
+#tenancy-details-list .tenancy-list-card p strong {
+  font-weight: 400;
+}
+
+#tenancy-details-list .tenancy-card-contacts-heading,
+#tenancy-details-list .tenancy-card-contact-name {
+  font-size: var(--type-meta-contacts);
 }
