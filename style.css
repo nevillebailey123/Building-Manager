@@ -4354,3 +4354,60 @@ html {
 #tenancy-details-list .tenancy-card-contact-name {
   font-size: var(--type-meta-contacts);
 }
+
+/* Property Details primary action matches other workspace pages */
+#overview-view > .view-header {
+  flex-direction: row;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+#overview-view > .view-header .top-right-actions {
+  display: flex;
+  justify-content: flex-end;
+  align-items: flex-start;
+  width: 180px;
+  min-width: 180px;
+  margin: 0;
+}
+
+#edit-building-btn {
+  width: 180px;
+  min-width: 180px;
+  height: 42px;
+  margin: 0;
+  padding: 0 0.85rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  font-size: 0.92rem;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+@media (max-width: 560px) {
+  #overview-view > .view-header {
+    flex-direction: column;
+  }
+
+  #overview-view > .view-header .top-right-actions {
+    width: 100%;
+    min-width: 0;
+  }
+
+  #edit-building-btn {
+    width: 100%;
+    min-width: 0;
+  }
+}
+
+/* Align Property Details action vertically with other workspace actions */
+#overview-view > .view-header .top-right-actions {
+  padding-top: 0;
+}
+
+#overview-view #edit-building-btn {
+  transform: translateY(-12px);
+}
