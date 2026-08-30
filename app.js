@@ -13523,6 +13523,7 @@
   completeTaskForm.addEventListener("submit", handleSaveCompleteTask);
   completeTaskForm.elements.companyUsed.addEventListener("change", handleCompleteCompanyChange);
   appModuleNav.addEventListener("click", handleAppModuleNavClick);
+
   appBrandBtn.addEventListener("click", goToDashboard);
   appPropertySelector.addEventListener("change", handleAppPropertySelectorChange);
   appSettingsBtn.addEventListener("click", openSettingsView);
