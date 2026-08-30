@@ -4411,3 +4411,52 @@ html {
 #overview-view #edit-building-btn {
   transform: translateY(-12px);
 }
+
+/* Use normal page scrolling for Calendar and Contacts */
+#schedule-view.is-active,
+#contacts-view.is-active {
+  height: auto;
+  min-height: 0;
+  overflow: visible;
+}
+
+#schedule-view .schedule-list-card,
+#schedule-view .schedule-list,
+#schedule-view #schedule-list,
+#contacts-view #contacts-list-card,
+#contacts-view #contacts-list {
+  height: auto;
+  max-height: none;
+  min-height: 0;
+  overflow: visible;
+}
+
+/* Calendar: allow page to scroll from anywhere over the calendar tiles */
+#schedule-view.is-active,
+#schedule-view .module-content-card,
+#schedule-view .schedule-list-card,
+#schedule-view .schedule-list,
+#schedule-view #schedule-list,
+#schedule-view #schedule-items-list {
+  height: auto !important;
+  max-height: none !important;
+  min-height: 0 !important;
+  overflow: visible !important;
+  overscroll-behavior: auto !important;
+  -webkit-overflow-scrolling: auto;
+}
+
+/* Calendar: remove internal list scrolling and use page scrolling */
+#schedule-view .schedule-ops-list {
+  height: auto !important;
+  max-height: none !important;
+  overflow: visible !important;
+  overscroll-behavior: auto !important;
+  -webkit-overflow-scrolling: auto !important;
+}
+
+#schedule-view > .schedule-operations-card {
+  height: auto !important;
+  max-height: none !important;
+  overflow: visible !important;
+}
