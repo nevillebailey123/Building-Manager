@@ -4615,3 +4615,9 @@ body.settings-active #app-property-selector {
   stroke-linecap: round;
   stroke-linejoin: round;
 }
+
+/* Properties: highlight attention-required calendar items */
+#settings-property-list .property-overdue-value {
+  color: #ef4444;
+  font-weight: 700;
+}

@@ -1875,6 +1875,9 @@
       const address = [building.streetAddress, building.city].filter(Boolean).join(", ");
       const currentTenancy = getCurrentTenancyForProperty(building);
       const tenantName = currentTenancy ? getTenancyDisplayName(currentTenancy) : "None";
+      const occupancyStatus = archived
+        ? "Archived"
+        : (currentTenancy ? "Occupied" : "Vacant");
       const leaseExpiry = currentTenancy && currentTenancy.leaseEnd
         ? formatDate(currentTenancy.leaseEnd)
         : "—";
@@ -1882,6 +1885,13 @@
       const scheduleItems = Array.isArray(building.scheduleItems) ? building.scheduleItems : [];
       const overdueCount = scheduleItems.filter(function (item) {
         return item.dueDate && getScheduleBucket(item) === "overdue";
+      }).length;
+      const dueSoonCount = scheduleItems.filter(function (item) {
+        if (!item.dueDate) {
+          return false;
+        }
+        const bucket = getScheduleBucket(item);
+        return bucket === "today" || bucket === "week";
       }).length;
       const nextItem = getNextScheduleItemForProperty(building);
       const nextDue = nextItem
@@ -1895,7 +1905,7 @@
               <h3>${escapeHtml(building.buildingName || "Untitled Property")}</h3>
               ${address ? `<p class="property-card-address">${escapeHtml(address)}</p>` : ""}
             </div>
-            <span class="property-status-label">${archived ? "Archived" : escapeHtml(building.status || "Active")}</span>
+            <span class="property-status-label">${escapeHtml(occupancyStatus)}</span>
           </div>
 
           <dl class="property-card-details">
@@ -1903,7 +1913,8 @@
             <div><dt>Current Tenant</dt><dd>${escapeHtml(tenantName)}</dd></div>
             <div><dt>Lease Expiry</dt><dd>${escapeHtml(leaseExpiry)}</dd></div>
             <div><dt>Next Due</dt><dd>${nextDue}</dd></div>
-            <div><dt>Overdue</dt><dd>${overdueCount}</dd></div>
+            <div><dt>Due Soon</dt><dd>${dueSoonCount}</dd></div>
+            <div><dt>Overdue</dt><dd class="${overdueCount > 0 ? "property-overdue-value" : ""}">${overdueCount}</dd></div>
           </dl>
 
           ${incomplete ? '<p class="property-setup-warning">Property setup is incomplete.</p>' : ""}
