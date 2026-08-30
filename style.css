@@ -4086,7 +4086,7 @@ h3.document-register-row-title {
 
 .property-card-details dd {
   margin: 0.15rem 0 0;
-  font-weight: 600;
+  font-weight: 400;
 }
 
 .property-setup-warning {
@@ -4220,4 +4220,81 @@ html {
 
 .property-tenancy-summary h3 {
   margin: 0 0 1rem;
+}
+
+/* Simplify header Settings control */
+.app-settings-btn {
+  border: 0;
+  background: transparent;
+  border-radius: 0;
+}
+
+.app-settings-btn:hover {
+  border: 0;
+  background: transparent;
+}
+
+/* Simplify Property Details header information */
+#overview-view .overview-building-detail,
+#overview-view .overview-building-detail strong {
+  font-size: 1rem;
+  font-weight: 400;
+}
+
+/* Properties typography aligned with Calendar */
+#settings-property-list .property-card-details dt {
+  font-size: var(--type-meta-contacts);
+  font-weight: 400;
+  line-height: 1.35;
+  color: var(--text-muted);
+}
+
+#settings-property-list .property-card-details dd {
+  font-size: var(--type-meta-contacts);
+  font-weight: 400;
+  line-height: 1.35;
+}
+
+#settings-property-list .property-card-heading h3 {
+  font-size: var(--type-body-contacts);
+  font-weight: 700;
+  line-height: 1.35;
+}
+
+#settings-property-list .property-card-address,
+#settings-property-list .property-status-label {
+  font-size: var(--type-meta-contacts);
+  font-weight: 400;
+  line-height: 1.35;
+}
+
+/* Documents typography aligned with Calendar */
+#lease-view .document-category-card-name {
+  font-size: var(--type-body-contacts);
+  font-weight: 700;
+  line-height: 1.35;
+}
+
+#lease-view .document-category-card-count {
+  font-size: var(--type-meta-contacts);
+  font-weight: 400;
+  line-height: 1.35;
+  color: var(--text-muted);
+}
+
+#lease-view .document-category-card {
+  font-family: inherit;
+}
+
+#lease-view .documents-toolbar label,
+#lease-view .documents-toolbar .schedule-filter-label {
+  font-size: var(--type-label-contacts);
+  font-weight: 600;
+  line-height: 1.35;
+}
+
+#lease-view .documents-toolbar input,
+#lease-view .documents-toolbar select {
+  font-size: var(--type-meta-contacts);
+  font-weight: 400;
 }

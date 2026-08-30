@@ -1,5 +1,4 @@
 (function () {
-  const dashboardView = document.getElementById("dashboard-view");
   const templateLibraryView = document.getElementById("template-library-view");
   const formView = document.getElementById("form-view");
   const overviewView = document.getElementById("overview-view");
@@ -41,9 +40,6 @@
   const editDeletePropertyBtn = document.getElementById("edit-delete-property-btn");
   const breadcrumbNav = document.getElementById("breadcrumb-nav");
   const cancelBtn = document.getElementById("cancel-btn");
-  const workspaceDashboardCard = document.getElementById("workspace-dashboard-card");
-  const workspaceDashboardTitle = document.getElementById("workspace-dashboard-title");
-  const workspaceDashboardSummary = document.getElementById("workspace-dashboard-summary");
   const editBuildingBtn = document.getElementById("edit-building-btn");
   const companiesBackBtn = document.getElementById("companies-back-btn");
   const manageTemplatesBtn = document.getElementById("manage-templates-btn");
@@ -63,7 +59,6 @@
   const archiveTenancyBtn = document.getElementById("archive-tenancy-btn");
   const deleteTenancyBtn = document.getElementById("delete-tenancy-btn");
   const tenancyDangerSection = document.getElementById("tenancy-danger-section");
-  const emptyState = document.getElementById("empty-state");
   const overviewBuildingName = document.getElementById("overview-building-name");
   const overviewStreetAddress = document.getElementById("overview-street-address");
   const overviewCity = document.getElementById("overview-city");
@@ -628,7 +623,6 @@
   }
 
   function hideAllViews() {
-    dashboardView.classList.remove("is-active");
     templateLibraryView.classList.remove("is-active");
     formView.classList.remove("is-active");
     overviewView.classList.remove("is-active");
@@ -703,13 +697,6 @@
     ]);
   }
 
-  function showDashboard() {
-    hideAllViews();
-    dashboardView.classList.add("is-active");
-    setActiveAppModule("dashboard");
-    setBreadcrumbs([]);
-  }
-
   function showForm() {
     hideAllViews();
     setAppShellVisible(false);
@@ -767,7 +754,7 @@
     companiesView.classList.add("is-active");
     setActiveAppModule("Contacts");
     setBreadcrumbs([
-      { label: "Dashboard", onClick: goToDashboard },
+      { label: "Properties", onClick: goToDashboard },
       { label: "Contacts", onClick: openContactsView },
       { label: "Companies", onClick: openCompaniesView },
     ]);
@@ -785,7 +772,7 @@
     historyView.classList.add("is-active");
     setActiveAppModule("Schedule");
     setBreadcrumbs([
-      { label: "Dashboard", onClick: goToDashboard },
+      { label: "Properties", onClick: goToDashboard },
       { label: "Calendar", onClick: function () { openScheduleView(activeBuildingId); } },
       { label: "Completed", onClick: function () { openHistoryView(activeBuildingId); } },
     ]);
@@ -796,7 +783,7 @@
     setAppShellVisible(false);
     completeTaskView.classList.add("is-active");
     setBreadcrumbs([
-      { label: "Dashboard", onClick: goToDashboard },
+      { label: "Properties", onClick: goToDashboard },
       { label: "Calendar", onClick: function () { openScheduleView(activeBuildingId); } },
       { label: "Complete Task", onClick: function () { openCompleteTaskView(activeScheduleItemId); } },
     ]);
@@ -1930,90 +1917,15 @@
     }).join("");
   }
 
-  // Dashboard counts must match the Documents module, so they read the same repository records.
-  function getDocumentRepositoryCount() {
-    return getDocumentRegisterRecords().length;
-  }
-
-  function getPortfolioSummaryCounts(buildings) {
-    return buildings.reduce(function (totals, building) {
-      const normalized = ensureWorkflowCollections(building);
-      const scheduleItems = Array.isArray(normalized.scheduleItems) ? normalized.scheduleItems : [];
-      totals.properties += 1;
-      totals.tenancies += getAllTenanciesForBuilding(normalized).length;
-      totals.overdue += scheduleItems.filter(function (item) {
-        return getScheduleBucket(item) === "overdue";
-      }).length;
-      totals.dueSoon += scheduleItems.filter(function (item) {
-        const bucket = getScheduleBucket(item);
-        return bucket === "week" || bucket === "month";
-      }).length;
-      return totals;
-    }, { properties: 0, tenancies: 0, overdue: 0, dueSoon: 0 });
-  }
-
-  // Dashboard sections read from this single summary so future panels can be added centrally.
-  function renderWorkspaceSummary(building) {
-    if (!building) {
-      const totals = getPortfolioSummaryCounts(getOperationalBuildings());
-      if (workspaceDashboardTitle) {
-        workspaceDashboardTitle.textContent = "Portfolio Overview";
-      }
-      workspaceDashboardSummary.innerHTML = `
-        <div><dt>Property</dt><dd>All Properties</dd></div>
-        <div><dt>Properties</dt><dd>${totals.properties}</dd></div>
-        <div><dt>Tenancies</dt><dd>${totals.tenancies}</dd></div>
-        <div><dt>Overdue Items</dt><dd>${totals.overdue}</dd></div>
-        <div><dt>Due Soon</dt><dd>${totals.dueSoon}</dd></div>
-        <div><dt>Documents</dt><dd>${getDocumentRepositoryCount()}</dd></div>
-      `;
-      return;
-    }
-
-    const normalized = ensureWorkflowCollections(building);
-    const currentTenant = normalized.tenancy ? normalized.tenancy.companyName : "None";
-    const documentsCount = getDocumentRepositoryCount();
-    const overdueCount = normalized.scheduleItems.filter(function (item) {
-      return getScheduleBucket(item) === "overdue";
-    }).length;
-    const nextItem = normalized.scheduleItems
-      .slice()
-      .sort(function (a, b) {
-        return new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime();
-      })[0] || null;
-    const nextItemText = nextItem ? `${nextItem.taskName} (${formatDate(nextItem.dueDate)})` : "None scheduled";
-
-    if (workspaceDashboardTitle) {
-      workspaceDashboardTitle.textContent = "Property Overview";
-    }
-    workspaceDashboardSummary.innerHTML = `
-      <div><dt>Property Name</dt><dd>${normalized.buildingName}</dd></div>
-      <div><dt>Address</dt><dd>${normalized.streetAddress}, ${normalized.city}</dd></div>
-      <div><dt>Current Tenant</dt><dd>${currentTenant}</dd></div>
-      <div><dt>Next Calendar Item</dt><dd>${nextItemText}</dd></div>
-      <div><dt>Overdue Items</dt><dd>${overdueCount}</dd></div>
-      <div><dt>Documents</dt><dd>${documentsCount}</dd></div>
-    `;
-  }
-
   function renderBuildings() {
     const buildings = getOperationalBuildings();
     renderSettingsPropertyList();
 
-    if (buildings.length === 0) {
-      emptyState.style.display = "block";
-      workspaceDashboardCard.style.display = "none";
-      updateSelectedBuildingHeader();
-      return;
+    if (buildings.length > 0) {
+      ensureActiveBuildingSelection(buildings);
     }
 
-    ensureActiveBuildingSelection(buildings);
-    const activeBuilding = findBuildingById(activeBuildingId);
-
-    emptyState.style.display = "none";
-    workspaceDashboardCard.style.display = "block";
     updateSelectedBuildingHeader();
-    renderWorkspaceSummary(activeBuilding);
   }
 
   function createEmptySetupState() {
@@ -5231,7 +5143,7 @@
   function openScheduleView(buildingId) {
     const buildings = window.BuildingStorage.getBuildings();
     if (buildings.length === 0) {
-      showDashboard();
+      openPropertiesView();
       return;
     }
 
@@ -5323,7 +5235,7 @@
   function openCompleteTaskView(itemId) {
     const building = findBuildingById(activeBuildingId);
     if (!building) {
-      showDashboard();
+      openPropertiesView();
       return;
     }
 
@@ -7198,7 +7110,7 @@
   function openCompaniesView() {
     const building = findBuildingById(activeBuildingId);
     if (!building) {
-      showDashboard();
+      openPropertiesView();
       return;
     }
 
@@ -8804,7 +8716,7 @@
     event.preventDefault();
     const current = getTenancyEditBuilding();
     if (!current) {
-      showDashboard();
+      openPropertiesView();
       renderBuildings();
       return;
     }
@@ -13001,7 +12913,7 @@
     event.preventDefault();
     const building = findBuildingById(activeBuildingId);
     if (!building) {
-      showDashboard();
+      openPropertiesView();
       return;
     }
 
@@ -13276,9 +13188,13 @@
     openAppModule(button.getAttribute("data-app-module") || "");
   }
 
-  // Changing the shared selector re-renders the current module instead of leaving it.
+  // Changing the shared selector immediately updates the current workspace.
   function handleAppPropertySelectorChange(event) {
     handleBuildingFilterChange(event);
+
+    if (activeAppModule === "Properties") {
+      openPropertiesView();
+    }
   }
 
   function handleSettingsPropertyListClick(event) {
@@ -13724,8 +13640,9 @@
       }
     });
 
-    showDashboard();
+    setCurrentPropertyId("");
     renderBuildings();
+    openPropertiesView();
   }
 
   function startFromBrowserStorage() {

@@ -66,20 +66,6 @@
 
       <nav id="breadcrumb-nav" class="breadcrumb-nav" aria-label="Breadcrumb"></nav>
 
-      <section id="dashboard-view" class="view is-active" aria-labelledby="app-title">
-        <header class="view-header">
-          <h1 id="app-title">Dashboard</h1>
-          <p class="tagline">Know what's due. Know what was done.</p>
-        </header>
-
-        <p id="empty-state" class="empty-state">No properties have been added yet. Add your first property in Settings.</p>
-
-        <section id="workspace-dashboard-card" class="module-content-card section-card" aria-live="polite">
-          <h3 id="workspace-dashboard-title">Portfolio Overview</h3>
-          <dl id="workspace-dashboard-summary" class="snapshot-list"></dl>
-        </section>
-      </section>
-
       <section id="settings-view" class="view" aria-labelledby="settings-title">
         <header class="view-header">
           <h1 id="settings-title">Settings</h1>
@@ -445,12 +431,11 @@
         <header class="view-header overview-header">
           <div>
             <h1 id="overview-title">Property Details</h1>
-            <p id="overview-description" class="tagline">Control panel for this property.</p>
             <p id="overview-building-name" class="overview-building-name visually-hidden"></p>
-            <p class="overview-building-detail"><strong>Street Address:</strong> <span id="overview-street-address"></span></p>
-            <p class="overview-building-detail"><strong>City:</strong> <span id="overview-city"></span></p>
-            <p class="overview-building-detail"><strong>Status:</strong> <span id="overview-status"></span></p>
-            <p class="overview-building-detail"><strong>Property Manager:</strong> <span id="overview-property-manager"></span></p>
+            <p class="overview-building-detail">Street Address: <span id="overview-street-address"></span></p>
+            <p class="overview-building-detail">City: <span id="overview-city"></span></p>
+            <p class="overview-building-detail">Status: <span id="overview-status"></span></p>
+            <p class="overview-building-detail">Property Manager: <span id="overview-property-manager"></span></p>
           </div>
           <div class="top-right-actions">
             <button id="edit-building-btn" class="btn btn-secondary" type="button">✏ Edit Property</button>
