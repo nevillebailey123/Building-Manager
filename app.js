@@ -724,7 +724,8 @@
     setAppShellVisible(false);
     editView.classList.add("is-active");
     setBreadcrumbs([
-      { label: "Settings", onClick: openSettingsView },
+      { label: "Properties", onClick: openPropertiesView },
+      { label: getActiveBuildingName(), onClick: function () { openOverviewById(activeBuildingId); } },
       { label: "Edit Property", onClick: showEditForm },
     ]);
   }
@@ -8681,7 +8682,7 @@
       || activeBuildingId;
     const current = findBuildingById(editingId);
     if (!current) {
-      openSettingsView();
+      openPropertiesView();
       renderBuildings();
       return;
     }
@@ -8709,7 +8710,7 @@
     window.BuildingStorage.updateBuilding(updated);
     editingPropertyId = "";
     renderBuildings();
-    openSettingsView();
+    openOverviewById(updated.id);
   }
 
   function handleSaveTenancy(event) {
@@ -13106,7 +13107,7 @@
   function handleOpenEdit() {
     const building = findBuildingById(activeBuildingId);
     if (!building) {
-      openSettingsView();
+      openPropertiesView();
       return;
     }
 
@@ -13114,8 +13115,15 @@
   }
 
   function handleCancelEdit() {
+    const propertyId = editingPropertyId || activeBuildingId;
     editingPropertyId = "";
-    openSettingsView();
+
+    if (propertyId && findBuildingById(propertyId)) {
+      openOverviewById(propertyId);
+      return;
+    }
+
+    openPropertiesView();
   }
 
   function handleModuleNavigationClick(event) {
