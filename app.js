@@ -19,8 +19,6 @@
   const settingsDocumentCategoriesBtn = document.getElementById("settings-document-categories-btn");
   const settingsBackupBtn = document.getElementById("settings-backup-btn");
   const settingsPropertiesBackBtn = document.getElementById("settings-properties-back-btn");
-  const settingsDocumentCategoriesBackBtn = document.getElementById("settings-document-categories-back-btn");
-  const settingsBackupBackBtn = document.getElementById("settings-backup-back-btn");
   const appShellHeader = document.getElementById("app-shell-header");
   const appBrandBtn = document.getElementById("app-brand-btn");
   const appPropertySelector = document.getElementById("app-property-selector");
@@ -44,7 +42,6 @@
   const companiesBackBtn = document.getElementById("companies-back-btn");
   const manageTemplatesBtn = document.getElementById("manage-templates-btn");
   const historyBackBtn = document.getElementById("history-back-btn");
-  const templateLibraryBackBtn = document.getElementById("template-library-back-btn");
   const buildingForm = document.getElementById("building-form");
   const editBuildingForm = document.getElementById("edit-building-form");
   const tenancyForm = document.getElementById("tenancy-form");
@@ -602,7 +599,8 @@
 
   function setActiveAppModule(moduleKey) {
     activeAppModule = APP_MODULE_KEYS.indexOf(moduleKey) === -1 ? "" : moduleKey;
-    // Any screen that claims a module is a shell page, so the shell and its Property selector must be showing.
+    document.body.classList.toggle("settings-active", activeAppModule === "settings");
+    // Shell pages keep the main navigation visible. Settings hides the Property selector because it is application-wide.
     setAppShellVisible(true);
     renderAllBuildingFilterSelects();
     if (!appModuleNav) {
@@ -13440,7 +13438,6 @@
   companiesBackBtn.addEventListener("click", handleCompaniesBack);
   manageTemplatesBtn.addEventListener("click", handleManageTemplatesForProperty);
   historyBackBtn.addEventListener("click", handleHistoryBack);
-  templateLibraryBackBtn.addEventListener("click", handleTemplateLibraryBack);
   editBuildingBtn.addEventListener("click", handleOpenEdit);
   cancelEditBtn.addEventListener("click", handleCancelEdit);
   if (editArchivePropertyBtn instanceof HTMLButtonElement) {
@@ -13569,13 +13566,7 @@
     settingsPropertiesBackBtn.addEventListener("click", openSettingsView);
   }
 
-  if (settingsDocumentCategoriesBackBtn) {
-    settingsDocumentCategoriesBackBtn.addEventListener("click", openSettingsView);
-  }
 
-  if (settingsBackupBackBtn) {
-    settingsBackupBackBtn.addEventListener("click", openSettingsView);
-  }
 
   if (settingsAddDocumentCategoryBtn) {
     settingsAddDocumentCategoryBtn.addEventListener("click", openDocumentCategoryAddForm);

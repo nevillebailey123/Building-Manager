@@ -4482,3 +4482,9 @@ html {
   overscroll-behavior: auto !important;
   -webkit-overflow-scrolling: auto !important;
 }
+
+/* Settings is application-wide: hide the Property selector */
+body.settings-active .app-property-label,
+body.settings-active #app-property-selector {
+  display: none;
+}
