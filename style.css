@@ -4460,3 +4460,25 @@ html {
   max-height: none !important;
   overflow: visible !important;
 }
+
+/* Documents: use normal page scrolling */
+#lease-view.is-active {
+  height: auto !important;
+  min-height: 0 !important;
+  overflow: visible !important;
+}
+
+#lease-view > #lease-repository-card {
+  height: auto !important;
+  min-height: 0 !important;
+  overflow: visible !important;
+}
+
+#lease-view #lease-dashboard-panel {
+  height: auto !important;
+  max-height: none !important;
+  min-height: 0 !important;
+  overflow: visible !important;
+  overscroll-behavior: auto !important;
+  -webkit-overflow-scrolling: auto !important;
+}
