@@ -4621,3 +4621,17 @@ body.settings-active #app-property-selector {
   color: #ef4444;
   font-weight: 700;
 }
+
+/* =========================================================
+   Sticky application header
+   Keep Compliance HQ controls and main navigation visible
+   while operational page content scrolls.
+   ========================================================= */
+
+.app-shell-header {
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  background: #0f141c;
+  padding-top: 0.25rem;
+}
