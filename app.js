@@ -608,7 +608,17 @@
     }
     toolbar.classList.add("page-filter-toolbar");
     toolbar.prepend(propertyControl);
-    toolbar.append(appSettingsBtn);
+    const heading = view.querySelector(".view-header h1");
+    if (heading) {
+      let titleRow = heading.closest(".page-title-row");
+      if (!titleRow) {
+        titleRow = document.createElement("div");
+        titleRow.className = "page-title-row";
+        heading.before(titleRow);
+        titleRow.append(heading);
+      }
+      titleRow.append(appSettingsBtn);
+    }
     propertyControl.hidden = activeAppModule === "settings";
   }
 
