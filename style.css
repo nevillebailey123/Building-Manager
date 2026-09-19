@@ -4658,3 +4658,85 @@ body.settings-active #app-property-selector {
   #contacts-view .contacts-page-filters .documents-filter-row { grid-template-columns: minmax(0, 1fr); }
   .page-add-action { width: 100%; }
 }
+
+/* One shared toolbar geometry for all five main pages. */
+:root { --page-action-width: 190px; --page-control-height: 48px; }
+:is(#settings-properties-view, #schedule-view, #tenancy-view, #contacts-view, #lease-view) > .view-header {
+  min-height: 112px;
+  margin: 0 0 1.75rem;
+  padding: 0.75rem 0 0;
+  box-sizing: border-box;
+}
+#settings-properties-view > .section-card-primary,
+#schedule-view > .schedule-operations-card,
+#tenancy-view > .module-content-card,
+#contacts-view > .contacts-page-filters,
+#lease-view > #lease-repository-card {
+  padding: 1.6rem;
+  margin-top: 0;
+}
+#settings-properties-view .tab-row,
+#tenancy-view .tab-row,
+#schedule-view .schedule-filter-row,
+#lease-view .documents-toolbar,
+#contacts-view .contacts-page-filters .documents-filter-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) var(--page-action-width);
+  align-items: end;
+  gap: 1rem;
+  min-height: 76px;
+  width: 100%;
+  max-width: none;
+  margin: 0;
+  box-sizing: border-box;
+}
+#contacts-view .contacts-page-filters .documents-filter-row {
+  grid-template-columns: minmax(0, 1fr) var(--page-action-width);
+}
+#settings-add-property-btn,
+#add-tenancy-btn,
+#manage-templates-btn,
+#contacts-create-btn,
+#documents-add-btn {
+  grid-column: -2 / -1;
+  grid-row: 1;
+  justify-self: end;
+  align-self: end;
+  width: var(--page-action-width);
+  height: var(--page-control-height);
+  min-height: var(--page-control-height);
+  margin: 0;
+  padding: 0.65rem 0.75rem;
+  font-size: 0.95rem;
+  line-height: 1.25;
+  border-radius: 0.65rem;
+  box-sizing: border-box;
+  white-space: nowrap;
+}
+#settings-properties-view .tab-row > .tab-btn,
+#tenancy-view .tab-row > .tab-btn,
+#schedule-view .schedule-filter-select,
+#contacts-view .contacts-page-filters input,
+#lease-view .documents-toolbar :is(input, select) {
+  height: var(--page-control-height);
+  min-height: var(--page-control-height);
+  margin: 0;
+  box-sizing: border-box;
+}
+#lease-view .documents-category-control,
+#lease-view .documents-toolbar-search { align-self: end; }
+@media (max-width: 600px) {
+  #settings-properties-view .tab-row,
+  #tenancy-view .tab-row,
+  #schedule-view .schedule-filter-row,
+  #lease-view .documents-toolbar,
+  #contacts-view .contacts-page-filters .documents-filter-row {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  #settings-add-property-btn, #add-tenancy-btn, #manage-templates-btn,
+  #contacts-create-btn, #documents-add-btn {
+    grid-column: 1;
+    grid-row: auto;
+    width: 100%;
+  }
+}
