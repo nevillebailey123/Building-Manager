@@ -148,7 +148,6 @@
   const scheduleOpsList = document.getElementById("schedule-ops-list");
   const scheduleFilterCategory = document.getElementById("schedule-filter-category");
   const scheduleFilterStatus = document.getElementById("schedule-filter-status");
-  const scheduleFilterDuePeriod = document.getElementById("schedule-filter-due-period");
   const historyList = document.getElementById("history-list");
   const cancelCompleteTaskBtn = document.getElementById("cancel-complete-task-btn");
   const cancelCompanyBtn = document.getElementById("cancel-company-btn");
@@ -4619,7 +4618,6 @@
 
     ensureScheduleFilterValue(scheduleFilterCategory, scheduleFilters.category);
     ensureScheduleFilterValue(scheduleFilterStatus, scheduleFilters.status);
-    ensureScheduleFilterValue(scheduleFilterDuePeriod, scheduleFilters.duePeriod);
   }
 
   function matchesScheduleDuePeriod(diffDays, dueDateValue, duePeriod) {
@@ -13007,7 +13005,7 @@
       property: scheduleFilters.property,
       category: String(scheduleFilterCategory.value || "all"),
       status: String(scheduleFilterStatus.value || "all"),
-      duePeriod: String(scheduleFilterDuePeriod.value || "all"),
+      duePeriod: "all",
     };
 
     renderSchedulePage();
@@ -13762,7 +13760,6 @@
   scheduleOpsList.addEventListener("keydown", handleScheduleListKeydown);
   scheduleFilterCategory.addEventListener("change", handleScheduleFilterChange);
   scheduleFilterStatus.addEventListener("change", handleScheduleFilterChange);
-  scheduleFilterDuePeriod.addEventListener("change", handleScheduleFilterChange);
   historyList.addEventListener("click", handleHistoryListClick);
   historyList.addEventListener("keydown", handleHistoryListKeydown);
   tenancyDetailsList.addEventListener("click", handleTenancyDetailsClick);

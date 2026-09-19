@@ -11,7 +11,7 @@
     <link rel="manifest" href="manifest.json" />
     <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png" />
     <link rel="apple-touch-icon" sizes="192x192" href="icons/icon-192.png" />
-    <link rel="stylesheet" href="style.css?v=page-scroll-20260920" />
+    <link rel="stylesheet" href="style.css?v=filter-actions" />
   </head>
   <body>
     <section id="auth-screen" class="auth-screen" hidden>
@@ -122,7 +122,7 @@
             <p class="tagline">View and manage your properties.</p>
           </div>
           <div class="top-right-actions">
-            <button id="settings-add-property-btn" class="btn btn-primary" type="button">+ Add Property</button>
+
           </div>
         </header>
 
@@ -130,6 +130,7 @@
           <div class="tab-row" role="tablist" aria-label="Property status">
             <button id="properties-tab-active" class="tab-btn is-active" type="button">Active</button>
             <button id="properties-tab-archived" class="tab-btn" type="button">Archived</button>
+            <button id="settings-add-property-btn" class="btn btn-primary page-add-action" type="button">+ Add Property</button>
           </div>
           <section id="settings-property-list" class="building-list properties-list" aria-live="polite"></section>
         </section>
@@ -467,7 +468,7 @@
             <p id="tenancy-building-name" class="overview-building-name visually-hidden"></p>
           </div>
           <div class="top-right-actions">
-            <button id="add-tenancy-btn" class="btn btn-primary" type="button">+ Add Tenancy</button>
+
           </div>
         </header>
 
@@ -475,6 +476,7 @@
           <div class="tab-row" role="tablist" aria-label="Tenancy tabs">
             <button id="tenancy-tab-current" class="tab-btn is-active" type="button" role="tab" aria-selected="true">Current</button>
             <button id="tenancy-tab-history" class="tab-btn" type="button" role="tab" aria-selected="false">History</button>
+            <button id="add-tenancy-btn" class="btn btn-primary page-add-action" type="button">+ Add Tenancy</button>
           </div>
         </section>
 
@@ -577,7 +579,7 @@
             <p class="tagline">Central document register.</p>
           </div>
           <div class="top-right-actions">
-            <button id="documents-add-btn" class="btn btn-primary" type="button">+ Add Document</button>
+
           </div>
         </header>
 
@@ -590,6 +592,7 @@
               </select>
             </label>
             <input id="lease-search" class="search-input lease-search-input documents-toolbar-search" type="search" placeholder="Search documents" aria-label="Search documents" />
+            <button id="documents-add-btn" class="btn btn-primary page-add-action" type="button">+ Add Document</button>
           </div>
 
           <section id="lease-dashboard-panel" style="margin-top: 32px;">
@@ -669,15 +672,11 @@
             <p id="contacts-building-name" class="overview-building-name visually-hidden"></p>
           </div>
           <div class="top-right-actions">
-            <button id="contacts-create-btn" class="btn btn-primary" type="button">+ Add Contact</button>
+
           </div>
         </header>
 
-        <section id="contacts-empty-state" class="module-content-card section-card">
-          <p id="contacts-empty-message" class="module-placeholder">No contacts have been added.</p>
-        </section>
-
-        <section id="contacts-list-card" class="module-content-card section-card">
+        <section class="module-content-card section-card contacts-page-filters">
           <div class="building-filter-row documents-filter-row" aria-label="Contact filters">
             <label>
               <input
@@ -687,7 +686,16 @@
                 placeholder="Search by name, company, phone or email"
               />
             </label>
+          <button id="contacts-create-btn" class="btn btn-primary page-add-action" type="button">+ Add Contact</button>
           </div>
+        </section>
+
+        <section id="contacts-empty-state" class="module-content-card section-card">
+          <p id="contacts-empty-message" class="module-placeholder">No contacts have been added.</p>
+        </section>
+
+        <section id="contacts-list-card" class="module-content-card section-card">
+
           <section id="contacts-list" class="building-list" aria-live="polite"></section>
         </section>
 
@@ -837,7 +845,7 @@
             <p id="schedule-building-name" class="overview-building-name visually-hidden"></p>
           </div>
           <div class="top-right-actions schedule-header-actions">
-            <button id="manage-templates-btn" class="btn btn-primary" type="button">+ Add Calendar Item</button>
+
           </div>
         </header>
 
@@ -856,17 +864,7 @@
                 <option value="scheduled">Scheduled</option>
               </select>
             </label>
-            <label>
-              <span class="schedule-filter-label">Due Period</span>
-              <select id="schedule-filter-due-period" class="schedule-filter-select">
-                <option value="all">All</option>
-                <option value="today">Today</option>
-                <option value="7-days">Next 7 Days</option>
-                <option value="30-days">Next 30 Days</option>
-                <option value="this-month">This Month</option>
-                <option value="overdue">Overdue</option>
-              </select>
-            </label>
+            <button id="manage-templates-btn" class="btn btn-primary page-add-action" type="button">+ Add Calendar Item</button>
           </div>
 
           <section id="schedule-ops-list" class="schedule-ops-list" aria-live="polite"></section>
@@ -994,7 +992,7 @@
     <script src="supabase-storage.js?v=8"></script>
     <script src="indexeddb-storage.js"></script>
     <script src="storage.js"></script>
-    <script src="app.js?v=document-save-feedback"></script>
+    <script src="app.js?v=filter-actions"></script>
     <script>
       if ("serviceWorker" in navigator) {
         window.addEventListener("load", async function () {
