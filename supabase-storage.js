@@ -624,6 +624,23 @@ async function replaceRelationshipTable(table, rows) {
   return rows.length;
 }
 
+function resolveDocumentScheduleLinks(links, scheduleItems) {
+  const schedules = new Map(scheduleItems.map(function (item) {
+    return [String(item.id), String(item.property_id)];
+  }));
+  return links.map(function (link) {
+    const scheduleId = String(link.schedule_item_id || "").trim();
+    // Documents can outlive a deleted or regenerated calendar occurrence.
+    // Keep their property/tenancy link and original metadata without an invalid FK.
+    return {
+      ...link,
+      schedule_item_id: scheduleId && schedules.get(scheduleId) === String(link.property_id)
+        ? scheduleId
+        : null,
+    };
+  });
+}
+
 async function syncCurrentApplicationData() {
   if (!window.BuildingStorage) {
     throw new Error("BuildingStorage is unavailable.");
@@ -939,7 +956,7 @@ async function syncCurrentApplicationData() {
   await upsertMigrationRows("history_records", historyRecords);
   await upsertMigrationRows("documents", documents);
 
-  await replaceRelationshipTable("document_links", documentLinks);
+  await replaceRelationshipTable("document_links", resolveDocumentScheduleLinks(documentLinks, scheduleItems));
   await replaceRelationshipTable("contact_links", contactLinks);
 
   const deleted = {};
@@ -1289,7 +1306,7 @@ async function migrateExistingBrowserData() {
   counts.documents = await upsertMigrationRows("documents", documents);
 
   if (documentLinks.length > 0) {
-    const result = await window.ComplianceHQSupabase.client.from("document_links").insert(documentLinks);
+    const result = await window.ComplianceHQSupabase.client.from("document_links").insert(resolveDocumentScheduleLinks(documentLinks, scheduleItems));
     if (result.error) {
       throw new Error("document_links: " + result.error.message);
     }
