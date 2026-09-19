@@ -12218,7 +12218,7 @@
               </label>
               <label>Category
                 <select name="category">
-                  ${getDocumentCategories().map(function (option) {
+                  ${Array.from(new Set([categoryValue].concat(getDocumentCategories()).filter(Boolean))).map(function (option) {
                     const selected = option === categoryValue ? " selected" : "";
                     return `<option value="${escapeHtml(option)}"${selected}>${escapeHtml(option)}</option>`;
                   }).join("")}
