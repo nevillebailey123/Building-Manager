@@ -4034,6 +4034,7 @@
 
         const baseItem = {
           id: itemId,
+          linkedDocumentIds: retainedCandidate ? (retainedCandidate.linkedDocumentIds || []) : [],
           sourceType: "tenancy",
           tenancyId: tenancyId,
           tenancyEventType: eventType,
@@ -4135,6 +4136,7 @@
       const title = getDocumentRegisterTitle(record);
       const item = {
         id: itemId,
+        linkedDocumentIds: existing ? (existing.linkedDocumentIds || []) : [],
         sourceType: "document",
         documentId: documentId,
         documentSource: entry.source,
@@ -12014,6 +12016,67 @@
     }) || null;
   }
 
+
+  function getCalendarLinkDocuments(building) {
+    const docs = new Map();
+    const add = function (records) {
+      (records || []).forEach(function (record) {
+        if (record && record.id) docs.set(String(record.id), record);
+      });
+    };
+    add(building.documents);
+    const tenancies = getAllTenanciesForBuilding(building);
+    tenancies.forEach(function (tenancy) {
+      add(tenancy.documents);
+      add(tenancy.lease && tenancy.lease.documents);
+    });
+    return Array.from(docs.values());
+  }
+
+  function getCalendarDocumentIds(item, documents) {
+    const ids = new Set((item.linkedDocumentIds || []).map(String));
+    documents.forEach(function (doc) {
+      if (String(doc.scheduleItemId || "") === String(item.id)) ids.add(String(doc.id));
+    });
+    if (item.sourceType === "document" && item.documentId) ids.add(String(item.documentId));
+    return ids;
+  }
+
+  function renderCalendarLinkedDocuments(building, item) {
+    const documents = getCalendarLinkDocuments(building);
+    const ids = getCalendarDocumentIds(item, documents);
+    const linked = documents.filter(function (doc) { return ids.has(String(doc.id)); });
+    return `<section class="schedule-details-section" data-calendar-documents>
+      <h4>Linked Documents</h4>
+      ${linked.length ? linked.map(function (doc) {
+        return '<p><button class="inline-link" type="button" data-calendar-document-open="' + escapeHtml(doc.id) + '">' + escapeHtml(getDocumentRegisterTitle(doc)) + '</button></p>';
+      }).join("") : '<p class="module-placeholder">No documents linked yet.</p>'}
+      <details><summary>Choose documents</summary>
+        <p>Select existing documents for this property.</p>
+        ${documents.map(function (doc) {
+          const source = item.sourceType === "document" && String(item.documentId) === String(doc.id);
+          const assigned = String(doc.scheduleItemId || "") === String(item.id);
+          return '<label style="display:flex;align-items:center;gap:0.6rem;margin:0.6rem 0"><input style="width:auto" type="checkbox" data-calendar-document-choice value="' + escapeHtml(doc.id) + '"' + (ids.has(String(doc.id)) ? ' checked' : '') + (source || assigned ? ' disabled' : '') + ' />' + escapeHtml(getDocumentRegisterTitle(doc)) + (source || assigned ? ' (linked from Documents)' : '') + '</label>';
+        }).join("") || '<p>No documents have been saved for this property yet.</p>'}
+        ${documents.length ? '<button class="btn btn-primary" type="button" data-calendar-documents-save>Save Document Links</button>' : ''}
+      </details>
+      <p data-calendar-documents-status role="status"></p>
+    </section>`;
+  }
+
+  function updateCalendarDocumentLinks(building, itemId, selectedIds) {
+    const available = new Set(getCalendarLinkDocuments(building).map(function (doc) { return String(doc.id); }));
+    const ids = Array.from(new Set(selectedIds.map(String))).filter(function (id) { return available.has(id); });
+    return {
+      ...building,
+      scheduleItems: (building.scheduleItems || []).map(function (item) {
+        return String(item.id) === String(itemId)
+          ? { ...item, linkedDocumentIds: ids, lastUpdated: new Date().toISOString() }
+          : item;
+      }),
+    };
+  }
+
   function renderScheduleSourceDocumentSection(building, scheduleItem) {
     const document = getSourceDocumentForScheduleItem(building, scheduleItem);
 
@@ -12471,6 +12534,12 @@
     const backdrop = window.document.createElement("div");
     backdrop.className = "schedule-details-backdrop";
   backdrop.innerHTML = renderScheduleDetailsDialogHtml(building, scheduleItem, detailsData, viewMode);
+    if (viewMode === "details") {
+      const content = backdrop.querySelector(".schedule-details-modal");
+      const actions = content.querySelector(".schedule-details-bottom-actions");
+      if (actions) actions.insertAdjacentHTML("beforebegin", renderCalendarLinkedDocuments(building, scheduleItem));
+      else content.insertAdjacentHTML("beforeend", renderCalendarLinkedDocuments(building, scheduleItem));
+    }
     window.document.body.appendChild(backdrop);
 
     const modal = backdrop.querySelector(".schedule-details-modal");
@@ -12734,6 +12803,37 @@
 
       const target = event.target;
       if (!(target instanceof HTMLElement)) {
+        return;
+      }
+
+
+      const linkedDocumentButton = target.closest("[data-calendar-document-open]");
+      if (linkedDocumentButton) {
+        const latest = findBuildingById(building.id);
+        const doc = latest && getCalendarLinkDocuments(latest).find(function (record) {
+          return String(record.id) === linkedDocumentButton.getAttribute("data-calendar-document-open");
+        });
+        if (!doc) { window.alert("This document is no longer available."); return; }
+        await openOrDownloadLeaseDocument(doc, false);
+        return;
+      }
+      const saveDocumentLinks = target.closest("[data-calendar-documents-save]");
+      if (saveDocumentLinks) {
+        const section = backdrop.querySelector("[data-calendar-documents]");
+        const latest = findBuildingById(building.id);
+        if (!latest || !findScheduleItemById(latest, scheduleItem.id)) return;
+        const ids = Array.from(section.querySelectorAll("[data-calendar-document-choice]:checked")).map(function (input) { return input.value; });
+        saveDocumentLinks.disabled = true;
+        try {
+          persistBuildingWithWorkflowSync(updateCalendarDocumentLinks(latest, scheduleItem.id, ids));
+          if (window.BuildingStorage.waitForSupabaseSync) await window.BuildingStorage.waitForSupabaseSync();
+          const updated = findBuildingById(building.id);
+          section.outerHTML = renderCalendarLinkedDocuments(updated, findScheduleItemById(updated, scheduleItem.id));
+          backdrop.querySelector("[data-calendar-documents-status]").textContent = "Document links saved.";
+        } catch (error) {
+          section.querySelector("[data-calendar-documents-status]").textContent = "Unable to confirm saving: " + error.message;
+          saveDocumentLinks.disabled = false;
+        }
         return;
       }
 
