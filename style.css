@@ -4595,3 +4595,38 @@ body.settings-active #app-property-selector {
   display: none !important;
 }
 [data-add-calendar-dialog] [hidden] { display: none !important; }
+
+/* Use the browser's page scroll for every workspace. Nested fixed-height
+   lists could clip the final rows and form actions below the viewport. */
+#schedule-view.is-active,
+#contacts-view.is-active,
+#lease-view.is-active,
+#tenancy-view.is-active {
+  height: auto;
+  max-height: none;
+  overflow: visible;
+}
+#schedule-view > .schedule-operations-card,
+#schedule-view .schedule-ops-list,
+#contacts-view > #contacts-list-card,
+#contacts-view #contacts-list,
+#contacts-view > #contact-form-card,
+#lease-view > #lease-repository-card,
+#lease-view #lease-dashboard-panel,
+#tenancy-view > .tab-panel.is-active,
+#tenancy-details-card,
+#tenancy-details-list {
+  flex: 0 0 auto;
+  height: auto;
+  max-height: none;
+  min-height: 0;
+  overflow: visible;
+  overscroll-behavior: auto;
+}
+.app-shell {
+  padding-bottom: calc(3rem + env(safe-area-inset-bottom, 0px));
+}
+.schedule-details-modal,
+.schedule-complete-dialog {
+  max-height: calc(100dvh - 2rem);
+}
