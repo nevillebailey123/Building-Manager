@@ -594,9 +594,28 @@
   // Shared application shell: one nav definition drives every module page.
   const APP_MODULE_KEYS = ["Properties", "Schedule", "Tenancy", "Contacts", "Documents", "settings"];
 
+  function positionSharedPageControls() {
+    const view = document.querySelector(".view.is-active");
+    const propertyControl = appPropertySelector.closest(".app-shell-property");
+    if (!view || !propertyControl) return;
+    let toolbar = view.querySelector(".page-filter-toolbar, .schedule-filter-row, .documents-toolbar, .contacts-page-filters .documents-filter-row, .tab-row");
+    if (!toolbar) {
+      toolbar = document.createElement("div");
+      toolbar.className = "page-filter-toolbar page-filter-toolbar-standalone";
+      const header = view.querySelector(".view-header");
+      if (header) header.after(toolbar);
+      else view.prepend(toolbar);
+    }
+    toolbar.classList.add("page-filter-toolbar");
+    toolbar.prepend(propertyControl);
+    toolbar.append(appSettingsBtn);
+    propertyControl.hidden = activeAppModule === "settings";
+  }
+
   function setActiveAppModule(moduleKey) {
     activeAppModule = APP_MODULE_KEYS.indexOf(moduleKey) === -1 ? "" : moduleKey;
     document.body.classList.toggle("settings-active", activeAppModule === "settings");
+    positionSharedPageControls();
     // Shell pages keep the main navigation visible. Settings hides the Property selector because it is application-wide.
     setAppShellVisible(true);
     renderAllBuildingFilterSelects();
