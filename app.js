@@ -12058,8 +12058,8 @@
           const assigned = String(doc.scheduleItemId || "") === String(item.id);
           return '<label style="display:flex;align-items:center;gap:0.6rem;margin:0.6rem 0"><input style="width:auto" type="checkbox" data-calendar-document-choice value="' + escapeHtml(doc.id) + '"' + (ids.has(String(doc.id)) ? ' checked' : '') + (source || assigned ? ' disabled' : '') + ' />' + escapeHtml(getDocumentRegisterTitle(doc)) + (source || assigned ? ' (linked from Documents)' : '') + '</label>';
         }).join("") || '<p>No documents have been saved for this property yet.</p>'}
-        ${documents.length ? '<button class="btn btn-primary" type="button" data-calendar-documents-save>Save Document Links</button>' : ''}
       </details>
+        ${documents.length ? '<button class="btn btn-primary" type="button" data-calendar-documents-save>Save Document Links</button>' : ''}
       <p data-calendar-documents-status role="status"></p>
     </section>`;
   }
@@ -12824,6 +12824,8 @@
         if (!latest || !findScheduleItemById(latest, scheduleItem.id)) return;
         const ids = Array.from(section.querySelectorAll("[data-calendar-document-choice]:checked")).map(function (input) { return input.value; });
         saveDocumentLinks.disabled = true;
+        saveDocumentLinks.textContent = "Saving…";
+        section.querySelector("[data-calendar-documents-status]").textContent = "Saving document links…";
         try {
           persistBuildingWithWorkflowSync(updateCalendarDocumentLinks(latest, scheduleItem.id, ids));
           if (window.BuildingStorage.waitForSupabaseSync) await window.BuildingStorage.waitForSupabaseSync();
@@ -12833,6 +12835,7 @@
         } catch (error) {
           section.querySelector("[data-calendar-documents-status]").textContent = "Unable to confirm saving: " + error.message;
           saveDocumentLinks.disabled = false;
+          saveDocumentLinks.textContent = "Retry Save Document Links";
         }
         return;
       }
