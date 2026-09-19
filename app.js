@@ -11720,7 +11720,11 @@
     }
 
     const templateId = currentScheduleItem.propertyTemplateId || currentScheduleItem.templateId || detailsData.template.id;
-    const nextDueDate = calculateNextDueDateFromSettings(initialDueDate, frequency, detailsData.latestRecord, recurringDates, currentScheduleItem.dueDate);
+    // An explicit date edit resets the upcoming occurrence. Other edits must
+    // preserve the current due date, which may have advanced through completion.
+    const previousInitialDueDate = fallbackInitialDueDate || templateInitialDueDate;
+    const dateChanged = initialDueDate !== previousInitialDueDate;
+    const nextDueDate = calculateNextDueDateFromSettings(initialDueDate, frequency, detailsData.latestRecord, recurringDates, dateChanged ? initialDueDate : currentScheduleItem.dueDate);
     const updatedBuilding = applyScheduleDetailsUpdates(latestBuilding, templateId, {
       name: title,
       category: category,
