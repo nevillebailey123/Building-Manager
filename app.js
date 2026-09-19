@@ -2019,6 +2019,7 @@
   }
 
   function showSetupStep(step) {
+    if (step === 4 || step === 5) step = 3;
     setupState.currentStep = step;
     setupStep1.classList.toggle("is-active", step === 1);
     setupStep2.classList.toggle("is-active", step === 2);
@@ -2990,7 +2991,7 @@
   }
 
   function handleSetupStepThreeNext() {
-    showSetupStep(4);
+    finalizeSetupAndCreateBuilding();
   }
 
   function handleSetupStepFourNext() {
@@ -10995,83 +10996,111 @@
     }, 2400);
   }
 
+  function createCalendarItemForProperty(building, values) {
+    const normalized = ensureWorkflowCollections(building);
+    const itemSettings = createPropertyTemplateFromMaster(null, {
+      propertyId: building.id,
+      name: values.title.trim(),
+      category: values.category,
+      defaultFrequency: values.frequency,
+      initialDueDate: values.dueDate,
+      nextDueDate: values.dueDate,
+      preferredContactId: values.contactId,
+      defaultReminderPeriod: values.reminder,
+      defaultNotes: values.notes,
+      customRecurringDates: values.customDates || [],
+      active: "Yes",
+    });
+    const item = createScheduleItemFromPropertyTemplate(itemSettings, building.id);
+    return {
+      ...normalized,
+      propertyTemplates: getPropertyTemplates(normalized).concat(itemSettings),
+      scheduleItems: normalized.scheduleItems.concat(item),
+    };
+  }
+
   async function handleManageTemplatesForProperty() {
-    if (!activeBuildingId) {
-      alert("Select a property before managing templates for a property calendar.");
+    const properties = window.BuildingStorage.getBuildings().filter(function (building) { return !building.archived; });
+    if (!properties.length) {
+      alert("Add a property before adding a calendar item.");
       return;
     }
-
-    const propertyId = activeBuildingId;
-
-    const activeBuilding = findBuildingById(propertyId);
-    if (!activeBuilding) {
-      return;
+    if (window.document.querySelector("[data-add-calendar-dialog]")) return;
+    const backdrop = window.document.createElement("div");
+    backdrop.className = "schedule-details-backdrop";
+    backdrop.setAttribute("data-add-calendar-dialog", "");
+    backdrop.innerHTML = `
+      <div class="schedule-details-modal" role="dialog" aria-modal="true" aria-labelledby="add-calendar-title">
+        <h3 id="add-calendar-title">Add Calendar Item</h3>
+        <form class="schedule-details-edit-form">
+          <label>What needs doing?<input name="title" required maxlength="200" /></label>
+          <label>Property<select name="propertyId" required><option value="">Select a property</option>
+            ${properties.map(function (b) { return '<option value="' + escapeHtml(b.id) + '"' + (b.id === activeBuildingId ? ' selected' : '') + '>' + escapeHtml(b.buildingName) + '</option>'; }).join("")}
+          </select></label>
+          <label>Due date<input name="dueDate" type="date" required /></label>
+          <label>Repeat<select name="frequency">${TEMPLATE_FREQUENCY_OPTIONS.map(function (v) { return '<option>' + escapeHtml(v) + '</option>'; }).join("")}</select></label>
+          <label data-custom-dates hidden>Dates each year (MM-DD, separated by commas)<input name="customDates" placeholder="03-15, 09-15" /></label>
+          <label>Category<select name="category">${getDocumentCategories().map(function (v) { return '<option>' + escapeHtml(v) + '</option>'; }).join("")}</select></label>
+          <label>Primary contact<select name="contactId"><option value="">Not set</option>${getContacts().map(function (c) { return '<option value="' + escapeHtml(c.id) + '">' + escapeHtml(c.name) + '</option>'; }).join("")}</select></label>
+          <label>Reminder<input name="reminder" placeholder="e.g. 30 days before" /></label>
+          <label>Notes<textarea name="notes" rows="3"></textarea></label>
+          <p data-form-error role="alert" hidden></p>
+          <div class="schedule-details-form-actions">
+            <button class="btn btn-secondary" type="button" data-cancel>Cancel</button>
+            <button class="btn btn-primary" type="submit">Save Calendar Item</button>
+          </div>
+        </form>
+      </div>`;
+    window.document.body.appendChild(backdrop);
+    const modal = backdrop.querySelector(".schedule-details-modal");
+    const layer = pushModalLayer(backdrop, modal);
+    const releaseFocusTrap = enableModalFocusTrap(modal, function () { return isTopModalLayer(layer); });
+    const form = backdrop.querySelector("form");
+    function close() {
+      releaseFocusTrap();
+      popModalLayer(layer, true);
+      window.document.removeEventListener("keydown", onKey);
+      backdrop.remove();
     }
-
-    const selected = await showMasterTemplatePickerDialog(activeBuilding);
-    if (!Array.isArray(selected)) {
-      return;
-    }
-
-    const currentBuilding = findBuildingById(propertyId);
-    if (!currentBuilding) {
-      return;
-    }
-
-    const currentlyAssigned = getAssignedMasterTemplateIdsForBuilding(currentBuilding);
-    const selectedIds = new Set((selected || []).map(function (id) {
-      return String(id || "").trim();
-    }).filter(function (id) {
-      return Boolean(id);
-    }));
-
-    const toAdd = Array.from(selectedIds).filter(function (id) {
-      return !currentlyAssigned.has(id);
+    function onKey(event) { if (event.key === "Escape" && isTopModalLayer(layer)) close(); }
+    window.document.addEventListener("keydown", onKey);
+    backdrop.querySelector("[data-cancel]").addEventListener("click", close);
+    backdrop.addEventListener("click", function (event) { if (event.target === backdrop) close(); });
+    form.elements.frequency.addEventListener("change", function () {
+      const custom = form.elements.frequency.value === "Custom";
+      backdrop.querySelector("[data-custom-dates]").hidden = !custom;
+      form.elements.customDates.required = custom;
     });
-    const toRemove = Array.from(currentlyAssigned).filter(function (id) {
-      return !selectedIds.has(id);
-    });
-
-    if (toAdd.length === 0 && toRemove.length === 0) {
-      return;
-    }
-
-    let workingBuilding = ensureWorkflowCollections(currentBuilding);
-
-    if (toRemove.length > 0) {
-      const removed = removeMasterTemplatesFromBuilding(workingBuilding, toRemove);
-      if (removed) {
-        workingBuilding = ensureWorkflowCollections(removed);
+    form.addEventListener("submit", function (event) {
+      event.preventDefault();
+      if (!form.reportValidity()) return;
+      const values = Object.fromEntries(new FormData(form));
+      const building = findBuildingById(values.propertyId);
+      const error = backdrop.querySelector("[data-form-error]");
+      if (!building || !values.title.trim()) {
+        error.textContent = "Enter a title and choose a property."; error.hidden = false; return;
       }
-    }
-
-    if (toAdd.length === 0) {
-      persistBuildingWithWorkflowSync(workingBuilding);
+      values.customDates = [];
+      if (values.frequency === "Custom") {
+        const parts = form.elements.customDates.value.split(",").map(function (v) { return v.trim(); });
+        const valid = parts.every(function (v) {
+          const match = /^(\d{2})-(\d{2})$/.exec(v);
+          if (!match) return false;
+          const month = Number(match[1]), day = Number(match[2]);
+          const date = new Date(2000, month - 1, day);
+          if (date.getMonth() !== month - 1 || date.getDate() !== day) return false;
+          values.customDates.push({ month: month, day: day });
+          return true;
+        });
+        if (!valid) { error.textContent = "Enter valid dates as MM-DD, for example 03-15, 09-15."; error.hidden = false; return; }
+      }
+      persistBuildingWithWorkflowSync(createCalendarItemForProperty(building, values));
+      close();
       renderBuildings();
-      openScheduleView(propertyId);
+      openScheduleView(building.id);
       showManageTemplatesSaveConfirmation();
-      return;
-    }
-
-    const scheduleSettings = await showPropertyTemplateEditorDialog(workingBuilding, toAdd);
-    if (!scheduleSettings || scheduleSettings.length === 0) {
-      return;
-    }
-
-    const addResult = addMasterTemplatesToBuilding(workingBuilding, toAdd, scheduleSettings);
-    if (!addResult || addResult.addedTemplateIds.length === 0) {
-      persistBuildingWithWorkflowSync(workingBuilding);
-      renderBuildings();
-      openScheduleView(propertyId);
-      showManageTemplatesSaveConfirmation();
-      return;
-    }
-
-    persistBuildingWithWorkflowSync(addResult.building);
-
-    renderBuildings();
-    openScheduleView(propertyId);
-    showManageTemplatesSaveConfirmation();
+    });
+    form.elements.title.focus();
   }
 
   function completeScheduleItemInline(itemId, buildingId) {

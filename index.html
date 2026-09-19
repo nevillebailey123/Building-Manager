@@ -11,7 +11,7 @@
     <link rel="manifest" href="manifest.json" />
     <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png" />
     <link rel="apple-touch-icon" sizes="192x192" href="icons/icon-192.png" />
-    <link rel="stylesheet" href="style.css" />
+    <link rel="stylesheet" href="style.css?v=single-calendar-form" />
   </head>
   <body>
     <section id="auth-screen" class="auth-screen" hidden>
@@ -241,7 +241,6 @@
             <li class="setup-progress-item is-active" data-progress-step="1">Property</li>
             <li class="setup-progress-item" data-progress-step="2">Tenancy</li>
             <li class="setup-progress-item" data-progress-step="3">Contacts</li>
-            <li class="setup-progress-item" data-progress-step="4">Calendar</li>
             <li class="setup-progress-item" data-progress-step="5">Finish</li>
           </ol>
         </section>
@@ -377,7 +376,7 @@
             <h3>Linked Contacts</h3>
             <section id="setup-linked-contacts-list" class="building-list"></section>
             <div class="form-actions">
-              <button id="setup-step-3-next-btn" class="btn btn-primary" type="button">Continue to Calendar Items</button>
+              <button id="setup-step-3-next-btn" class="btn btn-primary" type="button">Finish Property Setup</button>
             </div>
           </section>
         </section>
@@ -995,7 +994,7 @@
     <script src="supabase-storage.js?v=8"></script>
     <script src="indexeddb-storage.js"></script>
     <script src="storage.js"></script>
-    <script src="app.js?v=23"></script>
+    <script src="app.js?v=single-calendar-form"></script>
     <script>
       if ("serviceWorker" in navigator) {
         window.addEventListener("load", async function () {

@@ -4586,3 +4586,12 @@ body.settings-active #app-property-selector {
   background: #0f141c;
   padding-top: 0.25rem;
 }
+
+/* Calendar items are created directly using one form. */
+#settings-templates-btn,
+#template-library-view,
+#setup-step-4,
+#setup-step-5 {
+  display: none !important;
+}
+[data-add-calendar-dialog] [hidden] { display: none !important; }
