@@ -600,28 +600,29 @@ function cleanTimestamp(value) {
 
 
 async function replaceRelationshipTable(table, rows) {
-  const deleteResult = await window.ComplianceHQSupabase.client
-    .from(table)
-    .delete()
-    .gte("id", 0);
-
-  if (deleteResult.error) {
-    throw new Error(table + " relationship clear: " + deleteResult.error.message);
+  const existing = await window.ComplianceHQSupabase.client.from(table).select("id");
+  if (existing.error) throw new Error(table + " relationship check: " + existing.error.message);
+  const previousIds = (existing.data || []).map(function (row) { return row.id; });
+  const nextRows = Array.isArray(rows) ? rows : [];
+  // Insert first: a rejected replacement must leave the saved links intact.
+  if (nextRows.length) {
+    const inserted = await window.ComplianceHQSupabase.client.from(table).insert(nextRows);
+    if (inserted.error) throw new Error(table + " relationship insert: " + inserted.error.message);
   }
-
-  if (!Array.isArray(rows) || rows.length === 0) {
-    return 0;
+  if (previousIds.length) {
+    const removed = await window.ComplianceHQSupabase.client.from(table).delete().in("id", previousIds);
+    if (removed.error) throw new Error(table + " relationship cleanup: " + removed.error.message);
   }
+  return nextRows.length;
+}
 
-  const insertResult = await window.ComplianceHQSupabase.client
-    .from(table)
-    .insert(rows);
-
-  if (insertResult.error) {
-    throw new Error(table + " relationship insert: " + insertResult.error.message);
+async function assertDocumentLinksIntact() {
+  const results = await Promise.all([readSupabaseTable("documents"), readSupabaseTable("document_links")]);
+  const linkedIds = new Set(results[1].map(function (link) { return String(link.document_id); }));
+  const missing = results[0].filter(function (document) { return !linkedIds.has(String(document.id)); });
+  if (missing.length) {
+    throw new Error(missing.length + " saved document(s) need their property links restored. Cloud synchronization is paused to protect those documents.");
   }
-
-  return rows.length;
 }
 
 function resolveDocumentScheduleLinks(links, scheduleItems) {
@@ -650,6 +651,8 @@ async function syncCurrentApplicationData() {
   if (!session) {
     throw new Error("You must be signed in before synchronizing data.");
   }
+
+  await assertDocumentLinksIntact();
 
   const buildings = window.BuildingStorage.getBuildings();
   const master = window.BuildingStorage.getMasterData();

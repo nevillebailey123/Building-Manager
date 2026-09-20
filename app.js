@@ -617,7 +617,14 @@
         heading.before(titleRow);
         titleRow.append(heading);
       }
-      titleRow.append(appSettingsBtn);
+      const header = heading.closest(".view-header");
+      let actions = header.querySelector(".top-right-actions");
+      if (!actions) {
+        actions = document.createElement("div");
+        actions.className = "top-right-actions";
+        header.append(actions);
+      }
+      actions.append(appSettingsBtn);
     }
     propertyControl.hidden = activeAppModule === "settings";
   }

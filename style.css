@@ -4826,3 +4826,33 @@ body.settings-active #app-property-selector {
   padding: 0;
 }
 #app-shell .view .page-title-row .app-settings-icon { width: 40px; height: 40px; }
+
+/* Match Home HQ: Settings occupies the far-right header action column. */
+#app-shell .view > .view-header {
+  display: flex;
+  flex-direction: row;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+}
+#app-shell .view > .view-header > .top-right-actions {
+  display: flex;
+  justify-content: flex-end;
+  align-items: flex-start;
+  flex: 0 0 190px;
+  width: 190px;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+}
+#app-shell .view > .view-header .app-settings-btn {
+  width: 4.8rem;
+  height: 4.8rem;
+  flex: 0 0 4.8rem;
+  padding: 0;
+  margin: 0;
+}
+#app-shell .view > .view-header .app-settings-icon { width: 3rem; height: 3rem; }
+@media (max-width: 600px) {
+  #app-shell .view > .view-header > .top-right-actions { flex-basis: 4.8rem; width: 4.8rem; }
+}
