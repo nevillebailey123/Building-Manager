@@ -12673,7 +12673,10 @@
 
       function updateSaveState() {
         if (saveButton instanceof HTMLButtonElement) {
-          saveButton.disabled = valuesMatch(getFormSnapshot(), initialValues);
+          const snapshot = getFormSnapshot();
+          const needsDateRepair = snapshot.frequency === "Custom"
+            && calculateNextDueDateFromSettings(snapshot.initialDueDate, "Custom", null, snapshot.recurringDates, scheduleItem.dueDate) !== scheduleItem.dueDate;
+          saveButton.disabled = valuesMatch(snapshot, initialValues) && !needsDateRepair;
         }
       }
 
