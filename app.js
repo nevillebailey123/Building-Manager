@@ -11975,7 +11975,9 @@
     }
 
     const relationship = String(getBuildingRelationshipForContact(building, contact) || "").trim();
-    const companyName = String(getCompanyNameById(contact.companyId, "") || "").trim();
+    const company = findCompanyById(contact.companyId);
+    const companyName = String(contact.companyName || "").trim()
+      || String(company && company.name || "").trim();
     const phone = String(contact.mobile || contact.officePhone || "").trim();
     const email = String(contact.email || "").trim();
     const relationshipOrCompany = [companyName, relationship]

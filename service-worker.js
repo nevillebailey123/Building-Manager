@@ -1,5 +1,5 @@
-const APP_SHELL_CACHE = "building-manager-shell-v23";
-const RUNTIME_CACHE = "building-manager-runtime-v23";
+const APP_SHELL_CACHE = "building-manager-shell-v24";
+const RUNTIME_CACHE = "building-manager-runtime-v24";
 
 const APP_SHELL_ASSETS = [
   "./",
