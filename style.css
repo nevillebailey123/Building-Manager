@@ -4409,7 +4409,8 @@ html {
 }
 
 #overview-view #edit-building-btn {
-  transform: translateY(-12px);
+  transform: none;
+  min-width: 0;
 }
 
 /* Documents: use normal page scrolling */
