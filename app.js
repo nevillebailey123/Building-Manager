@@ -3381,7 +3381,7 @@
 
     const selected = matchingDate || dates[0];
     const selectedYear = matchingDate ? baseYear : baseYear + 1;
-    return new Date(selectedYear, selected.month - 1, selected.day).toISOString().slice(0, 10);
+    return `${selectedYear}-${String(selected.month).padStart(2, "0")}-${String(selected.day).padStart(2, "0")}`;
   }
 
   function getFrequencyDays(frequency) {
@@ -11666,7 +11666,7 @@
     },
   };
 
-  function calculateNextDueDateFromSettings(initialDueDate, frequency, _latestRecord, recurringDates, currentDueDate) {
+  function calculateNextDueDateFromSettings(initialDueDate, frequency, _latestRecord, recurringDates, currentDueDate, recurringDatesChanged) {
     const normalizedInitialDueDate = String(initialDueDate || "").trim();
     const normalizedCurrentDueDate = String(currentDueDate || "").trim();
     const baseDate = normalizedCurrentDueDate || normalizedInitialDueDate;
@@ -11676,7 +11676,15 @@
     }
 
     if (frequency === "Custom") {
-      return getNextDueDatePlaceholder(baseDate, frequency, recurringDates, true);
+      const dates = normalizeRecurringDateEntries(recurringDates);
+      const currentMatches = dates.some(function (entry) {
+        return baseDate.slice(5) === `${String(entry.month).padStart(2, "0")}-${String(entry.day).padStart(2, "0")}`;
+      });
+      // A changed annual schedule, or an old timezone-shifted date, needs a
+      // fresh occurrence. Preserve valid existing dates, including overdue work.
+      const now = new Date();
+      const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+      return getNextDueDatePlaceholder(recurringDatesChanged || !currentMatches ? today : baseDate, frequency, recurringDates, true);
     }
 
     return normalizedCurrentDueDate || normalizedInitialDueDate;
@@ -11760,7 +11768,12 @@
     // preserve the current due date, which may have advanced through completion.
     const previousInitialDueDate = fallbackInitialDueDate || templateInitialDueDate;
     const dateChanged = initialDueDate !== previousInitialDueDate;
-    const nextDueDate = calculateNextDueDateFromSettings(initialDueDate, frequency, detailsData.latestRecord, recurringDates, dateChanged ? initialDueDate : currentScheduleItem.dueDate);
+    const recurringDatesChanged = frequency === "Custom" && (
+      currentScheduleItem.frequency !== "Custom"
+      || JSON.stringify(normalizeRecurringDateEntries(getRecurringDatesFromTemplate(detailsData.template)))
+        !== JSON.stringify(normalizeRecurringDateEntries(recurringDates))
+    );
+    const nextDueDate = calculateNextDueDateFromSettings(initialDueDate, frequency, detailsData.latestRecord, recurringDates, dateChanged ? initialDueDate : currentScheduleItem.dueDate, recurringDatesChanged);
     const updatedBuilding = applyScheduleDetailsUpdates(latestBuilding, templateId, {
       name: title,
       category: category,
